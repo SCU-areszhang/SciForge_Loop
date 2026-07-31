@@ -4,7 +4,7 @@ Owner labels:
 
 - `[A]` Developer A, Create Loop Catalog/runtime owner; task 0.8D is the sole named exception for an existing Git Checkpoints baseline-correctness semantic repair
 - `[B]` Developer B, Workflow Evolution owner
-- `[I]` integration/platform hat, not a third developer; for all of Stage1 this hat is owned by Developer A
+- `[I]` integration/platform hat, not a third developer; for all of Stage1 this hat is owned by Developer B, who also owns `[B]` but must use a separate task, branch, and commit for each role
 
 Every task has exactly one author. A task may require the other developer's review, but review does not transfer authorship or path ownership. `[I]` changes only generic Host/SDK/Broker/CI/generator/integration files and never authors Catalog or Workflow Evolution semantics. Tasks 0.8M, 0.8C, and 0.10R are the only repository-wide `[I]` migration exceptions. Tasks 0.8M/0.8C may change only strict manifest/schema/generator, signed-distribution/dependency/outbound-edge metadata, and descriptor ACL/purpose metadata. Task 0.10R may change package code only to replace an existing resource acquisition with the behavior-preserving generic Host primitive named by its signed lifecycle declaration; it may not change a handler contract, payload, business branch/policy, domain state/schema, retry semantics, or user-visible outcome. Both developers and the recorded owner of every affected package review its diff. Task 0.8D is an independently authored `[A]` Git Checkpoints semantic commit that repairs only the named baseline success envelope and idempotency regression; `[I]` must integrate that exact commit unchanged in 0.8I and may not absorb it into a migration.
 

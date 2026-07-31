@@ -23,7 +23,7 @@ Stage1 只有两名开发者：
 
 - 开发者 A 拥有 Create Loop Catalog/runtime；
 - 开发者 B 拥有 Workflow Evolution；
-- `[I]` 不是第三个人，而是开发者 A 同时戴上的 integration/platform 帽子；`[I]` 只做通用平台和机械集成，不能替 A 或 B 编写 domain 语义。
+- `[I]` 不是第三个人，而是开发者 B 另行戴上的 integration/platform 帽子；人员相同不合并权限，`[B]` 与 `[I]` 必须使用不同 task、对话、分支和 commit。`[I]` 只做通用平台和机械集成，不能替 A 或 B 编写 domain 语义。
 
 基础平台仍须先把 `0.7A + 0.8A + 0.8B + 0.8M + 0.8S + 0.8D + 0.8C + 0.9` 八个 producer 作为不可拆分的 0.8I train 原子合入。其中 0.8S 只负责 purpose-aware inventory release/provenance/KMS-HSM signing，0.8D 是 A 独立提交且 I 必须逐字节保留的 Git Checkpoints 修复。之后基础门只包含 0.10、完整五包 Host-resource rewiring 0.10R、generic Agent contract 0.11、A/B contracts 和基础 matrix：0.12 等待 `0.8I/0.10/0.10R/0.11/0.14B`，0.15 关闭 P1/P2 合并门。
 
@@ -96,9 +96,11 @@ A-owned Create Loop Catalog provider + one execution engine
 |---|---|---|---|
 | `[A]` | 开发者 A | `packages/domains/create-loop/**`；Catalog schema、policy、provider、store、engine、stable bindings、Promotion/rollback mechanics | 不编写 B 的 Run/FSM/documents/decision |
 | `[B]` | 开发者 B | `packages/domains/workflow-evolution/**`；Run/Attempt/Gate/Operation、Ledger、routing、budget、Agent orchestration、trusted harness、UI | 不实例化 Catalog，不导入 A store/runtime/validator，不切 Anchor |
-| `[I]` | 开发者 A | 通用 Host/SDK/Broker/CI/generator/integration files、lock/generated outputs、cross-package harness | 不替 A/B domain owner 修改领域语义，不加入 domain-ID 特判 |
+| `[I]` | 开发者 B（integration/platform 模式） | 通用 Host/SDK/Broker/CI/generator/integration files、lock/generated outputs、cross-package harness | 不替 A/B domain owner 修改领域语义，不加入 domain-ID 特判，不把 `[B]` semantic diff 混入 I branch/commit |
 
 一个 task 只有一个 author。Review 不转移 author 和 path ownership。
+
+开发者 B 同时承担 `[B]` 与 `[I]` 只表示同一人可以在不同任务中切换帽子，不表示同一任务可以有两个 Owner。一次 Coding Agent 对话、一个工作分支和一个 commit 必须固定为一个 Owner role；从 `[B]` 切到 `[I]` 或反向切换时，必须结束当前任务并从已验证的 integration base 另开对话和分支。
 
 ### 3.2 分支
 
@@ -151,6 +153,51 @@ A/B semantic commit 不手改生成文件和 checkbox。I 只有在 owner eviden
 | Verification | `9.2` | B package focused/type/restart/FSM/budget/Agent/sealed/export boundary gate |
 
 B 不领取表外的 A/I task。依赖方尚未提供 immutable evidence SHA 时，B 只能写 pure contract/reducer/fake tests，不能用 production fake 或临时 Host bypass“先完成”真实路径。
+
+### 3.5 Coding Agent 单任务调度
+
+三种 Owner role 使用三份独立提示词：
+
+| Owner role | 实际开发者 | 提示词 | 分支 |
+|---|---|---|---|
+| `[A]` | 开发者 A | [`stage1-create-loop-coding-agent-task.zh-CN.md`](prompts/stage1-create-loop-coding-agent-task.zh-CN.md) | `stage1/a-<task>-<topic>` |
+| `[B]` | 开发者 B | [`stage1-workflow-evolution-coding-agent-task.zh-CN.md`](prompts/stage1-workflow-evolution-coding-agent-task.zh-CN.md) | `stage1/b-<task>-<topic>` |
+| `[I]` | 开发者 B（integration/platform 模式） | [`stage1-integration-coding-agent-task.zh-CN.md`](prompts/stage1-integration-coding-agent-task.zh-CN.md) | `stage1/i-<task>-<topic>` 或 `stage1/i-train-<task>` |
+
+每次只把 `tasks.md` 中一个且仅一个与提示词 Owner 匹配的 Task ID 交给 Coding Agent。没有 Task ID 时只做只读启动检查；零个或多个可执行候选都必须停止。Agent 不得在同一对话中执行相邻任务、从一个 Owner role 切换到另一个角色、把 review 当 authorship，或把同一实际开发者的 `[B]` 与 `[I]` 修改放入同一分支/commit。
+
+当一个 domain semantic task 需要 combined train 时，A/B Agent 只交付 owned semantic SHA；必须结束该 Agent 任务，再由独立 `[I]` 对话从已验证 integration base 建 train。I Agent 只原样集成 owner SHA 和添加 task 允许的机械修改，不能在 train 上修 domain semantic defect。
+
+### 3.6 B 开始 `0.4` 前的 A/I handoff
+
+B 的第一个领域任务 `0.4` 只在 `tasks.md` 的直接依赖 `0.8M + 0.14A` 都能由已合入 immutable evidence 证明时开始。达到该状态前，A 与 I 的最小有序交付如下：
+
+| 顺序 | Owner | Task/交付 | 合入要求 |
+|---|---|---|---|
+| 1 | `[I]` | `0.1`、`0.2` | 依次合入 `stage1/integration`，建立受保护基线、精确 toolchain、普通 PR CI 与 license gate |
+| 2 | `[I]` | 准备 `0.7A`、`0.8A`、`0.8B`、`0.8M` | 只形成各自 task 允许的 immutable producers，不单独 merge/activate/ship |
+| 3 | `[A]` | `0.8D` | 从含 `0.1/0.2` 的 base 形成独立 Git Checkpoints semantic SHA；不改 V2/ACL/generated，不能单独合入 |
+| 4 | `[I]` | `0.8S`、`0.8C`、`0.9` 与 atomic `0.8I` | 验证依赖后，把八个 exact producers 与一个独立 mechanical commit 原子合入 |
+| 5 | `[I]` | `0.11` | 从已合入 `0.8I` 建 generic Agent operation contract；不声称 real provider ready |
+| 6 | `[A]` | `0.3`、`0.5` | 从含 `0.8I + 0.11` 的 integration 依次形成 Create Loop public contract 与 fixture semantic SHAs，不单独合入 |
+| 7 | `[I]` | `0.14A` | 原样集成 A 的 exact `0.3 + 0.5` SHAs，加独立 mechanical generated/lock/signing evidence，并合入 integration |
+
+`0.10/0.10R` 是基础门的并行 I lane，直接阻塞后续 `0.12/0.15` 与 production merge，但不在 `tasks.md` 的 `0.4` direct `dependsOn` 中；不得把“可 author 0.4”误写成 P1/P2 production 已可 merge。
+
+在创建 `stage1/b-0.4-contract-shell` 前，B Agent 必须验证：
+
+```text
+0.8M producer SHA:
+0.8I train SHA:
+0.11 producer SHA:
+0.3 semantic SHA:
+0.5 semantic SHA:
+0.14A train SHA:
+Create Loop ./catalog-contract export/digest:
+Current stage1/integration SHA:
+```
+
+上述 SHA 必须通过 commit-object 与 ancestry 检查，`./catalog-contract` 必须在当前 integration 真实存在且可由 source/package export 解析；聊天结论、未提交 diff、semantic draft branch 或未合入 train 不能解锁 B。
 
 ## 4. Combined integration train
 
@@ -850,7 +897,7 @@ B 允许持久化的 Agent-derived business content 只有两个 closed projecti
 
 0.14A + 0.4 + 0.6 形成**开发门**：此后 B 可开发 2.3–2.6、2.8–2.10 pure Ledger/FSM/reducer/policy/projection/lease/local-fake stacked branches；这些 pure branches 不含 production registration code/dispatch/Publisher/Catalog side effect，且不能在 2.2 前合入。2.1 的 production contribution semantic producer 可提前 author，但不得在 0.15 前 merge/register/activate。0.15 是**基础合并门**：2.2 与 P1 production 也必须等待 0.15。0.7B→8.5/P6 和 0.11P/0.11S/0.11A→3.10/3.11B/5.10 是两个独立的**能力激活门**。
 
-开发者 A 以 `[A]` 身份冻结 Catalog 合同/fixtures，并单独完成 0.8D Git Checkpoints baseline semantic repair；以 `[I]` 身份完成基础 workspace identity、strict Manifest V2/unsigned generator、0.8S provenance/release input/sequence/KMS-HSM signing evidence、outbound-edge/ACL-purpose migration、sole confirmation flow、readiness、Host-owned lifecycle、0.10R 五包 rewiring、generic Agent API、license 和 basic matrix。独立 activation branches 再完成 0.7B native publisher，以及 0.11P qualification、0.11S static bundle、0.11A fresh-attestation/OS-vault adapter。两种身份必须用对应 `stage1/a-*` 与 `stage1/i-*` 分支，不混合 domain semantic 和 platform mechanics，也不让 I rewrite 0.8D 或替 package owner invent signing input。
+开发者 A 以 `[A]` 身份冻结 Catalog 合同/fixtures，并单独完成 0.8D Git Checkpoints baseline semantic repair。开发者 B 以 `[I]` 身份完成基础 workspace identity、strict Manifest V2/unsigned generator、0.8S provenance/release input/sequence/KMS-HSM signing evidence、outbound-edge/ACL-purpose migration、sole confirmation flow、readiness、Host-owned lifecycle、0.10R 五包 rewiring、generic Agent API、license 和 basic matrix；独立 activation branches 再完成 0.7B native publisher，以及 0.11P qualification、0.11S static bundle、0.11A fresh-attestation/OS-vault adapter。开发者 B 的 `[B]` 与 `[I]` 身份必须使用独立对话、`stage1/b-*` 与 `stage1/i-*` 分支和 commits，不混合 domain semantic 与 platform mechanics；I 也不得 rewrite 0.8D 或替任何 package owner invent signing input。
 
 基础 0.15 合并门退出条件：
 
