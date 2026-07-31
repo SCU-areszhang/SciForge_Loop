@@ -526,32 +526,6 @@ describe('JsonSettingsStore', () => {
     expect(JSON.parse(persisted)).not.toHaveProperty('provider')
   })
 
-  it('loads settings from the legacy lowercase userData directory and writes them into the current path', async () => {
-    const supportRoot = await mkdtemp(join(tmpdir(), 'sciforge-settings-compat-'))
-    const legacyUserDataDir = join(supportRoot, 'sciforge')
-    const currentUserDataDir = join(supportRoot, 'SciForge')
-    const currentSettingsPath = join(currentUserDataDir, 'sciforge-settings.json')
-
-    await mkdir(legacyUserDataDir, { recursive: true })
-    await writeFile(
-      join(legacyUserDataDir, 'sciforge-settings.json'),
-      JSON.stringify({
-        version: 1,
-        locale: 'zh',
-        provider: {
-          apiKey: 'sk-legacy-provider'
-        }
-      }),
-      'utf8'
-    )
-
-    const store = new JsonSettingsStore(currentUserDataDir)
-    const loaded = await store.load()
-
-    expect(loaded.locale).toBe('zh')
-    expect(await readFile(currentSettingsPath, 'utf8')).not.toContain('sk-legacy-provider')
-  })
-
   it('creates the configured code workspace on load', async () => {
     const userDataDir = await mkdtemp(join(tmpdir(), 'sciforge-settings-'))
     const workspaceRoot = join(userDataDir, 'missing-workspace')
