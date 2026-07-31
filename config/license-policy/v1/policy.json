@@ -42,7 +42,11 @@
     "Python-2.0",
     "Zlib"
   ],
-  "requiredRepositoryNoticeFiles": [
-    "THIRD_PARTY_NOTICES.md"
+  "requiredRepositoryNotices": [
+    {
+      "path": "THIRD_PARTY_NOTICES.md",
+      "minimumBytes": 15342,
+      "sha256": "7fd8974f4d0ca8732d26838a6885954151432670dc506de8305aa24d41da345c"
+    }
   ]
 }

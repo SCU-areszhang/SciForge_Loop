@@ -87,5 +87,73 @@
         "THIRD_PARTY_NOTICES.md"
       ]
     }
+  ],
+  "repositoryCases": [
+    {
+      "name": "lock-license-disguise",
+      "expectedCode": "LOCK_LICENSE_MISMATCH",
+      "lockLicense": "MIT",
+      "installedLicense": "GPL-3.0-only",
+      "noticeExpected": "complete repository notice\n",
+      "noticeActual": "complete repository notice\n"
+    },
+    {
+      "name": "optional-incompatible-not-installed",
+      "expectedCode": null,
+      "lockLicense": "MIT",
+      "installed": false,
+      "optional": true,
+      "os": [
+        "linux"
+      ],
+      "cpu": [
+        "x64"
+      ],
+      "platform": "darwin",
+      "arch": "arm64",
+      "noticeExpected": "complete repository notice\n",
+      "noticeActual": "complete repository notice\n"
+    },
+    {
+      "name": "optional-compatible-missing",
+      "expectedCode": "MISSING_INSTALLED_METADATA",
+      "lockLicense": "MIT",
+      "installed": false,
+      "optional": true,
+      "os": [
+        "darwin"
+      ],
+      "cpu": [
+        "arm64"
+      ],
+      "platform": "darwin",
+      "arch": "arm64",
+      "noticeExpected": "complete repository notice\n",
+      "noticeActual": "complete repository notice\n"
+    },
+    {
+      "name": "notice-blank",
+      "expectedCode": "BLANK_NOTICE",
+      "lockLicense": "MIT",
+      "installedLicense": "MIT",
+      "noticeExpected": "complete repository notice\n",
+      "noticeActual": ""
+    },
+    {
+      "name": "notice-truncated",
+      "expectedCode": "TRUNCATED_NOTICE",
+      "lockLicense": "MIT",
+      "installedLicense": "MIT",
+      "noticeExpected": "complete repository notice\n",
+      "noticeActual": "short\n"
+    },
+    {
+      "name": "notice-hash-drift",
+      "expectedCode": "NOTICE_DRIFT",
+      "lockLicense": "MIT",
+      "installedLicense": "MIT",
+      "noticeExpected": "notice alpha\n",
+      "noticeActual": "notice bravo\n"
+    }
   ]
 }

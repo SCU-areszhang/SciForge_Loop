@@ -2,11 +2,10 @@
 
 import { createHash } from 'node:crypto'
 import { existsSync, readFileSync } from 'node:fs'
-import { basename, resolve } from 'node:path'
+import { basename, isAbsolute, normalize, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
-const root = resolve(import.meta.dirname, '..')
-const policyDir = resolve(root, 'config/license-policy/v1')
+const defaultRoot = resolve(import.meta.dirname, '..')
 
 function readJson(path) {
   return JSON.parse(readFileSync(path, 'utf8'))
@@ -43,7 +42,7 @@ function packageNameFromLockPath(lockPath, metadataPath) {
   return lockPath.slice(index + marker.length)
 }
 
-function loadPolicy() {
+function loadPolicy(policyDir) {
   const policy = readJson(resolve(policyDir, 'policy.json'))
   const resolutions = readJson(resolve(policyDir, 'resolutions.json'))
   const exceptions = readJson(resolve(policyDir, 'exceptions.json'))
@@ -55,7 +54,7 @@ function loadPolicy() {
       'deniedLicenseIdentifiers',
       'licenseAliases',
       'noticeRequiredIdentifiers',
-      'requiredRepositoryNoticeFiles'
+      'requiredRepositoryNotices'
     ],
     'license policy'
   )
@@ -63,6 +62,28 @@ function loadPolicy() {
   exactKeys(exceptions, ['schemaVersion', 'exceptions'], 'license exceptions')
   if (policy.schemaVersion !== 1 || resolutions.schemaVersion !== 1 || exceptions.schemaVersion !== 1) {
     throw new Error('All license policy inputs must use schemaVersion 1')
+  }
+  if (!Array.isArray(policy.requiredRepositoryNotices) || policy.requiredRepositoryNotices.length === 0) {
+    throw new Error('license policy must require at least one repository notice')
+  }
+  for (const notice of policy.requiredRepositoryNotices) {
+    exactKeys(notice, ['path', 'minimumBytes', 'sha256'], 'required repository notice')
+    const normalizedPath = normalize(notice.path)
+    if (
+      typeof notice.path !== 'string' ||
+      notice.path === '' ||
+      isAbsolute(notice.path) ||
+      normalizedPath === '..' ||
+      normalizedPath.startsWith(`..${process.platform === 'win32' ? '\\' : '/'}`)
+    ) {
+      throw new Error(`repository notice path must stay inside the repository: ${notice.path}`)
+    }
+    if (!Number.isSafeInteger(notice.minimumBytes) || notice.minimumBytes < 1) {
+      throw new Error(`${notice.path}.minimumBytes must be a positive integer`)
+    }
+    if (!/^[a-f0-9]{64}$/.test(notice.sha256)) {
+      throw new Error(`${notice.path}.sha256 must be lowercase SHA-256`)
+    }
   }
   return { policy, resolutions: resolutions.resolutions, exceptions: exceptions.exceptions }
 }
@@ -161,12 +182,12 @@ export function evaluateInventory({ packages, repositoryNoticeFiles, policy }) {
       continue
     }
     if (expressionIdentifiers.some((identifier) => noticeIds.has(identifier))) {
-      for (const noticeFile of policy.requiredRepositoryNoticeFiles) {
-        if (!notices.has(noticeFile)) {
+      for (const notice of policy.requiredRepositoryNotices) {
+        if (!notices.has(notice.path)) {
           findings.push({
             code: 'MISSING_NOTICE',
             package: label,
-            message: `${label} requires committed repository notice ${noticeFile}`
+            message: `${label} requires committed repository notice ${notice.path}`
           })
         }
       }
@@ -175,8 +196,8 @@ export function evaluateInventory({ packages, repositoryNoticeFiles, policy }) {
   return findings
 }
 
-function installedMetadata(lockPath) {
-  const path = resolve(root, lockPath, 'package.json')
+function installedMetadata(rootDir, lockPath) {
+  const path = resolve(rootDir, lockPath, 'package.json')
   return existsSync(path) ? readJson(path) : null
 }
 
@@ -186,35 +207,132 @@ function legacyLicense(metadata) {
   return typeof metadata.licenses[0] === 'string' ? metadata.licenses[0] : metadata.licenses[0]?.type ?? null
 }
 
-export function checkRepository({ now = new Date() } = {}) {
-  const records = loadPolicy()
+function supportsPlatform(values, actual) {
+  if (!Array.isArray(values) || values.length === 0) return true
+  if (values.includes(`!${actual}`)) return false
+  const allowed = values.filter((value) => !value.startsWith('!'))
+  return allowed.length === 0 || allowed.includes(actual)
+}
+
+function isExplicitlyIncompatibleOptional(lockEntry, platform, arch) {
+  return lockEntry.optional === true && (
+    !supportsPlatform(lockEntry.os, platform) ||
+    !supportsPlatform(lockEntry.cpu, arch)
+  )
+}
+
+function validateRepositoryNotices(rootDir, requirements) {
+  const findings = []
+  for (const requirement of requirements) {
+    const path = resolve(rootDir, requirement.path)
+    if (!existsSync(path)) {
+      findings.push({
+        code: 'MISSING_NOTICE',
+        package: '(repository)',
+        message: `Repository notice ${requirement.path} is missing`
+      })
+      continue
+    }
+    const content = readFileSync(path)
+    if (content.toString('utf8').trim() === '') {
+      findings.push({
+        code: 'BLANK_NOTICE',
+        package: '(repository)',
+        message: `Repository notice ${requirement.path} is blank`
+      })
+      continue
+    }
+    if (content.byteLength < requirement.minimumBytes) {
+      findings.push({
+        code: 'TRUNCATED_NOTICE',
+        package: '(repository)',
+        message: `Repository notice ${requirement.path} is shorter than ${requirement.minimumBytes} bytes`
+      })
+      continue
+    }
+    if (createHash('sha256').update(content).digest('hex') !== requirement.sha256) {
+      findings.push({
+        code: 'NOTICE_DRIFT',
+        package: '(repository)',
+        message: `Repository notice ${requirement.path} digest differs from policy`
+      })
+    }
+  }
+  return findings
+}
+
+export function checkRepository({
+  now = new Date(),
+  rootDir = defaultRoot,
+  policyDir = resolve(rootDir, 'config/license-policy/v1'),
+  platform = process.platform,
+  arch = process.arch
+} = {}) {
+  const records = loadPolicy(policyDir)
   const maps = validateSupportingRecords(records, now)
-  const lock = readJson(resolve(root, 'package-lock.json'))
+  const lock = readJson(resolve(rootDir, 'package-lock.json'))
   if (lock.lockfileVersion !== 3 || typeof lock.packages !== 'object') {
     throw new Error('license policy requires canonical package-lock.json lockfileVersion 3 package metadata')
   }
-  const repositoryNoticeFiles = records.policy.requiredRepositoryNoticeFiles.filter((file) => existsSync(resolve(root, file)))
+  const repositoryNoticeFiles = records.policy.requiredRepositoryNotices.map((notice) => notice.path)
   const packages = []
-  const findings = []
+  const findings = validateRepositoryNotices(rootDir, records.policy.requiredRepositoryNotices)
   const usedResolutions = new Set()
   const usedExceptions = new Set()
 
   for (const [lockPath, lockEntry] of Object.entries(lock.packages)) {
     if (lockEntry.link === true) continue
-    const metadata = lockPath === '' ? readJson(resolve(root, 'package.json')) : installedMetadata(lockPath)
-    const name = packageNameFromLockPath(lockPath, metadata)
+    const metadata = lockPath === '' ? readJson(resolve(rootDir, 'package.json')) : installedMetadata(rootDir, lockPath)
+    const name = lockEntry.name ?? packageNameFromLockPath(lockPath)
     const version = lockEntry.version ?? metadata?.version
     if (!name || !version) {
       findings.push({ code: 'MISSING_IDENTITY', package: lockPath || '(root)', message: 'Locked package lacks name/version' })
       continue
     }
     const key = `${name}@${version}`
-    const rawLicense = lockEntry.license ?? legacyLicense(metadata)
+    if (!metadata && !isExplicitlyIncompatibleOptional(lockEntry, platform, arch)) {
+      findings.push({
+        code: 'MISSING_INSTALLED_METADATA',
+        package: key,
+        message: `${key} has no installed package.json and is not an explicitly incompatible optional package`
+      })
+      continue
+    }
+    if (metadata?.name !== undefined && metadata.name !== name) {
+      findings.push({
+        code: 'LOCK_IDENTITY_MISMATCH',
+        package: key,
+        message: `${key} installed name is ${metadata.name}`
+      })
+    }
+    if (metadata?.version !== undefined && metadata.version !== version) {
+      findings.push({
+        code: 'LOCK_VERSION_MISMATCH',
+        package: key,
+        message: `${key} installed version is ${metadata.version}`
+      })
+    }
+    const installedLicense = legacyLicense(metadata)
+    const lockLicense = typeof lockEntry.license === 'string' ? lockEntry.license : null
+    if (metadata && lockLicense !== null && installedLicense === null) {
+      findings.push({
+        code: 'MISSING_INSTALLED_LICENSE',
+        package: key,
+        message: `${key} lockfile declares ${lockLicense} but installed package metadata has no license`
+      })
+    } else if (metadata && lockLicense !== null && installedLicense !== null && lockLicense !== installedLicense) {
+      findings.push({
+        code: 'LOCK_LICENSE_MISMATCH',
+        package: key,
+        message: `${key} lockfile declares ${lockLicense} but installed package declares ${installedLicense}`
+      })
+    }
+    const rawLicense = metadata ? installedLicense : lockLicense
     const resolution = maps.resolutionMap.get(key)
     let licenseExpression = rawLicense
     if (resolution && rawLicense === resolution.declaredLicenseValue) {
       usedResolutions.add(key)
-      const evidencePath = resolve(root, lockPath, resolution.evidenceFile)
+      const evidencePath = resolve(rootDir, lockPath, resolution.evidenceFile)
       if (!existsSync(evidencePath)) {
         findings.push({ code: 'MISSING_NOTICE', package: key, message: `${key} lacks resolution evidence file` })
         continue
@@ -229,7 +347,7 @@ export function checkRepository({ now = new Date() } = {}) {
     if (!resolution && exception && exception.declaredLicenseValues.includes(rawLicense)) {
       usedExceptions.add(exception.id)
       if (metadata) {
-        const noticePath = resolve(root, lockPath, exception.noticeFile)
+        const noticePath = resolve(rootDir, lockPath, exception.noticeFile)
         if (!existsSync(noticePath)) {
           findings.push({ code: 'MISSING_NOTICE', package: key, message: `${key} lacks ${exception.noticeFile}` })
         } else if (sha256(noticePath) !== exception.noticeSha256) {

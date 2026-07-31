@@ -62,7 +62,7 @@
     "lint": "eslint . --config eslint.config.js",
     "toolchain:assert": "node ./scripts/assert-toolchain.mjs",
     "electron:binary:assert": "node ./scripts/assert-electron-binary.mjs",
-    "ci:workflow-policy-check": "node ./scripts/workflow-policy-check.mjs",
+    "ci:workflow-policy-check": "node --test ./scripts/workflow-policy.test.mjs && node ./scripts/workflow-policy-check.mjs",
     "license:policy-check": "node --test ./scripts/license-policy.test.mjs && node ./scripts/license-policy-check.mjs",
     "pretest": "npm run build:agent-support && npm run capability:check && npm run domain-sdk:test && npm run domain-packages:test && npm run extension-package:test",
     "test": "vitest run",

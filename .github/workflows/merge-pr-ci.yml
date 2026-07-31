@@ -57,6 +57,7 @@ jobs:
           npm run domain-packages:generate
           npm run capability:generate
           git diff --exit-code
+          test -z "$(git ls-files --others --exclude-standard)"
           npm run domain-packages:check
           npm run capability:check
 
