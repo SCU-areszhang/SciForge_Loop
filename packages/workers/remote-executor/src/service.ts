@@ -637,7 +637,10 @@ function bytesForContent(content: string | Uint8Array): Uint8Array {
 }
 
 function cleanString(value: string | undefined): string {
-  return value?.trim().replace(/[\u0000-\u001f\u007f]/g, '') ?? ''
+  return value?.trim().split('').filter((character) => {
+    const code = character.charCodeAt(0)
+    return code > 0x1f && code !== 0x7f
+  }).join('') ?? ''
 }
 
 function uniqueStrings(values: string[]): string[] {
