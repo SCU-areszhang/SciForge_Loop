@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "resolutions": [
+    {
+      "packageName": "khroma",
+      "version": "2.1.0",
+      "declaredLicenseValue": null,
+      "licenseExpression": "MIT",
+      "evidenceFile": "license",
+      "evidenceSha256": "66b333b0f66759a0b710459e03f7029abe17f4358114a128d2c972e642961b49"
+    },
+    {
+      "packageName": "@tldraw/utils",
+      "version": "4.5.12",
+      "declaredLicenseValue": "SEE LICENSE IN LICENSE.md",
+      "licenseExpression": "MIT",
+      "evidenceFile": "LICENSE.md",
+      "evidenceSha256": "b4b75652dab891849d2198756eeae23120a8999bdd3740b3ab819a5c28c902c1"
+    },
+    {
+      "packageName": "@tldraw/validate",
+      "version": "4.5.12",
+      "declaredLicenseValue": "SEE LICENSE IN LICENSE.md",
+      "licenseExpression": "MIT",
+      "evidenceFile": "LICENSE.md",
+      "evidenceSha256": "b4b75652dab891849d2198756eeae23120a8999bdd3740b3ab819a5c28c902c1"
+    }
+  ]
+}

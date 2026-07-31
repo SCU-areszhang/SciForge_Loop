@@ -1,0 +1,91 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    {
+      "name": "allow",
+      "expected": "pass",
+      "packages": [
+        {
+          "name": "permissive-package",
+          "version": "1.0.0",
+          "licenseExpression": "MIT"
+        }
+      ],
+      "repositoryNoticeFiles": [
+        "THIRD_PARTY_NOTICES.md"
+      ]
+    },
+    {
+      "name": "deny",
+      "expected": "fail",
+      "expectedCode": "DENIED_LICENSE",
+      "packages": [
+        {
+          "name": "copyleft-package",
+          "version": "1.0.0",
+          "licenseExpression": "GPL-3.0-only"
+        }
+      ],
+      "repositoryNoticeFiles": [
+        "THIRD_PARTY_NOTICES.md"
+      ]
+    },
+    {
+      "name": "unknown",
+      "expected": "fail",
+      "expectedCode": "UNKNOWN_LICENSE",
+      "packages": [
+        {
+          "name": "unknown-package",
+          "version": "1.0.0",
+          "licenseExpression": "LicenseRef-Unreviewed"
+        }
+      ],
+      "repositoryNoticeFiles": [
+        "THIRD_PARTY_NOTICES.md"
+      ]
+    },
+    {
+      "name": "missing",
+      "expected": "fail",
+      "expectedCode": "MISSING_LICENSE",
+      "packages": [
+        {
+          "name": "missing-package",
+          "version": "1.0.0",
+          "licenseExpression": null
+        }
+      ],
+      "repositoryNoticeFiles": [
+        "THIRD_PARTY_NOTICES.md"
+      ]
+    },
+    {
+      "name": "notice-missing",
+      "expected": "fail",
+      "expectedCode": "MISSING_NOTICE",
+      "packages": [
+        {
+          "name": "notice-package",
+          "version": "1.0.0",
+          "licenseExpression": "Apache-2.0"
+        }
+      ],
+      "repositoryNoticeFiles": []
+    },
+    {
+      "name": "notice-present",
+      "expected": "pass",
+      "packages": [
+        {
+          "name": "notice-package",
+          "version": "1.0.0",
+          "licenseExpression": "Apache-2.0"
+        }
+      ],
+      "repositoryNoticeFiles": [
+        "THIRD_PARTY_NOTICES.md"
+      ]
+    }
+  ]
+}

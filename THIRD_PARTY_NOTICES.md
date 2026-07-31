@@ -1,6 +1,6 @@
 # Third Party Notices
 
-Last updated: 2026-07-21
+Last updated: 2026-07-31
 
 This file records the third-party license and distribution boundary for the current SciForge source tree. It is an engineering compliance index, not legal advice. The exact npm dependency graph is pinned by `package-lock.json`.
 
@@ -14,7 +14,7 @@ Package metadata policy:
 | Scope | Package metadata | Distribution policy |
 | --- | --- | --- |
 | Root desktop app | `private: true`, `license: MIT` | Not published as a public npm package. Source release follows root `LICENSE`. |
-| `packages/full-trace` | package-local license field absent | Project-owned workspace package; source release follows root `LICENSE`. |
+| `packages/execution-governance` and `packages/full-trace` | `private: true`, `license: MIT` | Project-owned workspace packages; source release follows root `LICENSE`. |
 | `packages/domains/*` | `license: MIT` | Independently owned domain packages; backend and optional UI ship at one version. |
 | `packages/workers/*` | `license: MIT` | Project-owned non-domain worker packages. |
 | `vendor/openclaw-shim` | `private: true`, `license: MIT` | Project-local compatibility shim for peer imports; not an upstream OpenClaw source distribution. |
@@ -67,7 +67,7 @@ Direct root dependencies recorded in `package-lock.json`:
 | `@larksuiteoapi/node-sdk` | `^1.64.0` | `MIT` |
 | `@modelcontextprotocol/sdk` | `^1.29.0` | `MIT` |
 | `@napi-rs/canvas` | `^0.1.100` | `MIT` |
-| `@sciforge/full-trace` | `0.1.0` | Package-local license field absent; project source follows root `LICENSE` |
+| `@sciforge/full-trace` | `0.1.0` | `MIT`; project source follows root `LICENSE` |
 | `@tencent-weixin/openclaw-weixin` | `2.4.3` | `MIT` |
 | `@tiptap/core` | `3.26.0` | `MIT` |
 | `@tiptap/extension-image` | `3.26.0` | `MIT` |
