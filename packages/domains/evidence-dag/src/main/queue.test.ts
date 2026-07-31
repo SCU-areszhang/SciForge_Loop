@@ -278,7 +278,7 @@ test('retry budget counts only consecutive failures without committed progress',
   assert.equal(stored.jobs[0]?.consecutiveNoProgressFailures, 2)
 })
 
-test('legacy jobs default the no-progress streak independently from lifetime attempts', async () => {
+test('legacy jobs default the no-progress streak independently from lifetime attempts', async (context) => {
   const root = await mkdtemp(join(tmpdir(), 'evidence-domain-streak-migration-'))
   const storagePath = join(root, 'queue.json')
   const timestamp = '2026-07-26T06:00:00.000Z'
@@ -314,6 +314,7 @@ test('legacy jobs default the no-progress streak independently from lifetime att
       }))
     }
   })
+  context.after(async () => queue.close())
 
   await queue.start(false)
   const migrated = JSON.parse(await readFile(storagePath, 'utf8')) as {
@@ -323,7 +324,12 @@ test('legacy jobs default the no-progress streak independently from lifetime att
   await queue.setEnabled(true)
   await waitFor(async () => {
     const pending = await queue.pending('codex', 'thread-1')
-    return pending?.attempt === 6 && pending.state === 'retrying'
+    if (pending?.attempt !== 6 || pending.state !== 'retrying') return false
+    const persisted = JSON.parse(await readFile(storagePath, 'utf8')) as {
+      jobs: Array<{ attempt: number; consecutiveNoProgressFailures: number }>
+    }
+    return persisted.jobs[0]?.attempt === 6 &&
+      persisted.jobs[0]?.consecutiveNoProgressFailures === 1
   })
   const pending = await queue.pending('codex', 'thread-1')
   assert.equal(pending?.state, 'retrying')
@@ -332,7 +338,6 @@ test('legacy jobs default the no-progress streak independently from lifetime att
   }
   assert.equal(stored.jobs[0]?.attempt, 6)
   assert.equal(stored.jobs[0]?.consecutiveNoProgressFailures, 1)
-  await queue.close()
 })
 
 test('manual retry revives one failed lane and preserves only an identical batch cursor', async () => {
