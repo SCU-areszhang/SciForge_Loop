@@ -279,9 +279,11 @@ export function checkRepository({
   const findings = validateRepositoryNotices(rootDir, records.policy.requiredRepositoryNotices)
   const usedResolutions = new Set()
   const usedExceptions = new Set()
+  let checkedPackages = 0
 
   for (const [lockPath, lockEntry] of Object.entries(lock.packages)) {
     if (lockEntry.link === true) continue
+    checkedPackages += 1
     const metadata = lockPath === '' ? readJson(resolve(rootDir, 'package.json')) : installedMetadata(rootDir, lockPath)
     const name = lockEntry.name ?? packageNameFromLockPath(lockPath)
     const version = lockEntry.version ?? metadata?.version
@@ -298,14 +300,26 @@ export function checkRepository({
       })
       continue
     }
-    if (metadata?.name !== undefined && metadata.name !== name) {
+    if (metadata && (typeof metadata.name !== 'string' || metadata.name.trim() === '')) {
+      findings.push({
+        code: 'MISSING_INSTALLED_NAME',
+        package: key,
+        message: `${key} installed package metadata has no name`
+      })
+    } else if (metadata && metadata.name !== name) {
       findings.push({
         code: 'LOCK_IDENTITY_MISMATCH',
         package: key,
         message: `${key} installed name is ${metadata.name}`
       })
     }
-    if (metadata?.version !== undefined && metadata.version !== version) {
+    if (metadata && (typeof metadata.version !== 'string' || metadata.version.trim() === '')) {
+      findings.push({
+        code: 'MISSING_INSTALLED_VERSION',
+        package: key,
+        message: `${key} installed package metadata has no version`
+      })
+    } else if (metadata && metadata.version !== version) {
       findings.push({
         code: 'LOCK_VERSION_MISMATCH',
         package: key,
@@ -372,7 +386,7 @@ export function checkRepository({
       findings.push({ code: 'STALE_EXCEPTION', package: record.id, message: `${record.id} exception is unused` })
     }
   }
-  return { checkedPackages: packages.length + usedExceptions.size, findings }
+  return { checkedPackages, findings }
 }
 
 function main() {

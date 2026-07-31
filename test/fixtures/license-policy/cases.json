@@ -92,22 +92,86 @@
     {
       "name": "lock-license-disguise",
       "expectedCode": "LOCK_LICENSE_MISMATCH",
-      "lockLicense": "MIT",
-      "installedLicense": "GPL-3.0-only",
+      "dependencies": [
+        {
+          "name": "fixture-dependency",
+          "lockLicense": "MIT",
+          "installedLicense": "GPL-3.0-only"
+        }
+      ],
       "noticeExpected": "complete repository notice\n",
       "noticeActual": "complete repository notice\n"
     },
     {
-      "name": "optional-incompatible-not-installed",
-      "expectedCode": null,
-      "lockLicense": "MIT",
-      "installed": false,
-      "optional": true,
-      "os": [
-        "linux"
+      "name": "installed-name-missing",
+      "expectedCode": "MISSING_INSTALLED_NAME",
+      "dependencies": [
+        {
+          "name": "fixture-dependency",
+          "lockLicense": "MIT",
+          "installedName": null,
+          "installedLicense": "MIT"
+        }
       ],
-      "cpu": [
-        "x64"
+      "noticeExpected": "complete repository notice\n",
+      "noticeActual": "complete repository notice\n"
+    },
+    {
+      "name": "installed-version-missing",
+      "expectedCode": "MISSING_INSTALLED_VERSION",
+      "dependencies": [
+        {
+          "name": "fixture-dependency",
+          "lockLicense": "MIT",
+          "installedVersion": null,
+          "installedLicense": "MIT"
+        }
+      ],
+      "noticeExpected": "complete repository notice\n",
+      "noticeActual": "complete repository notice\n"
+    },
+    {
+      "name": "installed-name-mismatch",
+      "expectedCode": "LOCK_IDENTITY_MISMATCH",
+      "dependencies": [
+        {
+          "name": "fixture-dependency",
+          "lockLicense": "MIT",
+          "installedName": "different-dependency",
+          "installedLicense": "MIT"
+        }
+      ],
+      "noticeExpected": "complete repository notice\n",
+      "noticeActual": "complete repository notice\n"
+    },
+    {
+      "name": "installed-version-mismatch",
+      "expectedCode": "LOCK_VERSION_MISMATCH",
+      "dependencies": [
+        {
+          "name": "fixture-dependency",
+          "lockVersion": "1.0.0",
+          "lockLicense": "MIT",
+          "installedVersion": "2.0.0",
+          "installedLicense": "MIT"
+        }
+      ],
+      "noticeExpected": "complete repository notice\n",
+      "noticeActual": "complete repository notice\n"
+    },
+    {
+      "name": "optional-os-only-incompatible-not-installed",
+      "expectedCode": null,
+      "dependencies": [
+        {
+          "name": "fixture-dependency",
+          "lockLicense": "MIT",
+          "installed": false,
+          "optional": true,
+          "os": [
+            "linux"
+          ]
+        }
       ],
       "platform": "darwin",
       "arch": "arm64",
@@ -115,16 +179,56 @@
       "noticeActual": "complete repository notice\n"
     },
     {
-      "name": "optional-compatible-missing",
-      "expectedCode": "MISSING_INSTALLED_METADATA",
-      "lockLicense": "MIT",
-      "installed": false,
-      "optional": true,
-      "os": [
-        "darwin"
+      "name": "optional-cpu-only-incompatible-not-installed",
+      "expectedCode": null,
+      "dependencies": [
+        {
+          "name": "fixture-dependency",
+          "lockLicense": "MIT",
+          "installed": false,
+          "optional": true,
+          "cpu": [
+            "x64"
+          ]
+        }
       ],
-      "cpu": [
-        "arm64"
+      "platform": "darwin",
+      "arch": "arm64",
+      "noticeExpected": "complete repository notice\n",
+      "noticeActual": "complete repository notice\n"
+    },
+    {
+      "name": "optional-compatible-not-installed",
+      "expectedCode": "MISSING_INSTALLED_METADATA",
+      "dependencies": [
+        {
+          "name": "fixture-dependency",
+          "lockLicense": "MIT",
+          "installed": false,
+          "optional": true,
+          "os": [
+            "darwin"
+          ],
+          "cpu": [
+            "arm64"
+          ]
+        }
+      ],
+      "platform": "darwin",
+      "arch": "arm64",
+      "noticeExpected": "complete repository notice\n",
+      "noticeActual": "complete repository notice\n"
+    },
+    {
+      "name": "optional-missing-platform-constraints",
+      "expectedCode": "MISSING_INSTALLED_METADATA",
+      "dependencies": [
+        {
+          "name": "fixture-dependency",
+          "lockLicense": "MIT",
+          "installed": false,
+          "optional": true
+        }
       ],
       "platform": "darwin",
       "arch": "arm64",
@@ -134,26 +238,61 @@
     {
       "name": "notice-blank",
       "expectedCode": "BLANK_NOTICE",
-      "lockLicense": "MIT",
-      "installedLicense": "MIT",
+      "dependencies": [
+        {
+          "name": "fixture-dependency",
+          "lockLicense": "MIT",
+          "installedLicense": "MIT"
+        }
+      ],
       "noticeExpected": "complete repository notice\n",
       "noticeActual": ""
     },
     {
       "name": "notice-truncated",
       "expectedCode": "TRUNCATED_NOTICE",
-      "lockLicense": "MIT",
-      "installedLicense": "MIT",
+      "dependencies": [
+        {
+          "name": "fixture-dependency",
+          "lockLicense": "MIT",
+          "installedLicense": "MIT"
+        }
+      ],
       "noticeExpected": "complete repository notice\n",
       "noticeActual": "short\n"
     },
     {
       "name": "notice-hash-drift",
       "expectedCode": "NOTICE_DRIFT",
-      "lockLicense": "MIT",
-      "installedLicense": "MIT",
+      "dependencies": [
+        {
+          "name": "fixture-dependency",
+          "lockLicense": "MIT",
+          "installedLicense": "MIT"
+        }
+      ],
       "noticeExpected": "notice alpha\n",
       "noticeActual": "notice bravo\n"
+    },
+    {
+      "name": "shared-exception-counts-each-package",
+      "expectedCode": null,
+      "expectedCheckedPackages": 3,
+      "sharedException": true,
+      "dependencies": [
+        {
+          "name": "fixture-exception-one",
+          "lockLicense": "SEE LICENSE IN LICENSE.md",
+          "installedLicense": "SEE LICENSE IN LICENSE.md"
+        },
+        {
+          "name": "fixture-exception-two",
+          "lockLicense": "SEE LICENSE IN LICENSE.md",
+          "installedLicense": "SEE LICENSE IN LICENSE.md"
+        }
+      ],
+      "noticeExpected": "complete repository notice\n",
+      "noticeActual": "complete repository notice\n"
     }
   ]
 }
