@@ -104,6 +104,37 @@ A-owned Create Loop Catalog provider + one execution engine
 
 ### 3.2 分支
 
+Task `0.1` 冻结以下 Gate 0 基线；后续 task 和 combined train 都必须以这些
+immutable facts 为起点，不得用聊天结论、旧本地分支或未合入 commit 替代：
+
+| 基线项 | 固定值 / evidence |
+|---|---|
+| Repository | `SCU-areszhang/SciForge_Loop` |
+| Governance PR | [PR #2](https://github.com/SCU-areszhang/SciForge_Loop/pull/2)，base=`stage1/integration` |
+| Governance commits | `8491531e4d1cd65998217312b0a5d9f9d364e826`、`0204d2730abd0c32a7fe9de58912d192e8e2c718` |
+| Merged integration base | `73d455a9cde5b800dae40837e481ea7d54bb7a4c` |
+| Branch protection | 公开可复验的 active [ruleset `20022298`](https://api.github.com/repos/SCU-areszhang/SciForge_Loop/rulesets/20022298) 精确覆盖 `refs/heads/stage1/integration`，要求 PR，禁止 deletion/non-fast-forward，并要求解决 review threads；Task `0.2` 建立 checks 前不虚构 required status checks |
+| Toolchain | `.node-version`=`22.23.1`；root `packageManager`=`npm@10.9.8`，对应 Node 官方 `v22.23.1` LTS release 的 bundled npm |
+| Mentor remote | `upstream` fetch=`https://github.com/AGI4Sci/SciForge.git`，push=`DISABLED` |
+
+Task `0.1` 的参考复验环境为 macOS Darwin `24.5.0` arm64、Git `2.39.5`；
+版本可执行性使用 Node 官方 `node-v22.23.1-darwin-arm64` 发布包验证。固定复验命令为：
+
+```bash
+git cat-file -e 8491531e4d1cd65998217312b0a5d9f9d364e826^{commit}
+git cat-file -e 0204d2730abd0c32a7fe9de58912d192e8e2c718^{commit}
+git merge-base --is-ancestor 8491531e4d1cd65998217312b0a5d9f9d364e826 73d455a9cde5b800dae40837e481ea7d54bb7a4c
+git merge-base --is-ancestor 0204d2730abd0c32a7fe9de58912d192e8e2c718 73d455a9cde5b800dae40837e481ea7d54bb7a4c
+git ls-remote origin refs/heads/stage1/integration
+gh api repos/SCU-areszhang/SciForge_Loop/rulesets/20022298
+git remote -v
+node --version
+npm --version
+```
+
+combined integration train 的唯一流程是第 4 节；本节只固定它使用的 branch
+topology 与 baseline，不复制或建立第二份 train 流程。
+
 ```text
 origin/stage1/integration               受保护集成分支
 origin/stage1/a-<task>-<topic>          A 的 Create Loop semantic 分支
