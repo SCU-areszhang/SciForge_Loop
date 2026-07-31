@@ -24,7 +24,7 @@ concurrency:
 
 jobs:
   verify:
-    name: Verify
+    name: Merge PR CI / Verify
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:

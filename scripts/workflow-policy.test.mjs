@@ -23,3 +23,14 @@ test('rejects generation drift checks that ignore untracked generator output', (
     /Missing CI gate: git ls-files --others --exclude-standard/
   )
 })
+
+test('rejects a generic blocking job name that can collide across workflows', () => {
+  const withGenericJobName = mergeWorkflow.replace(
+    '    name: Merge PR CI / Verify\n',
+    '    name: Verify\n'
+  )
+  assert.throws(
+    () => checkWorkflowPolicy({ mergeWorkflow: withGenericJobName, releaseWorkflow }),
+    /unique stable blocking "Merge PR CI \/ Verify" check context/
+  )
+})

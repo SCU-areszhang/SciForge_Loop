@@ -16,7 +16,11 @@ function forbidMatch(source, pattern, message) {
 
 export function checkWorkflowPolicy({ mergeWorkflow, releaseWorkflow }) {
   requireMatch(mergeWorkflow, /^name: Merge PR CI$/m, 'Ordinary CI must retain the stable "Merge PR CI" workflow name.')
-  requireMatch(mergeWorkflow, /^ {4}name: Verify$/m, 'Ordinary CI must retain the stable blocking "Verify" job name.')
+  requireMatch(
+    mergeWorkflow,
+    /^ {4}name: Merge PR CI \/ Verify$/m,
+    'Ordinary CI must retain the unique stable blocking "Merge PR CI / Verify" check context.'
+  )
   requireMatch(mergeWorkflow, /^ {2}pull_request:\n {4}branches:\n(?: {6}- .+\n)+/m, 'Ordinary CI must target pull requests.')
   requireMatch(mergeWorkflow, /^ {2}push:\n {4}branches:\n(?: {6}- .+\n)+/m, 'Ordinary CI must target protected/shared branch pushes.')
   for (const branch of ['stage1/integration', 'gui', 'develop', 'master']) {
