@@ -2,6 +2,7 @@
   "name": "@sciforge/full-trace",
   "version": "0.1.0",
   "private": true,
+  "license": "MIT",
   "type": "module",
   "description": "Secret-safe durable full model and agent tracing for SciForge.",
   "exports": {

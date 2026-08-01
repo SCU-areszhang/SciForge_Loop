@@ -1,0 +1,298 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    {
+      "name": "allow",
+      "expected": "pass",
+      "packages": [
+        {
+          "name": "permissive-package",
+          "version": "1.0.0",
+          "licenseExpression": "MIT"
+        }
+      ],
+      "repositoryNoticeFiles": [
+        "THIRD_PARTY_NOTICES.md"
+      ]
+    },
+    {
+      "name": "deny",
+      "expected": "fail",
+      "expectedCode": "DENIED_LICENSE",
+      "packages": [
+        {
+          "name": "copyleft-package",
+          "version": "1.0.0",
+          "licenseExpression": "GPL-3.0-only"
+        }
+      ],
+      "repositoryNoticeFiles": [
+        "THIRD_PARTY_NOTICES.md"
+      ]
+    },
+    {
+      "name": "unknown",
+      "expected": "fail",
+      "expectedCode": "UNKNOWN_LICENSE",
+      "packages": [
+        {
+          "name": "unknown-package",
+          "version": "1.0.0",
+          "licenseExpression": "LicenseRef-Unreviewed"
+        }
+      ],
+      "repositoryNoticeFiles": [
+        "THIRD_PARTY_NOTICES.md"
+      ]
+    },
+    {
+      "name": "missing",
+      "expected": "fail",
+      "expectedCode": "MISSING_LICENSE",
+      "packages": [
+        {
+          "name": "missing-package",
+          "version": "1.0.0",
+          "licenseExpression": null
+        }
+      ],
+      "repositoryNoticeFiles": [
+        "THIRD_PARTY_NOTICES.md"
+      ]
+    },
+    {
+      "name": "notice-missing",
+      "expected": "fail",
+      "expectedCode": "MISSING_NOTICE",
+      "packages": [
+        {
+          "name": "notice-package",
+          "version": "1.0.0",
+          "licenseExpression": "Apache-2.0"
+        }
+      ],
+      "repositoryNoticeFiles": []
+    },
+    {
+      "name": "notice-present",
+      "expected": "pass",
+      "packages": [
+        {
+          "name": "notice-package",
+          "version": "1.0.0",
+          "licenseExpression": "Apache-2.0"
+        }
+      ],
+      "repositoryNoticeFiles": [
+        "THIRD_PARTY_NOTICES.md"
+      ]
+    }
+  ],
+  "repositoryCases": [
+    {
+      "name": "lock-license-disguise",
+      "expectedCode": "LOCK_LICENSE_MISMATCH",
+      "dependencies": [
+        {
+          "name": "fixture-dependency",
+          "lockLicense": "MIT",
+          "installedLicense": "GPL-3.0-only"
+        }
+      ],
+      "noticeExpected": "complete repository notice\n",
+      "noticeActual": "complete repository notice\n"
+    },
+    {
+      "name": "installed-name-missing",
+      "expectedCode": "MISSING_INSTALLED_NAME",
+      "dependencies": [
+        {
+          "name": "fixture-dependency",
+          "lockLicense": "MIT",
+          "installedName": null,
+          "installedLicense": "MIT"
+        }
+      ],
+      "noticeExpected": "complete repository notice\n",
+      "noticeActual": "complete repository notice\n"
+    },
+    {
+      "name": "installed-version-missing",
+      "expectedCode": "MISSING_INSTALLED_VERSION",
+      "dependencies": [
+        {
+          "name": "fixture-dependency",
+          "lockLicense": "MIT",
+          "installedVersion": null,
+          "installedLicense": "MIT"
+        }
+      ],
+      "noticeExpected": "complete repository notice\n",
+      "noticeActual": "complete repository notice\n"
+    },
+    {
+      "name": "installed-name-mismatch",
+      "expectedCode": "LOCK_IDENTITY_MISMATCH",
+      "dependencies": [
+        {
+          "name": "fixture-dependency",
+          "lockLicense": "MIT",
+          "installedName": "different-dependency",
+          "installedLicense": "MIT"
+        }
+      ],
+      "noticeExpected": "complete repository notice\n",
+      "noticeActual": "complete repository notice\n"
+    },
+    {
+      "name": "installed-version-mismatch",
+      "expectedCode": "LOCK_VERSION_MISMATCH",
+      "dependencies": [
+        {
+          "name": "fixture-dependency",
+          "lockVersion": "1.0.0",
+          "lockLicense": "MIT",
+          "installedVersion": "2.0.0",
+          "installedLicense": "MIT"
+        }
+      ],
+      "noticeExpected": "complete repository notice\n",
+      "noticeActual": "complete repository notice\n"
+    },
+    {
+      "name": "optional-os-only-incompatible-not-installed",
+      "expectedCode": null,
+      "dependencies": [
+        {
+          "name": "fixture-dependency",
+          "lockLicense": "MIT",
+          "installed": false,
+          "optional": true,
+          "os": [
+            "linux"
+          ]
+        }
+      ],
+      "platform": "darwin",
+      "arch": "arm64",
+      "noticeExpected": "complete repository notice\n",
+      "noticeActual": "complete repository notice\n"
+    },
+    {
+      "name": "optional-cpu-only-incompatible-not-installed",
+      "expectedCode": null,
+      "dependencies": [
+        {
+          "name": "fixture-dependency",
+          "lockLicense": "MIT",
+          "installed": false,
+          "optional": true,
+          "cpu": [
+            "x64"
+          ]
+        }
+      ],
+      "platform": "darwin",
+      "arch": "arm64",
+      "noticeExpected": "complete repository notice\n",
+      "noticeActual": "complete repository notice\n"
+    },
+    {
+      "name": "optional-compatible-not-installed",
+      "expectedCode": "MISSING_INSTALLED_METADATA",
+      "dependencies": [
+        {
+          "name": "fixture-dependency",
+          "lockLicense": "MIT",
+          "installed": false,
+          "optional": true,
+          "os": [
+            "darwin"
+          ],
+          "cpu": [
+            "arm64"
+          ]
+        }
+      ],
+      "platform": "darwin",
+      "arch": "arm64",
+      "noticeExpected": "complete repository notice\n",
+      "noticeActual": "complete repository notice\n"
+    },
+    {
+      "name": "optional-missing-platform-constraints",
+      "expectedCode": "MISSING_INSTALLED_METADATA",
+      "dependencies": [
+        {
+          "name": "fixture-dependency",
+          "lockLicense": "MIT",
+          "installed": false,
+          "optional": true
+        }
+      ],
+      "platform": "darwin",
+      "arch": "arm64",
+      "noticeExpected": "complete repository notice\n",
+      "noticeActual": "complete repository notice\n"
+    },
+    {
+      "name": "notice-blank",
+      "expectedCode": "BLANK_NOTICE",
+      "dependencies": [
+        {
+          "name": "fixture-dependency",
+          "lockLicense": "MIT",
+          "installedLicense": "MIT"
+        }
+      ],
+      "noticeExpected": "complete repository notice\n",
+      "noticeActual": ""
+    },
+    {
+      "name": "notice-truncated",
+      "expectedCode": "TRUNCATED_NOTICE",
+      "dependencies": [
+        {
+          "name": "fixture-dependency",
+          "lockLicense": "MIT",
+          "installedLicense": "MIT"
+        }
+      ],
+      "noticeExpected": "complete repository notice\n",
+      "noticeActual": "short\n"
+    },
+    {
+      "name": "notice-hash-drift",
+      "expectedCode": "NOTICE_DRIFT",
+      "dependencies": [
+        {
+          "name": "fixture-dependency",
+          "lockLicense": "MIT",
+          "installedLicense": "MIT"
+        }
+      ],
+      "noticeExpected": "notice alpha\n",
+      "noticeActual": "notice bravo\n"
+    },
+    {
+      "name": "shared-exception-counts-each-package",
+      "expectedCode": null,
+      "expectedCheckedPackages": 3,
+      "sharedException": true,
+      "dependencies": [
+        {
+          "name": "fixture-exception-one",
+          "lockLicense": "SEE LICENSE IN LICENSE.md",
+          "installedLicense": "SEE LICENSE IN LICENSE.md"
+        },
+        {
+          "name": "fixture-exception-two",
+          "lockLicense": "SEE LICENSE IN LICENSE.md",
+          "installedLicense": "SEE LICENSE IN LICENSE.md"
+        }
+      ],
+      "noticeExpected": "complete repository notice\n",
+      "noticeActual": "complete repository notice\n"
+    }
+  ]
+}
