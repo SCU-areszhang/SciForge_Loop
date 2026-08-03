@@ -6,15 +6,15 @@
 
 ## 1. 固定角色与调度入口
 
-Stage1 有两名开发者、三个不可混用的 Owner role：
+Stage1 有两名人类负责人、三个相互隔离且不可混用的 Codex 执行身份：
 
-| Owner role | 实际开发者 | 负责范围 | Coding Agent 提示词 |
+| Owner role | 人类责任人 / Codex 执行身份 | 负责范围 | Coding Agent 提示词 |
 |---|---|---|---|
-| `[A]` | 开发者 A | Create Loop Catalog/runtime 领域语义；Task `0.8D` 是唯一明确的包外例外 | [`stage1-create-loop-coding-agent-task.zh-CN.md`](prompts/stage1-create-loop-coding-agent-task.zh-CN.md) |
-| `[B]` | 开发者 B | Workflow Evolution 领域语义 | [`stage1-workflow-evolution-coding-agent-task.zh-CN.md`](prompts/stage1-workflow-evolution-coding-agent-task.zh-CN.md) |
-| `[I]` | 开发者 B（integration/platform 模式） | Host/SDK/Broker/CI/generator/integration、root lock、generated outputs、cross-package harness 和 combined train | [`stage1-integration-coding-agent-task.zh-CN.md`](prompts/stage1-integration-coding-agent-task.zh-CN.md) |
+| `[A]` | 开发者 A / 独立 `[A]` 身份 | Create Loop Catalog/runtime 领域语义；Task `0.8D` 是唯一明确的包外例外 | [`stage1-create-loop-coding-agent-task.zh-CN.md`](prompts/stage1-create-loop-coding-agent-task.zh-CN.md) |
+| `[B]` | 开发者 B / 独立 `[B]` 身份 | Workflow Evolution 领域语义 | [`stage1-workflow-evolution-coding-agent-task.zh-CN.md`](prompts/stage1-workflow-evolution-coding-agent-task.zh-CN.md) |
+| `[I]` | 开发者 B / 独立 `[I]` 身份 | Host/SDK/Broker/CI/generator/integration、root lock、generated outputs、cross-package harness 和 combined train | [`stage1-integration-coding-agent-task.zh-CN.md`](prompts/stage1-integration-coding-agent-task.zh-CN.md) |
 
-同一名开发者承担 `[B]` 与 `[I]` 不合并权限。一个 Coding Agent 对话、分支和 commit 只能有一个 Owner role：
+开发者 B 是 `[B]` 与 `[I]` 的共同人类责任人，但两者必须作为两个独立 Codex 执行身份运行，不共享对话上下文、权限、authorship、分支、commit 或 evidence。一个 Coding Agent 对话、分支和 commit 只能有一个 Owner role：
 
 ```text
 [A] → stage1/a-<task>-<topic>
@@ -58,13 +58,14 @@ Owner：`[I]`
 
 ### 输入
 
-- 已审定的人员映射：开发者 A=`[A]`，开发者 B=`[B]+[I]`；
+- 已审定的责任与执行身份映射：开发者 A 管理独立 `[A]`，开发者 B 管理相互隔离的 `[B]` 与 `[I]`；
 - active OpenSpec、执行指南和三份 Owner-specific Coding Agent 提示词。
 
 ### 必须完成
 
-- 所有权威文件不再把 `[I]` 映射给开发者 A；
-- `[B]` 与 `[I]` 明确要求独立对话、分支和 commits；
+- 所有权威文件一致区分两名人类责任人和 `[A]`/`[B]`/`[I]` 三个独立 Codex 执行身份；
+- `[B]` 与 `[I]` 明确要求独立对话、分支和 commits，共享人类责任人不传递权限或 authorship；
+- `[I]` 对 `[B]` 产物的校验只是技术集成 evidence，不替代独立的人类审批；
 - A/B/I 三份提示词分别只接受对应 Owner 的单一 Task ID；
 - 不修改任何 Task ID、Owner 标签、`dependsOn`、checkbox 或领域合同；
 - `git diff --check` 通过。
@@ -295,7 +296,7 @@ Owner：`[I]`
 2. 原样集成八个 producers，尤其逐字节保持 `0.8D`；
 3. 添加一个独立 mechanical commit，只包含 task 允许的 lock/generated/composition/signature outputs；
 4. 运行 source/packaged、Broker、signing、provenance、generation second-run zero-diff 和 CI；
-5. 两名开发者 review combined diff；
+5. 开发者 A 与开发者 B 作为两名人类责任人 review combined diff；
 6. 只有 combined `0.8I` train 合入 `stage1/integration`。
 
 任何 producer 单独合入、semantic SHA 变化、签名 parent/sequence/provenance 不匹配或 generator 暴露语义错误，都必须停止并返回对应 owner。

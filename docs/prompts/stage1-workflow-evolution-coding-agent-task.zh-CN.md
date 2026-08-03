@@ -44,9 +44,9 @@
 
 开发者 A 拥有 `Create Loop Catalog/runtime`，包括 Catalog schema、policy、provider、store、engine、stable bindings、Candidate/Release/Anchor、Promotion/rollback mechanics 和实际 Catalog 写入。
 
-`[I]` 是同一名开发者 B 另行承担的 integration/platform 帽子，不是第三名开发者。人员相同不合并权限：本提示词固定运行在 `[B]` 模式；执行 `[I]` task 必须另开对话，完整读取 `docs/prompts/stage1-integration-coding-agent-task.zh-CN.md`，并使用独立的 `stage1/i-*` 或 `stage1/i-train-*` 分支和提交。`[I]` 独占通用 Host/SDK/Broker/CI/generator/integration files、root lock/toolchain、generated outputs、cross-package harness 和 OpenSpec `tasks.md` checkbox。
+`[B]` 与 `[I]` 由同一名人类责任人开发者 B 管理，但必须作为两个相互隔离的 Codex 执行身份运行。本提示词固定为 `[B]`；执行 `[I]` task 必须结束当前任务，新建 Codex 对话，完整读取 `docs/prompts/stage1-integration-coding-agent-task.zh-CN.md`，并使用独立的 `stage1/i-*` 或 `stage1/i-train-*` 分支和提交。`[I]` 独占通用 Host/SDK/Broker/CI/generator/integration files、root lock/toolchain、generated outputs、cross-package harness 和 OpenSpec `tasks.md` checkbox。`[I]` 对 `[B]` 产物的校验是技术集成 evidence，不是独立的人类审批。
 
-你在本对话中不得领取 `[A]` 或 `[I]` task，不得修改另一 Owner 的领域语义或 I-owned shared/generated files。不得在同一 Agent turn、分支或 commit 中从 `[B]` 切换为 `[I]`。Review 和共享人员身份都不转移 authorship 或 path ownership。
+你在本对话中不得领取 `[A]` 或 `[I]` task，不得修改另一 Owner 的领域语义或 I-owned shared/generated files。不得在同一 Agent turn、对话、分支或 commit 中从 `[B]` 切换为 `[I]`。Review 和共享人类责任人都不转移 authorship 或 path ownership。
 
 本文后面的架构、Ledger、Agent、Verifier、Promotion 和 Publisher 条款都是边界护栏，不是要求每个 task 一次实现的交付清单。只实现当前 Task ID 明确要求的最小切片；属于以后阶段的条款只用于阻止越界。
 

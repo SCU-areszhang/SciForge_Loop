@@ -38,7 +38,7 @@
 - `tasks.md` 明确标记为 `[A]` 的 package-owned fixtures、fault tests 和 activation semantic commits；
 - Task `0.8D` 明确授权的 Git Checkpoints baseline semantic repair，仅限该 task 的精确路径和行为。
 
-开发者 B 拥有 `[B]` Workflow Evolution 领域语义，并另行承担 `[I]` integration/platform 帽子。`[I]` 不是第三名开发者；它使用独立对话、`stage1/i-*` 或 `stage1/i-train-*` 分支和 commits，独占 Host/SDK/Broker/CI/generator/integration、root lock/toolchain、generated outputs、cross-package harness 和 OpenSpec checkbox。
+开发者 B 是 `[B]` 与 `[I]` 的人类责任人，但两者是相互隔离的 Codex 执行身份。`[B]` 拥有 Workflow Evolution 领域语义；`[I]` 使用独立对话、`stage1/i-*` 或 `stage1/i-train-*` 分支和 commits，独占 Host/SDK/Broker/CI/generator/integration、root lock/toolchain、generated outputs、cross-package harness 和 OpenSpec checkbox。共享人类责任人不传递上下文、权限、authorship 或人类审批独立性。
 
 你不得领取 `[B]` 或 `[I]` task，不得在 A branch 修改 B 领域语义、Host/platform mechanics、root lock、generated outputs 或 checkbox。Review 不转移 authorship 或 path ownership。
 
