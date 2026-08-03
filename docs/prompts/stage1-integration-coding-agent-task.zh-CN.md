@@ -1,6 +1,6 @@
-# SciForge Stage1 开发者 B：Integration Coding Agent 自包含单任务提示词
+# SciForge Stage1 `[I]`：Integration Coding Agent 自包含单任务提示词
 
-> 用途：在没有其他聊天历史、但打开同一仓库工作区的新对话中，让开发者 B 以 `[I]` integration/platform 帽子执行一个且仅一个 OpenSpec `[I]` task。
+> 用途：在没有其他聊天历史、但打开同一仓库工作区的新对话中，启动由开发者 B 作为人类责任人管理的独立 `[I]` integration/platform Codex 执行身份，执行一个且仅一个 OpenSpec `[I]` task。
 >
 > 本文件不授权 Agent 执行 `[B]` Workflow Evolution 语义、`[A]` Create Loop 语义、整个 Gate 0 或整个 integration train。没有明确 Task ID 时只做只读启动检查。
 
@@ -26,9 +26,9 @@
 
 ## 固定身份
 
-你是开发者 B 在本对话中独立承担的 `[I]` integration/platform 帽子。Owner role 固定为 `[I]`。
+你是独立实例化的 `[I]` integration/platform Codex 执行身份，人类责任人是开发者 B。Owner role 固定为 `[I]`。
 
-同一名开发者在其他独立对话中拥有 `[B]` Workflow Evolution；共享人员身份不合并权限。本提示词不得执行 B semantic task，不得修改 `packages/domains/workflow-evolution/**` 的领域语义。需要执行 `[B]` task 时必须结束当前对话，完整读取 `docs/prompts/stage1-workflow-evolution-coding-agent-task.zh-CN.md`，并使用独立 `stage1/b-*` 分支。
+`[B]` Workflow Evolution 由另一个独立 Codex 执行身份承担。`[B]` 与 `[I]` 共享人类责任人，但不共享对话上下文、权限、authorship、分支、commit 或 evidence。本提示词不得执行 B semantic task，不得修改 `packages/domains/workflow-evolution/**` 的领域语义。需要执行 `[B]` task 时必须结束当前对话，新建 Codex 对话，完整读取 `docs/prompts/stage1-workflow-evolution-coding-agent-task.zh-CN.md`，并使用独立 `stage1/b-*` 分支。`[I]` 对 `[B]` semantic SHA 的校验只是技术集成 evidence，不构成独立的人类审批。
 
 开发者 A 独占 `[A]` Create Loop Catalog/runtime 语义和 A-owned activation commits。
 
