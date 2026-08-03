@@ -115,16 +115,41 @@ test('version-control adapter uses only public generic contracts and inherits re
   )
 })
 
-test('capability factory confirmation-gates restore and enforces caller workspace', async () => {
+test('capability factory preserves restore output without claiming a caller-bound resource change', async () => {
   const definitions: GitCheckpointsCapabilityOptions[] = []
   const restoreCalls: unknown[] = []
+  const successfulRestore = {
+    ok: true as const,
+    value: {
+      checkpointId: 'checkpoint-1',
+      runtimeId: 'codex',
+      threadId: 'thread-1',
+      phase: 'manual' as const,
+      workspaceRoot: '/workspace',
+      provider: 'git',
+      revision: 'revision-1',
+      createdAt: '2026-07-28T00:00:00.000Z',
+      changeSummary: '1 change',
+      status: 'restored' as const,
+      restoreStatus: '2026-07-28T00:01:00.000Z',
+      rescueCheckpointId: 'rescue-1'
+    }
+  }
+  const failedRestore = {
+    ok: false as const,
+    reason: 'blocked',
+    message: 'blocked'
+  }
+  let restoreResult: typeof successfulRestore | typeof failedRestore = successfulRestore
+  let restoreError: Error | undefined
   const service = {
     list: async () => ({ ok: true, value: [] }),
     create: async () => ({ ok: false, reason: 'unused', message: 'unused' }),
     preview: async () => ({ ok: false, reason: 'unused', message: 'unused' }),
     restore: async (...args: unknown[]) => {
       restoreCalls.push(args)
-      return { ok: false, reason: 'blocked', message: 'blocked' }
+      if (restoreError) throw restoreError
+      return restoreResult
     }
   } as unknown as GitCheckpointService
   const factory = createGitCheckpointsCapabilityFactory({
@@ -146,11 +171,40 @@ test('capability factory confirmation-gates restore and enforces caller workspac
   assert.equal(restore.effect, 'destructive')
   assert.equal(restore.approval, 'confirmation')
   assert.deepEqual(restore.audiences, ['ui', 'agent'])
-  await restore.handler(
+  const successfulEnvelope = await restore.handler(
     { checkpointId: 'checkpoint-1' },
     { caller: { workspaceId: '/workspace' } }
   )
+  assert.deepEqual(successfulEnvelope, {
+    output: successfulRestore,
+    changed: false
+  })
+
+  restoreResult = failedRestore
+  const failedEnvelope = await restore.handler(
+    { checkpointId: 'checkpoint-1' },
+    { caller: { workspaceId: '/workspace' } }
+  )
+  assert.deepEqual(failedEnvelope, {
+    output: failedRestore,
+    changed: false
+  })
+
+  restoreError = new Error('outer restore failure')
+  await assert.rejects(
+    restore.handler(
+      { checkpointId: 'checkpoint-1' },
+      { caller: { workspaceId: '/workspace' } }
+    ),
+    /outer restore failure/u
+  )
   assert.deepEqual(restoreCalls, [[
+    { checkpointId: 'checkpoint-1' },
+    '/workspace'
+  ], [
+    { checkpointId: 'checkpoint-1' },
+    '/workspace'
+  ], [
     { checkpointId: 'checkpoint-1' },
     '/workspace'
   ]])

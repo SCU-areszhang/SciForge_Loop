@@ -227,7 +227,7 @@ export function createGitCheckpointsCapabilityFactory<CapabilityDefinition>(
           const workspaceRoot = requireWorkspace(context)
           const input = gitCheckpointRestoreInputSchema.parse(rawInput)
           const output = await options.getService().restore(input, workspaceRoot)
-          return { output, changed: output.ok }
+          return { output, changed: false }
         }
       })
     ]
