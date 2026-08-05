@@ -1,0 +1,104 @@
+{
+  "schemaVersion": 1,
+  "_meta": {
+    "provenance": "synthetic-contract",
+    "containsRealProviderData": false,
+    "factSource": "docs/continuity-zulip-official-capability-audit.zh-CN.md"
+  },
+  "fixtures": [
+    {
+      "id": "events-live-raw-markdown",
+      "contract": "GET /api/v1/events with register apply_markdown=false",
+      "httpStatus": 200,
+      "body": { "result": "success", "msg": "", "events": [{ "id": 41, "type": "message", "message": { "id": 5001, "type": "stream", "stream_id": 701, "subject": "SF-00000001 task", "content": "/sf status", "content_type": "text/x-markdown", "sender_id": 801 } }] }
+    },
+    {
+      "id": "events-bad-queue",
+      "contract": "GET /api/v1/events -> BAD_EVENT_QUEUE_ID",
+      "httpStatus": 400,
+      "body": { "result": "error", "msg": "Synthetic bad queue", "code": "BAD_EVENT_QUEUE_ID", "queue_id": "queue-synthetic-expired" },
+      "expected": { "typedError": "bad_event_queue", "next": "history_catch_up_before_handler_outbox_write" }
+    },
+    {
+      "id": "delete-queue-success",
+      "contract": "DELETE /api/v1/events",
+      "httpStatus": 200,
+      "body": { "result": "success", "msg": "" }
+    },
+    {
+      "id": "delete-queue-bad-id",
+      "contract": "DELETE /api/v1/events -> diagnostic only",
+      "httpStatus": 400,
+      "body": { "result": "error", "msg": "Synthetic bad queue", "code": "BAD_EVENT_QUEUE_ID", "queue_id": "queue-synthetic-missing" },
+      "expected": { "typedError": "bad_event_queue", "businessStateChanged": false }
+    },
+    {
+      "id": "history-single-complete",
+      "contract": "GET /api/v1/messages apply_markdown=false single page",
+      "request": { "anchor": 5002, "num_before": 2, "num_after": 0, "include_anchor": true, "apply_markdown": false },
+      "httpStatus": 200,
+      "body": { "result": "success", "msg": "", "anchor": 5002, "found_anchor": true, "found_oldest": true, "found_newest": true, "history_limited": false, "messages": [{ "id": 5001, "stream_id": 701, "subject": "SF-00000001 task", "content": "/sf status", "content_type": "text/x-markdown", "sender_id": 801 }, { "id": 5002, "stream_id": 701, "subject": "SF-00000001 task", "content": "/sf continue --at v3 synthetic", "content_type": "text/x-markdown", "sender_id": 801 }] }
+    },
+    {
+      "id": "history-page-first",
+      "contract": "GET /api/v1/messages first page of forward catch-up",
+      "request": { "anchor": 5100, "num_before": 0, "num_after": 2, "include_anchor": true, "apply_markdown": false },
+      "body": { "result": "success", "msg": "", "anchor": 5100, "found_anchor": true, "found_oldest": false, "found_newest": false, "history_limited": false, "messages": [{ "id": 5100, "stream_id": 701, "subject": "SF-00000001 task", "content": "synthetic-anchor", "content_type": "text/x-markdown", "sender_id": 801 }, { "id": 5101, "stream_id": 701, "subject": "SF-00000001 task", "content": "/sf status", "content_type": "text/x-markdown", "sender_id": 801 }, { "id": 5102, "stream_id": 701, "subject": "SF-00000001 task", "content": "synthetic-ignore", "content_type": "text/x-markdown", "sender_id": 802 }] }
+    },
+    {
+      "id": "history-page-middle",
+      "contract": "GET /api/v1/messages middle page with anchor overlap",
+      "request": { "anchor": 5102, "num_before": 0, "num_after": 2, "include_anchor": true, "apply_markdown": false },
+      "body": { "result": "success", "msg": "", "anchor": 5102, "found_anchor": true, "found_oldest": false, "found_newest": false, "history_limited": false, "messages": [{ "id": 5102, "stream_id": 701, "subject": "SF-00000001 task", "content": "synthetic-ignore", "content_type": "text/x-markdown", "sender_id": 802 }, { "id": 5103, "stream_id": 701, "subject": "SF-00000001 task", "content": "/sf decide --at v4 synthetic --reason synthetic", "content_type": "text/x-markdown", "sender_id": 801 }, { "id": 5104, "stream_id": 701, "subject": "SF-00000001 task", "content": "synthetic-ignore", "content_type": "text/x-markdown", "sender_id": 802 }] }
+    },
+    {
+      "id": "history-page-last",
+      "contract": "GET /api/v1/messages last page",
+      "request": { "anchor": 5104, "num_before": 0, "num_after": 2, "include_anchor": true, "apply_markdown": false },
+      "body": { "result": "success", "msg": "", "anchor": 5104, "found_anchor": true, "found_oldest": false, "found_newest": true, "history_limited": false, "messages": [{ "id": 5104, "stream_id": 701, "subject": "SF-00000001 task", "content": "synthetic-ignore", "content_type": "text/x-markdown", "sender_id": 802 }, { "id": 5105, "stream_id": 701, "subject": "SF-00000001 task", "content": "/sf status", "content_type": "text/x-markdown", "sender_id": 801 }] },
+      "expected": { "deduplicatedOrderedIds": [5100, 5101, 5102, 5103, 5104, 5105] }
+    },
+    {
+      "id": "history-anchor-overlap",
+      "contract": "immutable message ID dedupe",
+      "input": { "pages": [[5100, 5101, 5102], [5102, 5103, 5104], [5104, 5105]] },
+      "expected": { "deduplicatedOrderedIds": [5100, 5101, 5102, 5103, 5104, 5105], "duplicateCount": 2 }
+    },
+    {
+      "id": "history-anchor-missing",
+      "contract": "GET /api/v1/messages found_anchor=false",
+      "body": { "result": "success", "msg": "", "anchor": 5199, "found_anchor": false, "found_oldest": false, "found_newest": true, "history_limited": false, "messages": [] },
+      "expected": { "typedError": "anchor_missing", "watermarkAdvanced": false }
+    },
+    {
+      "id": "history-incomplete-direction",
+      "contract": "found_oldest/found_newest not complete",
+      "body": { "result": "success", "msg": "", "anchor": 5200, "found_anchor": true, "found_oldest": false, "found_newest": false, "history_limited": false, "messages": [{ "id": 5200, "stream_id": 701, "subject": "SF-00000001 task", "content": "synthetic", "content_type": "text/x-markdown", "sender_id": 801 }] },
+      "expected": { "typedError": "page_incomplete", "remoteWriteEnabled": false, "watermarkAdvanced": false }
+    },
+    {
+      "id": "history-plan-limited",
+      "contract": "history_limited=true at oldest end",
+      "body": { "result": "success", "msg": "", "anchor": 5300, "found_anchor": true, "found_oldest": true, "found_newest": false, "history_limited": true, "messages": [{ "id": 5300, "stream_id": 701, "subject": "SF-00000001 task", "content": "synthetic-oldest-visible", "content_type": "text/x-markdown", "sender_id": 801 }] },
+      "expected": { "typedError": "history_gap_plan_limited", "watermarkAdvanced": false }
+    },
+    {
+      "id": "history-retention-gap",
+      "contract": "effective retention proves deleted interval",
+      "input": { "durableWatermarkId": 5400, "watermarkAgeDays": 45, "oldestVisibleMessageId": 5500, "effectiveRetentionDays": 30, "historyLimited": false },
+      "expected": { "typedError": "history_gap_retention", "watermarkAdvanced": false }
+    },
+    {
+      "id": "history-subscription-boundary",
+      "contract": "protected history and first accessible baseline",
+      "input": { "durableWatermarkId": 5600, "firstAccessibleMessageId": 5700, "historyPublicToSubscribers": false, "botSubscribed": true },
+      "expected": { "typedError": "history_gap_subscription_boundary", "watermarkAdvanced": false }
+    },
+    {
+      "id": "history-gap-unknown",
+      "contract": "insufficient evidence must not guess",
+      "input": { "durableWatermarkId": 5800, "oldestVisibleMessageId": 5900, "historyLimited": false, "effectiveRetentionDays": null, "historyPublicToSubscribers": null, "firstMessageId": null },
+      "expected": { "typedError": "history_gap_unknown", "boundedDiagnostic": ["durable_watermark_before_oldest_visible", "retention_unknown", "subscription_history_unknown"], "remoteWriteEnabled": false, "watermarkAdvanced": false }
+    }
+  ]
+}

@@ -1,0 +1,116 @@
+{
+  "schemaVersion": 1,
+  "_meta": {
+    "provenance": "synthetic-contract",
+    "containsRealProviderData": false,
+    "factSource": "docs/continuity-zulip-official-capability-audit.zh-CN.md"
+  },
+  "fixtures": [
+    {
+      "id": "user-me-success",
+      "contract": "GET /api/v1/users/me",
+      "httpStatus": 200,
+      "body": { "result": "success", "msg": "", "user_id": 901, "email": "continuity-bot@example.invalid", "full_name": "Continuity Test Bot", "is_bot": true }
+    },
+    {
+      "id": "user-me-invalid",
+      "contract": "GET /api/v1/users/me -> invalid_bot_identity",
+      "httpStatus": 200,
+      "body": { "result": "success", "msg": "", "user_id": 902, "email": "human@example.invalid", "full_name": "Synthetic User", "is_bot": false }
+    },
+    {
+      "id": "subscriptions-private",
+      "contract": "GET /api/v1/users/me/subscriptions",
+      "httpStatus": 200,
+      "body": {
+        "result": "success",
+        "msg": "",
+        "subscriptions": [
+          { "stream_id": 701, "name": "continuity-private", "invite_only": true, "is_web_public": false, "history_public_to_subscribers": true, "first_message_id": 1001, "message_retention_days": null, "topics_policy": "disable_empty_topic" }
+        ]
+      }
+    },
+    {
+      "id": "subscriptions-protected-history",
+      "contract": "GET /api/v1/users/me/subscriptions -> history_public_to_subscribers=false",
+      "httpStatus": 200,
+      "body": {
+        "result": "success",
+        "msg": "",
+        "subscriptions": [
+          { "stream_id": 702, "name": "continuity-protected", "invite_only": true, "is_web_public": false, "history_public_to_subscribers": false, "first_message_id": 2200, "message_retention_days": -1, "topics_policy": "inherit" }
+        ]
+      }
+    },
+    {
+      "id": "subscriptions-retention",
+      "contract": "channel retention overrides realm retention",
+      "httpStatus": 200,
+      "body": {
+        "result": "success",
+        "msg": "",
+        "subscriptions": [
+          { "stream_id": 703, "name": "continuity-retained", "invite_only": true, "is_web_public": false, "history_public_to_subscribers": true, "first_message_id": 3300, "message_retention_days": 30, "topics_policy": "allow_empty_topic" }
+        ]
+      },
+      "expected": { "effectiveRetentionDays": 30 }
+    },
+    {
+      "id": "stream-private-valid",
+      "contract": "GET /api/v1/streams/{stream_id}",
+      "httpStatus": 200,
+      "body": { "result": "success", "msg": "", "stream": { "stream_id": 701, "name": "continuity-private", "invite_only": true, "is_web_public": false, "history_public_to_subscribers": true, "first_message_id": 1001, "message_retention_days": null, "topics_policy": "disable_empty_topic" } }
+    },
+    {
+      "id": "stream-public-rejected",
+      "contract": "GET /api/v1/streams/{stream_id} -> D-19 fail closed",
+      "httpStatus": 200,
+      "body": { "result": "success", "msg": "", "stream": { "stream_id": 704, "name": "public-rejected", "invite_only": false, "is_web_public": false, "history_public_to_subscribers": true, "first_message_id": 1, "message_retention_days": -1, "topics_policy": "inherit" } },
+      "expected": { "typedError": "target_not_private" }
+    },
+    {
+      "id": "stream-empty-topic-only",
+      "contract": "GET /api/v1/streams/{stream_id} -> named topic unavailable",
+      "httpStatus": 200,
+      "body": { "result": "success", "msg": "", "stream": { "stream_id": 705, "name": "empty-only", "invite_only": true, "is_web_public": false, "history_public_to_subscribers": true, "first_message_id": null, "message_retention_days": -1, "topics_policy": "empty_topic_only" } },
+      "expected": { "typedError": "named_topic_unavailable" }
+    },
+    {
+      "id": "topics-list",
+      "contract": "GET /api/v1/users/me/{stream_id}/topics",
+      "httpStatus": 200,
+      "body": { "result": "success", "msg": "", "topics": [{ "name": "SF-00000001 task", "max_id": 4100 }] }
+    },
+    {
+      "id": "register-valid",
+      "contract": "POST /api/v1/register with fetch_event_types=[realm]",
+      "httpStatus": 200,
+      "body": { "result": "success", "msg": "", "queue_id": "queue-synthetic-01", "last_event_id": -1, "zulip_feature_level": 404, "zulip_version": "synthetic-current", "max_message_length": 10000, "max_topic_length": 60, "event_queue_longpoll_timeout_seconds": 90, "realm_allow_message_editing": true, "realm_message_content_edit_limit_seconds": 600, "realm_message_retention_days": 90, "realm_push_notifications_enabled": true }
+    },
+    {
+      "id": "register-edit-disabled",
+      "contract": "POST /api/v1/register -> replacement card policy",
+      "httpStatus": 200,
+      "body": { "result": "success", "msg": "", "queue_id": "queue-synthetic-02", "last_event_id": 10, "zulip_feature_level": 404, "zulip_version": "synthetic-current", "max_message_length": 10000, "max_topic_length": 60, "event_queue_longpoll_timeout_seconds": 90, "realm_allow_message_editing": false, "realm_message_content_edit_limit_seconds": 600, "realm_message_retention_days": -1, "realm_push_notifications_enabled": false }
+    },
+    {
+      "id": "register-legacy",
+      "contract": "POST /api/v1/register -> metadata_unsupported",
+      "httpStatus": 200,
+      "body": { "result": "success", "msg": "", "queue_id": "queue-synthetic-legacy", "last_event_id": 0, "zulip_feature_level": 20, "zulip_version": "synthetic-legacy", "realm_allow_message_editing": true, "realm_message_content_edit_limit_seconds": 0, "realm_message_retention_days": null, "ignored_parameters_unsupported": ["fetch_event_types"] },
+      "expected": { "typedError": "metadata_unsupported", "remoteWriteEnabled": false }
+    },
+    {
+      "id": "realm-retention-inherited",
+      "contract": "effective retention when channel message_retention_days=null",
+      "input": { "channelMessageRetentionDays": null, "realmMessageRetentionDays": 90 },
+      "expected": { "effectiveRetentionDays": 90 }
+    },
+    {
+      "id": "realm-retention-unlimited-legacy",
+      "contract": "legacy realm null means unlimited",
+      "input": { "channelMessageRetentionDays": null, "realmMessageRetentionDays": null },
+      "expected": { "effectiveRetentionDays": -1 }
+    }
+  ]
+}

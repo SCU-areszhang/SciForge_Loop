@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "_meta": {
+    "provenance": "synthetic-contract",
+    "containsRealProviderData": false,
+    "factSource": "docs/continuity-zulip-official-capability-audit.zh-CN.md"
+  },
+  "fixtures": [
+    {
+      "id": "send-success",
+      "contract": "POST /api/v1/messages",
+      "httpStatus": 200,
+      "headers": { "X-RateLimit-Remaining": "199", "X-RateLimit-Limit": "200", "X-RateLimit-Reset": "1900000000" },
+      "body": { "result": "success", "msg": "", "id": 6001 },
+      "expected": { "outcome": "delivered", "providerMessageId": "6001" }
+    },
+    {
+      "id": "send-429",
+      "contract": "POST /api/v1/messages rate limited",
+      "httpStatus": 429,
+      "headers": { "X-RateLimit-Remaining": "0", "X-RateLimit-Limit": "200", "X-RateLimit-Reset": "1900000060" },
+      "body": { "result": "error", "msg": "Synthetic rate limit" },
+      "expected": { "outcome": "rate_limited", "retryNotBeforeSource": "X-RateLimit-Reset" }
+    },
+    {
+      "id": "send-timeout-uncertain",
+      "contract": "POST /api/v1/messages response absent after request may have been sent",
+      "transport": { "requestBodyWritten": true, "responseReceived": false, "error": "synthetic_timeout" },
+      "expected": { "outcome": "uncertain", "automaticRetry": false }
+    },
+    {
+      "id": "edit-success",
+      "contract": "PATCH /api/v1/messages/{message_id}",
+      "httpStatus": 200,
+      "headers": { "X-RateLimit-Remaining": "198", "X-RateLimit-Limit": "200", "X-RateLimit-Reset": "1900000000" },
+      "body": { "result": "success", "msg": "" },
+      "expected": { "outcome": "delivered" }
+    },
+    {
+      "id": "edit-forbidden",
+      "contract": "PATCH /api/v1/messages/{message_id} policy denies content edit",
+      "httpStatus": 403,
+      "body": { "result": "error", "msg": "Synthetic edit forbidden" },
+      "expected": { "typedError": "edit_forbidden", "next": "single_replacement_card_intent" }
+    },
+    {
+      "id": "edit-expired",
+      "contract": "PATCH /api/v1/messages/{message_id} outside edit window",
+      "httpStatus": 400,
+      "body": { "result": "error", "msg": "Synthetic edit window expired" },
+      "expected": { "typedError": "edit_window_expired", "next": "single_replacement_card_intent" }
+    },
+    {
+      "id": "edit-not-found",
+      "contract": "PATCH /api/v1/messages/{message_id} canonical card deleted",
+      "httpStatus": 404,
+      "body": { "result": "error", "msg": "Synthetic message not found" },
+      "expected": { "typedError": "message_not_found", "next": "single_replacement_card_intent" }
+    },
+    {
+      "id": "edit-content-conflict",
+      "contract": "PATCH /api/v1/messages/{message_id} prev_content_sha256 mismatch",
+      "httpStatus": 400,
+      "body": { "result": "error", "msg": "Synthetic previous content mismatch" },
+      "expected": { "typedError": "content_conflict", "next": "observe_current_canonical_before_retry", "overwriteNewerCard": false }
+    }
+  ]
+}

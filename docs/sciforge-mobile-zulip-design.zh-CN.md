@@ -1,5 +1,7 @@
 # SciForge Mobile Zulip 实现设计
 
+> **状态说明（2026-08-05）**：本文是多人科研协作、独立 Bridge、长期服务与自定义客户端等方向的长期设想，不是当前实施合同。当前 Continuity v1 的目标仅是让同一用户通过 SciForge Electron、官方 Zulip 手机端和 Zulip Web 访问、接力同一个任务；v1 不建设独立 Bridge、常驻云端 Agent、自研移动 App/Web 或多人 RBAC，也不处理“减少用户与 Agent 的交互次数”。当前范围、接口事实与验收以 [v1 权威架构](./continuity-multi-client-v1.zh-CN.md)、[验收剧本](./continuity-multi-client-v1-acceptance.zh-CN.md)、[PR 0～PR 8 执行计划](./continuity-multi-client-v1-execution-plan.zh-CN.md) 和 [Zulip 官方能力合同](./continuity-zulip-official-capability-audit.zh-CN.md) 为准。
+
 Last updated: 2026-06-30
 
 本文设计一个基于 Zulip 的 SciForge 手机端与科研协作层。目标是把 SciForge 的自主科研 Agent、科学家反馈、实验记录、证据链和周报同步放进一个低摩擦的移动协作空间。
