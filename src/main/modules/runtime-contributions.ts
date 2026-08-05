@@ -18,7 +18,11 @@ import {
   type DomainMainRuntimeLifecycleHost,
   type DomainMainSystemCapabilityInvoker
 } from '@sciforge/domain-sdk/host'
-import { capabilityJsonValueSchema } from '../../shared/capability-broker'
+import {
+  CapabilityInvocationContractError,
+  capabilityInvocationIdSchema,
+  capabilityJsonValueSchema
+} from '../../shared/capability-broker'
 import { CapabilityBroker } from '../capabilities/broker'
 import { DomainModuleCatalog } from './catalog'
 
@@ -120,9 +124,20 @@ export function createMainSystemCapabilityInvoker(
       const parsedInput = capabilityJsonValueSchema.parse(
         contract.inputSchema.parse(input)
       )
-      const invocationId = contract.effect === 'read'
-        ? undefined
-        : invokeOptions?.idempotencyKey?.trim() || createInvocationId()
+      let invocationId: string | undefined
+      if (contract.effect === 'read') {
+        if (invokeOptions?.idempotencyKey !== undefined) {
+          throw new CapabilityInvocationContractError(
+            `Read capability ${contract.actionId} does not accept an invocation ID.`
+          )
+        }
+      } else {
+        invocationId = capabilityInvocationIdSchema.parse(
+          invokeOptions?.idempotencyKey === undefined
+            ? createInvocationId()
+            : invokeOptions.idempotencyKey
+        )
+      }
       const approval = definition.descriptor.approval
       const inherited = invokeOptions?.authorization?.mode === 'inherit-current-action'
         ? broker.currentInvocation()

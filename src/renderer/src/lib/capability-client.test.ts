@@ -97,6 +97,112 @@ describe('RendererCapabilityClient', () => {
     expect(bridge.invoke.mock.calls[0]?.[0].request.invocationId).toBe('invocation-1')
   })
 
+  it('preserves and canonicalizes a caller stable key across retries', async () => {
+    const bridge = transport({ ok: true })
+    const createInvocationId = vi.fn(() => 'generated-invocation')
+    const client = new RendererCapabilityClient({
+      getTransport: () => bridge,
+      createInvocationId
+    })
+    const contract = {
+      actionId: 'example.compute',
+      effect: 'compute' as const,
+      inputSchema: z.object({ value: z.number() }).strict(),
+      outputSchema: z.object({ ok: z.boolean() }).strict()
+    }
+
+    await client.invoke(contract, { value: 1 }, { idempotencyKey: '  stable-command  ' })
+    await client.invoke(contract, { value: 1 }, { idempotencyKey: 'stable-command' })
+
+    expect(createInvocationId).not.toHaveBeenCalled()
+    expect(bridge.invoke.mock.calls.map(([payload]) => payload.request.invocationId))
+      .toEqual(['stable-command', 'stable-command'])
+  })
+
+  it('requires the result invocation ID to match the canonical request ID', async () => {
+    const bridge = transport({ ok: true })
+    bridge.invoke.mockResolvedValueOnce(result('example.compute', { ok: true }, 'different-command'))
+    const client = new RendererCapabilityClient({
+      getTransport: () => bridge,
+      createInvocationId: () => 'generated-invocation'
+    })
+
+    await expect(client.invoke({
+      actionId: 'example.compute',
+      effect: 'compute',
+      inputSchema: z.object({}).strict(),
+      outputSchema: z.object({ ok: z.boolean() }).strict()
+    }, {}, { idempotencyKey: '  stable-command  ' })).rejects.toThrow(
+      'Capability result invocation mismatch'
+    )
+
+    expect(bridge.invoke.mock.calls[0]?.[0].request.invocationId).toBe('stable-command')
+  })
+
+  it.each([
+    ['blank', '   '],
+    ['oversized', 'x'.repeat(257)],
+    ['non-string', 42 as unknown as string]
+  ])('rejects an invalid %s caller key before generation or transport', async (_label, idempotencyKey) => {
+    const bridge = transport({ ok: true })
+    const createInvocationId = vi.fn(() => 'generated-invocation')
+    const client = new RendererCapabilityClient({
+      getTransport: () => bridge,
+      createInvocationId
+    })
+
+    await expect(client.invoke({
+      actionId: 'example.compute',
+      effect: 'compute',
+      inputSchema: z.object({}).strict(),
+      outputSchema: z.object({ ok: z.boolean() }).strict()
+    }, {}, { idempotencyKey })).rejects.toThrow()
+
+    expect(createInvocationId).not.toHaveBeenCalled()
+    expect(bridge.readiness).not.toHaveBeenCalled()
+    expect(bridge.invoke).not.toHaveBeenCalled()
+  })
+
+  it('rejects a read stable key with a typed code before readiness or transport', async () => {
+    const bridge = transport({ ok: true })
+    const createInvocationId = vi.fn(() => 'generated-invocation')
+    const client = new RendererCapabilityClient({
+      getTransport: () => bridge,
+      createInvocationId
+    })
+
+    await expect(client.invoke({
+      actionId: 'example.read',
+      effect: 'read',
+      inputSchema: z.object({}).strict(),
+      outputSchema: z.object({ ok: z.boolean() }).strict()
+    }, {}, { idempotencyKey: 'read-command' })).rejects.toMatchObject({
+      code: 'unexpected_invocation_id'
+    })
+
+    expect(createInvocationId).not.toHaveBeenCalled()
+    expect(bridge.readiness).not.toHaveBeenCalled()
+    expect(bridge.invoke).not.toHaveBeenCalled()
+  })
+
+  it('validates generated invocation IDs before readiness or transport', async () => {
+    const bridge = transport({ ok: true })
+    const client = new RendererCapabilityClient({
+      getTransport: () => bridge,
+      createInvocationId: () => '   '
+    })
+
+    await expect(client.invoke({
+      actionId: 'example.compute',
+      effect: 'compute',
+      inputSchema: z.object({}).strict(),
+      outputSchema: z.object({ ok: z.boolean() }).strict()
+    }, {})).rejects.toThrow()
+
+    expect(bridge.readiness).not.toHaveBeenCalled()
+    expect(bridge.invoke).not.toHaveBeenCalled()
+  })
+
   it('maps resource-scoped invocation options into the canonical request', async () => {
     const bridge = transport({ ok: true })
     const client = new RendererCapabilityClient({

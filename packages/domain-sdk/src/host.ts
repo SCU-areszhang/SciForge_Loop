@@ -482,6 +482,7 @@ export type DomainRendererCapabilityInvoker = Readonly<{
     input: TInput,
     options?: Readonly<{
       workspaceId?: string
+      idempotencyKey?: string
       resource?: DomainCapabilityResourceHandle
       expectedRevision?: string
       approval?: Readonly<{ mode: 'confirmation' }>

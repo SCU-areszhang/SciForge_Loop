@@ -53,6 +53,18 @@ export const capabilityIdSchema = z.string()
   .max(192)
   .regex(/^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)+$/, 'Use a namespaced lowercase capability ID.')
 
+export const capabilityInvocationIdSchema = z.string().trim().min(1).max(256)
+
+export class CapabilityInvocationContractError extends Error {
+  readonly code: 'unexpected_invocation_id'
+
+  constructor(message: string) {
+    super(message)
+    this.name = 'CapabilityInvocationContractError'
+    this.code = 'unexpected_invocation_id'
+  }
+}
+
 export const capabilityDescriptorSchema = z.object({
   contractVersion: z.literal(CAPABILITY_BROKER_CONTRACT_VERSION),
   id: capabilityIdSchema,
@@ -160,7 +172,7 @@ export type CapabilityReadiness = z.infer<typeof capabilityReadinessSchema>
 
 export const capabilityApprovalGrantSchema = z.object({
   actionId: capabilityIdSchema,
-  invocationId: z.string().trim().min(1).max(256).optional(),
+  invocationId: capabilityInvocationIdSchema.optional(),
   mode: z.enum(['confirmation', 'system'])
 }).strict()
 export type CapabilityApprovalGrant = z.infer<typeof capabilityApprovalGrantSchema>
@@ -249,7 +261,7 @@ export type CapabilityObservation = z.infer<typeof capabilityObservationSchema>
 
 export const capabilityInvocationRequestSchema = z.object({
   actionId: capabilityIdSchema,
-  invocationId: z.string().trim().min(1).max(256).optional(),
+  invocationId: capabilityInvocationIdSchema.optional(),
   resource: capabilityResourceHandleSchema.optional(),
   expectedRevision: z.string().trim().min(1).max(256).optional(),
   input: capabilityJsonValueSchema
@@ -258,7 +270,7 @@ export type CapabilityInvocationRequest = z.infer<typeof capabilityInvocationReq
 
 export const capabilityInvocationResultSchema = z.object({
   actionId: capabilityIdSchema,
-  invocationId: z.string().trim().min(1).max(256).optional(),
+  invocationId: capabilityInvocationIdSchema.optional(),
   output: capabilityJsonValueSchema,
   resource: capabilityResourceHandleSchema.optional(),
   beforeRevision: z.string().trim().min(1).max(256).optional(),
@@ -280,7 +292,7 @@ export const capabilityAuditRecordSchema = z.object({
     workspaceId: z.string().trim().min(1).max(1_024).optional()
   }).strict(),
   actionId: capabilityIdSchema,
-  invocationId: z.string().trim().min(1).max(256).optional(),
+  invocationId: capabilityInvocationIdSchema.optional(),
   resourceRef: z.string().regex(/^res_[A-Za-z0-9_-]{20,}$/).optional(),
   effect: capabilityEffectSchema.optional(),
   approval: capabilityApprovalModeSchema.optional(),
@@ -299,7 +311,7 @@ export const capabilityResourceChangeEventSchema = z.object({
   resourceStatus: z.enum(['live', 'retired']).default('live'),
   resourceKind: z.string().trim().min(1).max(128),
   actionId: capabilityIdSchema,
-  invocationId: z.string().trim().min(1).max(256),
+  invocationId: capabilityInvocationIdSchema,
   beforeRevision: z.string().trim().min(1).max(256),
   afterRevision: z.string().trim().min(1).max(256)
 }).strict()

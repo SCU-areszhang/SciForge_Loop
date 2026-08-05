@@ -26,6 +26,22 @@ const ui: CapabilityCallerContextInput = {
   workspaceId: 'workspace-1'
 }
 
+const system: CapabilityCallerContextInput = {
+  audience: 'system',
+  callerId: 'system-1',
+  workspaceId: 'workspace-1'
+}
+
+function deferred() {
+  let resolve!: () => void
+  let reject!: (error: unknown) => void
+  const promise = new Promise<void>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise
+    reject = rejectPromise
+  })
+  return { promise, resolve, reject }
+}
+
 function expectBrokerCode(error: unknown, code: string): boolean {
   expect(error).toBeInstanceOf(CapabilityBrokerError)
   expect((error as CapabilityBrokerError).code).toBe(code)
@@ -40,7 +56,7 @@ function readCapability(handler = vi.fn(async (input: { section: string }) => ({
     version: '1',
     title: 'Read document section',
     description: 'Read a named section from a document resource.',
-    audiences: ['ui', 'agent'],
+    audiences: ['ui', 'agent', 'system'],
     scope: 'resource',
     resourceKinds: ['document'],
     effect: 'read',
@@ -62,7 +78,7 @@ function mutationCapability(handler = vi.fn(async (input: { text: string }, cont
     version: '1',
     title: 'Upsert annotation',
     description: 'Create or update an annotation through the canonical document provider.',
-    audiences: ['ui', 'agent'],
+    audiences: ['ui', 'agent', 'system'],
     scope: 'resource',
     resourceKinds: ['document'],
     effect: 'workspace-write',
@@ -78,6 +94,7 @@ function issueDocument(
   broker: CapabilityBroker,
   caller: CapabilityCallerContextInput = agent,
   options: {
+    resourceId?: string
     semanticRevision?: string
     expiresInMs?: number
     layoutRevision?: string
@@ -87,7 +104,7 @@ function issueDocument(
 ): CapabilityResourceHandle {
   const semanticRevision = options.semanticRevision ?? '1'
   return broker.issueResourceHandle(caller, {
-    resourceId: 'internal/path/paper.pdf',
+    resourceId: options.resourceId ?? 'internal/path/paper.pdf',
     resourceKind: 'document',
     workspaceId: caller.workspaceId,
     audiences: options.audiences,
@@ -256,11 +273,15 @@ describe('CapabilityBroker', () => {
 
     const approved = {
       ...agent,
-      approvals: [{ actionId: 'external.publish-result', invocationId: 'publish-1', mode: 'confirmation' as const }]
+      approvals: [{
+        actionId: 'external.publish-result',
+        invocationId: '  publish-1  ',
+        mode: 'confirmation' as const
+      }]
     }
     await expect(broker.invoke(approved, {
       actionId: 'external.publish-result',
-      invocationId: 'publish-1',
+      invocationId: '  publish-1  ',
       input: { destination: 'not-a-url' }
     })).rejects.toSatisfy((error) => expectBrokerCode(error, 'invalid_input'))
 
@@ -270,6 +291,87 @@ describe('CapabilityBroker', () => {
       resource: handle,
       input: { section: 'abstract' }
     })).rejects.toSatisfy((error) => expectBrokerCode(error, 'invalid_output'))
+  })
+
+  it('rejects an invocation ID on a read request with a stable typed code before the handler', async () => {
+    const handler = vi.fn(async () => ({ output: { ok: true } }))
+    const broker = new CapabilityBroker(new CapabilityRegistry([defineCapability({
+      id: 'fixture.read',
+      version: '1',
+      title: 'Fixture read',
+      description: 'Reads fixture state without command semantics.',
+      audiences: ['ui'],
+      scope: 'global',
+      effect: 'read',
+      approval: 'none',
+      concurrency: { revision: 'none', idempotency: 'none' },
+      inputSchema: z.object({}).strict(),
+      outputSchema: z.object({ ok: z.boolean() }).strict(),
+      handler
+    })]))
+
+    await expect(broker.invoke(ui, {
+      actionId: 'fixture.read',
+      invocationId: 'read-command',
+      input: {}
+    })).rejects.toSatisfy((error) => expectBrokerCode(error, 'unexpected_invocation_id'))
+    expect(handler).not.toHaveBeenCalled()
+  })
+
+  it('passes one canonical invocation ID to every non-read handler and none to read handlers', async () => {
+    const seen = new Map<string, string | undefined>()
+    const effects = ['compute', 'workspace-write', 'external-write', 'destructive'] as const
+    const definitions = effects.map((effect) => defineCapability({
+      id: `fixture.${effect}`,
+      version: '1',
+      title: `Fixture ${effect}`,
+      description: `Exercises ${effect} handler invocation context.`,
+      audiences: ['ui'],
+      scope: 'global',
+      effect,
+      approval: 'none',
+      concurrency: { revision: 'none', idempotency: 'required' },
+      inputSchema: z.object({}).strict(),
+      outputSchema: z.object({ ok: z.boolean() }).strict(),
+      handler: async (_input, context) => {
+        seen.set(effect, context.invocationId)
+        return { output: { ok: true } }
+      }
+    }))
+    definitions.push(defineCapability({
+      id: 'fixture.read-context',
+      version: '1',
+      title: 'Fixture read context',
+      description: 'Exercises read handler invocation context.',
+      audiences: ['ui'],
+      scope: 'global',
+      effect: 'read',
+      approval: 'none',
+      concurrency: { revision: 'none', idempotency: 'none' },
+      inputSchema: z.object({}).strict(),
+      outputSchema: z.object({ ok: z.boolean() }).strict(),
+      handler: async (_input, context) => {
+        seen.set('read', context.invocationId)
+        return { output: { ok: true } }
+      }
+    }))
+    const broker = new CapabilityBroker(new CapabilityRegistry(definitions))
+
+    for (const effect of effects) {
+      const result = await broker.invoke(ui, {
+        actionId: `fixture.${effect}`,
+        invocationId: `  command-${effect}  `,
+        input: {}
+      })
+      expect(result.invocationId).toBe(`command-${effect}`)
+      expect(seen.get(effect)).toBe(`command-${effect}`)
+    }
+    await broker.invoke(ui, { actionId: 'fixture.read-context', input: {} })
+    expect(seen.get('read')).toBeUndefined()
+    expect(broker.listAuditRecords().map((record) => record.invocationId)).toEqual([
+      ...effects.map((effect) => `command-${effect}`),
+      undefined
+    ])
   })
 
   it('keeps resource identity opaque and rejects forged, cross-audience, cross-workspace, and expired handles', async () => {
@@ -537,11 +639,10 @@ describe('CapabilityBroker', () => {
       .toThrow(expect.objectContaining({ code: 'resource_ref_retired' }))
   })
 
-  it('deduplicates concurrent retries and rejects invocation ID reuse with different input', async () => {
-    let release: (() => void) | undefined
-    const gate = new Promise<void>((resolve) => { release = resolve })
+  it('deduplicates 100 concurrent retries and rejects invocation ID reuse with different input', async () => {
+    const gate = deferred()
     const handler = vi.fn(async (input: { text: string }) => {
-      await gate
+      await gate.promise
       return { output: { saved: input.text }, changed: true, semanticRevision: '2' }
     })
     const broker = new CapabilityBroker(new CapabilityRegistry([mutationCapability(handler)]))
@@ -554,17 +655,349 @@ describe('CapabilityBroker', () => {
       input: { text: 'same' }
     }
 
-    const first = broker.invoke(agent, request)
-    const second = broker.invoke(agent, request)
+    const attempts = Array.from({ length: 100 }, () => broker.invoke(agent, request))
     await vi.waitFor(() => expect(handler).toHaveBeenCalledTimes(1))
-    release?.()
-    const [firstResult, secondResult] = await Promise.all([first, second])
-    expect([firstResult.replayed, secondResult.replayed].sort()).toEqual([false, true])
-
     await expect(broker.invoke(agent, {
       ...request,
       input: { text: 'different' }
     })).rejects.toSatisfy((error) => expectBrokerCode(error, 'idempotency_conflict'))
+
+    gate.resolve()
+    const results = await Promise.all(attempts)
+    expect(results.filter((item) => !item.replayed)).toHaveLength(1)
+    expect(results.filter((item) => item.replayed)).toHaveLength(99)
     expect(handler).toHaveBeenCalledTimes(1)
+  })
+
+  it('characterizes invocation IDs as action-scoped for the same caller and workspace', async () => {
+    const first = vi.fn(async () => ({ output: { action: 'first' } }))
+    const second = vi.fn(async () => ({ output: { action: 'second' } }))
+    const capability = (id: string, handler: typeof first) => defineCapability({
+      id,
+      version: '1',
+      title: id,
+      description: `Characterizes the current idempotency namespace for ${id}.`,
+      audiences: ['ui'],
+      scope: 'workspace',
+      effect: 'compute',
+      approval: 'none',
+      concurrency: { revision: 'none', idempotency: 'required' },
+      inputSchema: z.object({}).strict(),
+      outputSchema: z.object({ action: z.string() }).strict(),
+      handler
+    })
+    const broker = new CapabilityBroker(new CapabilityRegistry([
+      capability('fixture.action-first', first),
+      capability('fixture.action-second', second)
+    ]))
+
+    await expect(broker.invoke(ui, {
+      actionId: 'fixture.action-first',
+      invocationId: 'same-command',
+      input: {}
+    })).resolves.toMatchObject({ output: { action: 'first' } })
+    await expect(broker.invoke(ui, {
+      actionId: 'fixture.action-second',
+      invocationId: 'same-command',
+      input: {}
+    })).resolves.toMatchObject({ output: { action: 'second' } })
+
+    expect(first).toHaveBeenCalledOnce()
+    expect(second).toHaveBeenCalledOnce()
+  })
+
+  it('serializes different invocation IDs on one resource and rechecks revision after acquiring execution', async () => {
+    const gate = deferred()
+    const handler = vi.fn(async (input: { text: string }) => {
+      await gate.promise
+      return { output: { saved: input.text }, changed: true, semanticRevision: '2' }
+    })
+    const broker = new CapabilityBroker(new CapabilityRegistry([mutationCapability(handler)]))
+    const handle = issueDocument(broker)
+
+    const first = broker.invoke(agent, {
+      actionId: 'document.annotation-upsert',
+      invocationId: 'command-1',
+      resource: handle,
+      expectedRevision: '1',
+      input: { text: 'first' }
+    })
+    await vi.waitFor(() => expect(handler).toHaveBeenCalledOnce())
+    const second = broker.invoke(agent, {
+      actionId: 'document.annotation-upsert',
+      invocationId: 'command-2',
+      resource: handle,
+      expectedRevision: '1',
+      input: { text: 'second' }
+    })
+
+    gate.resolve()
+    await expect(first).resolves.toMatchObject({ afterRevision: '2' })
+    await expect(second).rejects.toSatisfy((error) => expectBrokerCode(error, 'revision_conflict'))
+    expect(handler).toHaveBeenCalledOnce()
+  })
+
+  it.each(['compute', 'workspace-write', 'external-write', 'destructive'] as const)(
+    'serializes resource-scoped %s handlers',
+    async (effect) => {
+      const gate = deferred()
+      const handler = vi.fn(async () => {
+        await gate.promise
+        return { output: { ok: true }, changed: false }
+      })
+      const capability = defineCapability({
+        id: `fixture.serial-${effect}`,
+        version: '1',
+        title: `Serialize ${effect}`,
+        description: `Verifies canonical resource serialization for ${effect}.`,
+        audiences: ['ui'],
+        scope: 'resource',
+        resourceKinds: ['document'],
+        effect,
+        approval: 'none',
+        concurrency: { revision: 'none', idempotency: 'required' },
+        inputSchema: z.object({ command: z.number() }).strict(),
+        outputSchema: z.object({ ok: z.boolean() }).strict(),
+        handler
+      })
+      const broker = new CapabilityBroker(new CapabilityRegistry([capability]))
+      const handle = issueDocument(broker, ui)
+
+      const first = broker.invoke(ui, {
+        actionId: `fixture.serial-${effect}`,
+        invocationId: `${effect}-1`,
+        resource: handle,
+        input: { command: 1 }
+      })
+      const second = broker.invoke(ui, {
+        actionId: `fixture.serial-${effect}`,
+        invocationId: `${effect}-2`,
+        resource: handle,
+        input: { command: 2 }
+      })
+
+      await vi.waitFor(() => expect(handler).toHaveBeenCalledOnce())
+      gate.resolve()
+      await expect(Promise.all([first, second])).resolves.toHaveLength(2)
+      expect(handler).toHaveBeenCalledTimes(2)
+    }
+  )
+
+  it('allows non-read operations on different resources to execute in parallel', async () => {
+    const gate = deferred()
+    const started: string[] = []
+    const handler = vi.fn(async (input: { text: string }) => {
+      started.push(input.text)
+      await gate.promise
+      return { output: { saved: input.text }, changed: true, semanticRevision: '2' }
+    })
+    const broker = new CapabilityBroker(new CapabilityRegistry([mutationCapability(handler)]))
+    const firstResource = issueDocument(broker, agent, { resourceId: 'document-1' })
+    const secondResource = issueDocument(broker, agent, { resourceId: 'document-2' })
+
+    const first = broker.invoke(agent, {
+      actionId: 'document.annotation-upsert',
+      invocationId: 'document-1-command',
+      resource: firstResource,
+      expectedRevision: '1',
+      input: { text: 'document-1' }
+    })
+    const second = broker.invoke(agent, {
+      actionId: 'document.annotation-upsert',
+      invocationId: 'document-2-command',
+      resource: secondResource,
+      expectedRevision: '1',
+      input: { text: 'document-2' }
+    })
+
+    await vi.waitFor(() => expect(started).toHaveLength(2))
+    gate.resolve()
+    await expect(Promise.all([first, second])).resolves.toHaveLength(2)
+    expect(handler).toHaveBeenCalledTimes(2)
+  })
+
+  it('uses one resource queue across UI and system handles for the same canonical resource', async () => {
+    const gate = deferred()
+    const handler = vi.fn(async (input: { text: string }) => {
+      await gate.promise
+      return { output: { saved: input.text }, changed: true, semanticRevision: '2' }
+    })
+    const broker = new CapabilityBroker(new CapabilityRegistry([
+      readCapability(),
+      mutationCapability(handler)
+    ]))
+    const uiHandle = issueDocument(broker, ui, { audiences: ['ui', 'agent', 'system'] })
+    const observed = await broker.observe(ui, { resource: uiHandle })
+    const systemHandle = broker.bindResourceRef(system, observed.resourceRef)
+
+    const first = broker.invoke(ui, {
+      actionId: 'document.annotation-upsert',
+      invocationId: 'ui-command',
+      resource: uiHandle,
+      expectedRevision: '1',
+      input: { text: 'ui' }
+    })
+    await vi.waitFor(() => expect(handler).toHaveBeenCalledOnce())
+    const second = broker.invoke(system, {
+      actionId: 'document.annotation-upsert',
+      invocationId: 'system-command',
+      resource: systemHandle,
+      expectedRevision: '1',
+      input: { text: 'system' }
+    })
+
+    gate.resolve()
+    await expect(first).resolves.toMatchObject({ afterRevision: '2' })
+    await expect(second).rejects.toSatisfy((error) => expectBrokerCode(error, 'revision_conflict'))
+    expect(handler).toHaveBeenCalledOnce()
+  })
+
+  it('does not cache a failed invocation as a successful replay', async () => {
+    let attempts = 0
+    const handler = vi.fn(async (input: { text: string }) => {
+      attempts += 1
+      if (input.text === 'fail' && attempts === 1) throw new Error('expected failure')
+      return { output: { saved: input.text }, changed: true, semanticRevision: '2' }
+    })
+    const broker = new CapabilityBroker(new CapabilityRegistry([mutationCapability(handler)]))
+    const handle = issueDocument(broker)
+    const failedRequest: CapabilityInvocationRequest = {
+      actionId: 'document.annotation-upsert',
+      invocationId: 'retry-after-failure',
+      resource: handle,
+      expectedRevision: '1',
+      input: { text: 'fail' }
+    }
+
+    await expect(broker.invoke(agent, failedRequest))
+      .rejects.toSatisfy((error) => expectBrokerCode(error, 'handler_failed'))
+    await expect(broker.invoke(agent, failedRequest)).resolves.toMatchObject({
+      changed: true,
+      replayed: false,
+      afterRevision: '2'
+    })
+    expect(handler).toHaveBeenCalledTimes(2)
+  })
+
+  it('continues queued resource work after a handler rejection', async () => {
+    const gate = deferred()
+    const handler = vi.fn(async (input: { text: string }) => {
+      if (input.text === 'fail') {
+        await gate.promise
+        throw new Error('expected failure')
+      }
+      return { output: { saved: input.text }, changed: true, semanticRevision: '2' }
+    })
+    const broker = new CapabilityBroker(new CapabilityRegistry([mutationCapability(handler)]))
+    const handle = issueDocument(broker)
+    const first = broker.invoke(agent, {
+      actionId: 'document.annotation-upsert',
+      invocationId: 'failed-command',
+      resource: handle,
+      expectedRevision: '1',
+      input: { text: 'fail' }
+    })
+    await vi.waitFor(() => expect(handler).toHaveBeenCalledOnce())
+    const second = broker.invoke(agent, {
+      actionId: 'document.annotation-upsert',
+      invocationId: 'next-command',
+      resource: handle,
+      expectedRevision: '1',
+      input: { text: 'next' }
+    })
+
+    gate.resolve()
+    await expect(first).rejects.toSatisfy((error) => expectBrokerCode(error, 'handler_failed'))
+    await expect(second).resolves.toMatchObject({ afterRevision: '2' })
+    expect(handler).toHaveBeenCalledTimes(2)
+  })
+
+  it('continues a resource queue after a revision conflict', async () => {
+    const handler = vi.fn(async (input: { text: string }, context) => ({
+      output: { saved: input.text },
+      changed: true,
+      semanticRevision: `${Number(context.resource?.semanticRevision ?? '0') + 1}`
+    }))
+    const broker = new CapabilityBroker(new CapabilityRegistry([mutationCapability(handler)]))
+    const handle = issueDocument(broker)
+    const first = await broker.invoke(agent, {
+      actionId: 'document.annotation-upsert',
+      invocationId: 'first-revision',
+      resource: handle,
+      expectedRevision: '1',
+      input: { text: 'first' }
+    })
+    await expect(broker.invoke(agent, {
+      actionId: 'document.annotation-upsert',
+      invocationId: 'stale-revision',
+      resource: handle,
+      expectedRevision: '1',
+      input: { text: 'stale' }
+    })).rejects.toSatisfy((error) => expectBrokerCode(error, 'revision_conflict'))
+    await expect(broker.invoke(agent, {
+      actionId: 'document.annotation-upsert',
+      invocationId: 'fresh-revision',
+      resource: first.resource,
+      expectedRevision: '2',
+      input: { text: 'fresh' }
+    })).resolves.toMatchObject({ afterRevision: '3' })
+    expect(handler).toHaveBeenCalledTimes(2)
+  })
+
+  it('serializes compute retirement with queued non-read work and rejects stale resource state', async () => {
+    const gate = deferred()
+    const retireHandler = vi.fn(async () => {
+      await gate.promise
+      return {
+        output: { released: true },
+        changed: false,
+        retireResource: true as const
+      }
+    })
+    const queuedHandler = vi.fn(async (input: { text: string }) => ({
+      output: { saved: input.text },
+      changed: true,
+      semanticRevision: '2'
+    }))
+    const retire = defineCapability({
+      id: 'document.retire-compute',
+      version: '1',
+      title: 'Retire document',
+      description: 'Retires a document from a resource-scoped compute action.',
+      audiences: ['agent'],
+      scope: 'resource',
+      resourceKinds: ['document'],
+      effect: 'compute',
+      approval: 'none',
+      concurrency: { revision: 'none', idempotency: 'required' },
+      inputSchema: z.object({}).strict(),
+      outputSchema: z.object({ released: z.boolean() }).strict(),
+      handler: retireHandler
+    })
+    const broker = new CapabilityBroker(new CapabilityRegistry([
+      retire,
+      mutationCapability(queuedHandler)
+    ]))
+    const handle = issueDocument(broker)
+
+    const retirement = broker.invoke(agent, {
+      actionId: 'document.retire-compute',
+      invocationId: 'retire-command',
+      resource: handle,
+      input: {}
+    })
+    await vi.waitFor(() => expect(retireHandler).toHaveBeenCalledOnce())
+    const queued = broker.invoke(agent, {
+      actionId: 'document.annotation-upsert',
+      invocationId: 'queued-command',
+      resource: handle,
+      expectedRevision: '1',
+      input: { text: 'must-not-run' }
+    })
+
+    gate.resolve()
+    await expect(retirement).resolves.toMatchObject({ changed: false })
+    await expect(queued).rejects.toSatisfy((error) => expectBrokerCode(error, 'resource_unavailable'))
+    expect(queuedHandler).not.toHaveBeenCalled()
   })
 })

@@ -187,14 +187,18 @@ export function diagnosticsHasConnectedPptMaster(
 async function waitForPptMasterRuntime(input: PptMasterMcpBootstrapInput): Promise<boolean> {
   const deadline = Date.now() + Math.max(0, input.waitTimeoutMs ?? 45_000)
   const pollIntervalMs = Math.max(250, input.pollIntervalMs ?? 1_000)
-  do {
+  let polling = true
+  while (polling) {
     try {
       if (diagnosticsHasConnectedPptMaster(await input.getToolDiagnostics?.())) return true
     } catch {
       /* Runtime can be restarting while the config change is being applied. */
     }
-    if (Date.now() >= deadline) break
+    if (Date.now() >= deadline) {
+      polling = false
+      continue
+    }
     await wait(pollIntervalMs)
-  } while (true)
+  }
   return false
 }

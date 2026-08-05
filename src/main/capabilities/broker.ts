@@ -163,6 +163,11 @@ function isMutation(definition: CapabilityDefinition): boolean {
     || definition.descriptor.effect === 'destructive'
 }
 
+function requiresResourceSerialization(definition: CapabilityDefinition): boolean {
+  return definition.descriptor.scope === 'resource'
+    && definition.descriptor.effect !== 'read'
+}
+
 export class CapabilityBroker {
   readonly registry: CapabilityRegistry
   readonly #now: () => Date
@@ -175,6 +180,7 @@ export class CapabilityBroker {
   readonly #retiredResourcesByRef = new Map<string, RetiredResourceState>()
   readonly #handles = new Map<string, ResourceGrant>()
   readonly #idempotency = new Map<string, IdempotencyEntry>()
+  readonly #resourceQueues = new Map<string, Promise<void>>()
   readonly #auditRecords: CapabilityAuditRecord[] = []
   readonly #events: CapabilityResourceChangeEvent[] = []
   readonly #subscriptions = new Set<EventSubscription>()
@@ -411,6 +417,12 @@ export class CapabilityBroker {
         throw new CapabilityBrokerError('unknown_capability', `Capability ${request.actionId} is not registered.`)
       }
       this.#authorizeAudience(caller, definition)
+      if (definition.descriptor.effect === 'read' && request.invocationId !== undefined) {
+        throw new CapabilityBrokerError(
+          'unexpected_invocation_id',
+          `Read capability ${request.actionId} does not accept an invocation ID.`
+        )
+      }
       resource = this.#authorizeScope(caller, definition, request)
       this.#authorizeApproval(caller, definition, request.invocationId)
 
@@ -431,7 +443,6 @@ export class CapabilityBroker {
         throw new CapabilityBrokerError('revision_without_resource', 'Expected revision requires a resource handle.')
       }
 
-      const beforeRevision = resource?.semanticRevision
       const fingerprint = stableJson({
         actionId: request.actionId,
         resourceRef: resource?.resourceRef ?? null,
@@ -466,37 +477,26 @@ export class CapabilityBroker {
         }
       }
 
-      if (definition.descriptor.concurrency.revision === 'optimistic') {
-        if (!request.expectedRevision) {
-          throw new CapabilityBrokerError(
-            'expected_revision_required',
-            `Capability ${request.actionId} requires an expected semantic revision.`
-          )
-        }
-        if (request.expectedRevision !== beforeRevision) {
-          throw new CapabilityBrokerError('revision_conflict', 'The resource semantic revision is stale.', {
-            details: { expected: request.expectedRevision, actual: beforeRevision ?? null }
-          })
-        }
-        if (request.resource?.semanticRevision !== request.expectedRevision) {
-          throw new CapabilityBrokerError('revision_conflict', 'The resource handle is bound to a stale semantic revision.', {
-            details: {
-              expected: request.expectedRevision,
-              handle: request.resource?.semanticRevision ?? null
-            }
-          })
-        }
+      const invocationDefinition = definition
+      const execute = async (): Promise<CapabilityInvocationResult> => {
+        const executionResource = resource && requiresResourceSerialization(invocationDefinition)
+          ? this.#revalidateQueuedResource(caller, request, resource)
+          : resource
+        const beforeRevision = executionResource?.semanticRevision
+        this.#authorizeRevision(invocationDefinition, request, beforeRevision)
+        return await this.#execute({
+          caller,
+          definition: invocationDefinition,
+          request,
+          parsedInput: parsedInput.data,
+          resource: executionResource,
+          beforeRevision,
+          signal: options.signal
+        })
       }
-
-      const execution = this.#execute({
-        caller,
-        definition,
-        request,
-        parsedInput: parsedInput.data,
-        resource,
-        beforeRevision,
-        signal: options.signal
-      })
+      const execution = resource && requiresResourceSerialization(invocationDefinition)
+        ? this.#serializeResource(resource.key, execute)
+        : execute()
       if (idempotencyKey) {
         this.#idempotency.set(idempotencyKey, { fingerprint, promise: execution })
         this.#trimMap(this.#idempotency, this.#maxIdempotencyEntries)
@@ -694,6 +694,7 @@ export class CapabilityBroker {
         approved
       }), () => definition.handler(options.parsedInput, {
         caller,
+        ...(request.invocationId ? { invocationId: request.invocationId } : {}),
         resource: resource && this.#resolvedResource(resource),
         issueResource: (registration) => this.issueResourceHandle(caller, registration),
         signal
@@ -977,6 +978,73 @@ export class CapabilityBroker {
       )
     }
     return state
+  }
+
+  #authorizeRevision(
+    definition: CapabilityDefinition,
+    request: CapabilityInvocationRequest,
+    beforeRevision: string | undefined
+  ): void {
+    if (definition.descriptor.concurrency.revision !== 'optimistic') return
+    if (!request.expectedRevision) {
+      throw new CapabilityBrokerError(
+        'expected_revision_required',
+        `Capability ${request.actionId} requires an expected semantic revision.`
+      )
+    }
+    if (request.expectedRevision !== beforeRevision) {
+      throw new CapabilityBrokerError('revision_conflict', 'The resource semantic revision is stale.', {
+        details: { expected: request.expectedRevision, actual: beforeRevision ?? null }
+      })
+    }
+    if (request.resource?.semanticRevision !== request.expectedRevision) {
+      throw new CapabilityBrokerError('revision_conflict', 'The resource handle is bound to a stale semantic revision.', {
+        details: {
+          expected: request.expectedRevision,
+          handle: request.resource?.semanticRevision ?? null
+        }
+      })
+    }
+  }
+
+  #revalidateQueuedResource(
+    caller: CapabilityCallerContext,
+    request: CapabilityInvocationRequest,
+    capturedResource: ResourceState
+  ): ResourceState {
+    if (this.#resources.get(capturedResource.key) !== capturedResource
+      || this.#resourcesByRef.get(capturedResource.resourceRef) !== capturedResource) {
+      throw new CapabilityBrokerError('resource_unavailable', 'Resource is no longer available.')
+    }
+    if (!request.resource) {
+      throw new CapabilityBrokerError('resource_required', 'Resource capability requires an opaque resource handle.')
+    }
+    const { state } = this.#resolveHandle(caller, request.resource)
+    if (state !== capturedResource) {
+      throw new CapabilityBrokerError('resource_unavailable', 'Resource is no longer available.')
+    }
+    return state
+  }
+
+  async #serializeResource<Result>(
+    resourceKey: string,
+    execute: () => Promise<Result>
+  ): Promise<Result> {
+    const predecessor = this.#resourceQueues.get(resourceKey) ?? Promise.resolve()
+    let release!: () => void
+    const held = new Promise<void>((resolve) => { release = resolve })
+    const tail = predecessor.catch(() => undefined).then(() => held)
+    this.#resourceQueues.set(resourceKey, tail)
+
+    await predecessor.catch(() => undefined)
+    try {
+      return await execute()
+    } finally {
+      release()
+      if (this.#resourceQueues.get(resourceKey) === tail) {
+        this.#resourceQueues.delete(resourceKey)
+      }
+    }
   }
 
   #authorizeApproval(

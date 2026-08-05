@@ -137,6 +137,28 @@ describe('domain host contracts', () => {
     assert.equal(listener, undefined)
   })
 
+  it('allows renderer domain packages to supply a stable capability idempotency key', async () => {
+    let receivedKey: string | undefined
+    const invoker: DomainRendererCapabilityInvoker = {
+      observe: async () => {
+        throw new Error('not used')
+      },
+      invoke: (async (_contract, _input, options) => {
+        receivedKey = options?.idempotencyKey
+        return { ok: true }
+      }) as DomainRendererCapabilityInvoker['invoke']
+    }
+
+    await invoker.invoke({
+      actionId: 'fixture.command.execute',
+      effect: 'compute',
+      inputSchema: { parse: (value: unknown) => value } as never,
+      outputSchema: { parse: (value: unknown) => value } as never
+    }, {}, { idempotencyKey: 'stable-command-1' })
+
+    assert.equal(receivedKey, 'stable-command-1')
+  })
+
   it('keeps redacted visual targets opaque to package overlays', () => {
     const denied: DomainVisibleContextInspection = {
       selectable: false,

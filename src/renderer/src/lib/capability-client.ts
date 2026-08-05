@@ -1,8 +1,10 @@
 import type { z } from 'zod'
 import {
   CAPABILITY_BROKER_CONTRACT_VERSION,
+  CapabilityInvocationContractError,
   capabilityEffectSchema,
   capabilityIdSchema,
+  capabilityInvocationIdSchema,
   capabilityInvocationRequestSchema,
   capabilityInvocationResultSchema,
   capabilityJsonValueSchema,
@@ -35,6 +37,7 @@ export type RendererCapabilityContract<TInput, TOutput> = Readonly<{
 export type RendererCapabilityInvokeOptions = Readonly<{
   workspaceId?: string
   workspaceLocator?: WorkspaceLocator
+  idempotencyKey?: string
   resource?: DomainCapabilityResourceHandle
   expectedRevision?: string
   approval?: { mode: 'confirmation' }
@@ -110,6 +113,20 @@ export class RendererCapabilityClient {
     const effect = capabilityEffectSchema.parse(contract.effect)
     const parsedInput = contract.inputSchema.parse(input)
     const jsonInput = capabilityJsonValueSchema.parse(parsedInput)
+    let invocationId: string | undefined
+    if (effect === 'read') {
+      if (options.idempotencyKey !== undefined) {
+        throw new CapabilityInvocationContractError(
+          `Read capability ${actionId} does not accept an invocation ID.`
+        )
+      }
+    } else {
+      invocationId = capabilityInvocationIdSchema.parse(
+        options.idempotencyKey === undefined
+          ? this.createInvocationId()
+          : options.idempotencyKey
+      )
+    }
     const readiness = await this.readiness([actionId], options.workspaceId)
     if (readiness.status !== 'ready') throw new Error(readiness.message)
     const workspaceLocator = options.workspaceLocator ??
@@ -122,7 +139,7 @@ export class RendererCapabilityClient {
       ...(options.expectedRevision === undefined
         ? {}
         : { expectedRevision: options.expectedRevision }),
-      ...(effect === 'read' ? {} : { invocationId: this.createInvocationId() })
+      ...(invocationId ? { invocationId } : {})
     })
     const result = capabilityInvocationResultSchema.parse(await this.getTransport().invoke({
       ...(options.workspaceId ? { workspaceId: options.workspaceId } : {}),

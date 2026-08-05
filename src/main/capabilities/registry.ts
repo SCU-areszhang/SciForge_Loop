@@ -54,6 +54,7 @@ export type ResolvedCapabilityResource = {
 
 export type CapabilityHandlerContext = {
   caller: CapabilityCallerContext
+  invocationId?: string
   resource?: ResolvedCapabilityResource
   issueResource: (registration: CapabilityResourceRegistration) => CapabilityResourceHandle
   signal?: AbortSignal

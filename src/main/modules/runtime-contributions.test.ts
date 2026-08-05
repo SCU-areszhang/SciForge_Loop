@@ -229,8 +229,8 @@ describe('main runtime contributions', () => {
   })
 
   it('invokes package contracts as an idempotent system capability caller', async () => {
-    const execute = vi.fn(async (input: { value: string }) => ({
-      output: { echoed: input.value }
+    const execute = vi.fn(async (input: { value: string }, context) => ({
+      output: { echoed: `${input.value}:${context.invocationId}` }
     }))
     const broker = new CapabilityBroker(new CapabilityRegistry([
       defineCapability({
@@ -248,9 +248,10 @@ describe('main runtime contributions', () => {
         handler: execute
       })
     ]))
+    const createInvocationId = vi.fn(() => 'generated-invocation')
     const invoker = createMainSystemCapabilityInvoker(broker, {
       callerId: 'fixture.runtime',
-      createInvocationId: () => 'generated-invocation'
+      createInvocationId
     })
     const contract = {
       actionId: 'fixture.runtime.compute',
@@ -261,14 +262,15 @@ describe('main runtime contributions', () => {
 
     await expect(invoker.invoke(contract, { value: 'one' }, {
       workspaceId: '/workspace',
-      idempotencyKey: 'stable-invocation'
-    })).resolves.toEqual({ echoed: 'one' })
+      idempotencyKey: '  stable-invocation  '
+    })).resolves.toEqual({ echoed: 'one:stable-invocation' })
     await expect(invoker.invoke(contract, { value: 'one' }, {
       workspaceId: '/workspace',
       idempotencyKey: 'stable-invocation'
-    })).resolves.toEqual({ echoed: 'one' })
+    })).resolves.toEqual({ echoed: 'one:stable-invocation' })
 
     expect(execute).toHaveBeenCalledOnce()
+    expect(createInvocationId).not.toHaveBeenCalled()
     expect(broker.listAuditRecords().map(({ caller, status, invocationId }) => ({
       caller,
       status,
@@ -295,7 +297,120 @@ describe('main runtime contributions', () => {
     ])
   })
 
+  it.each([
+    ['blank', '   '],
+    ['oversized', 'x'.repeat(257)],
+    ['non-string', 42 as unknown as string]
+  ])('rejects an invalid %s system caller key before generation or Broker invocation', async (_label, idempotencyKey) => {
+    const execute = vi.fn(async () => ({ output: { ok: true } }))
+    const broker = new CapabilityBroker(new CapabilityRegistry([
+      defineCapability({
+        id: 'fixture.runtime.validate-key',
+        version: '1.0.0',
+        title: 'Validate key',
+        description: 'Validates stable command IDs before capability invocation.',
+        audiences: ['system'],
+        scope: 'global',
+        effect: 'compute',
+        approval: 'none',
+        concurrency: { revision: 'none', idempotency: 'required' },
+        inputSchema: z.object({}).strict(),
+        outputSchema: z.object({ ok: z.boolean() }).strict(),
+        handler: execute
+      })
+    ]))
+    const brokerInvoke = vi.spyOn(broker, 'invoke')
+    const createInvocationId = vi.fn(() => 'generated-invocation')
+    const invoker = createMainSystemCapabilityInvoker(broker, { createInvocationId })
+
+    await expect(invoker.invoke({
+      actionId: 'fixture.runtime.validate-key',
+      effect: 'compute',
+      inputSchema: z.object({}).strict(),
+      outputSchema: z.object({ ok: z.boolean() }).strict()
+    }, {}, { idempotencyKey })).rejects.toThrow()
+
+    expect(createInvocationId).not.toHaveBeenCalled()
+    expect(brokerInvoke).not.toHaveBeenCalled()
+    expect(execute).not.toHaveBeenCalled()
+  })
+
+  it('rejects read caller keys with a typed code before generation or Broker invocation', async () => {
+    const execute = vi.fn(async () => ({ output: { ok: true } }))
+    const broker = new CapabilityBroker(new CapabilityRegistry([
+      defineCapability({
+        id: 'fixture.runtime.read',
+        version: '1.0.0',
+        title: 'Runtime read',
+        description: 'Reads through the system capability invoker.',
+        audiences: ['system'],
+        scope: 'global',
+        effect: 'read',
+        approval: 'none',
+        concurrency: { revision: 'none', idempotency: 'none' },
+        inputSchema: z.object({}).strict(),
+        outputSchema: z.object({ ok: z.boolean() }).strict(),
+        handler: execute
+      })
+    ]))
+    const brokerInvoke = vi.spyOn(broker, 'invoke')
+    const createInvocationId = vi.fn(() => 'generated-invocation')
+    const invoker = createMainSystemCapabilityInvoker(broker, { createInvocationId })
+
+    await expect(invoker.invoke({
+      actionId: 'fixture.runtime.read',
+      effect: 'read',
+      inputSchema: z.object({}).strict(),
+      outputSchema: z.object({ ok: z.boolean() }).strict()
+    }, {}, { idempotencyKey: 'read-command' })).rejects.toMatchObject({
+      code: 'unexpected_invocation_id'
+    })
+
+    expect(createInvocationId).not.toHaveBeenCalled()
+    expect(brokerInvoke).not.toHaveBeenCalled()
+    expect(execute).not.toHaveBeenCalled()
+  })
+
+  it('validates generated system invocation IDs before Broker invocation', async () => {
+    const execute = vi.fn(async () => ({ output: { ok: true } }))
+    const broker = new CapabilityBroker(new CapabilityRegistry([
+      defineCapability({
+        id: 'fixture.runtime.generate-key',
+        version: '1.0.0',
+        title: 'Generate key',
+        description: 'Validates generated command IDs before capability invocation.',
+        audiences: ['system'],
+        scope: 'global',
+        effect: 'compute',
+        approval: 'none',
+        concurrency: { revision: 'none', idempotency: 'required' },
+        inputSchema: z.object({}).strict(),
+        outputSchema: z.object({ ok: z.boolean() }).strict(),
+        handler: execute
+      })
+    ]))
+    const brokerInvoke = vi.spyOn(broker, 'invoke')
+    const invoker = createMainSystemCapabilityInvoker(broker, {
+      createInvocationId: () => '   '
+    })
+
+    await expect(invoker.invoke({
+      actionId: 'fixture.runtime.generate-key',
+      effect: 'compute',
+      inputSchema: z.object({}).strict(),
+      outputSchema: z.object({ ok: z.boolean() }).strict()
+    }, {})).rejects.toThrow()
+
+    expect(brokerInvoke).not.toHaveBeenCalled()
+    expect(execute).not.toHaveBeenCalled()
+  })
+
   it('only propagates approval from a matching active destructive action', async () => {
+    const innerHandler = vi.fn(async (_input, context) => ({
+      output: { restored: context.invocationId === 'inner-from-outer' },
+      changed: true,
+      semanticRevision: 'revision-2'
+    }))
     const inner = defineCapability({
       id: 'fixture.vcs.restore',
       version: '1.0.0',
@@ -309,11 +424,7 @@ describe('main runtime contributions', () => {
       concurrency: { revision: 'optimistic', idempotency: 'required' },
       inputSchema: z.object({ snapshotId: z.string() }).strict(),
       outputSchema: z.object({ restored: z.boolean() }).strict(),
-      handler: async () => ({
-        output: { restored: true },
-        changed: true,
-        semanticRevision: 'revision-2'
-      })
+      handler: innerHandler
     })
     const registry = new CapabilityRegistry([inner])
     const broker = new CapabilityBroker(registry)
@@ -365,7 +476,7 @@ describe('main runtime contributions', () => {
       handler: async (input) => ({
         output: await invoker.invoke(contract, input, {
           workspaceId: '/workspace',
-          idempotencyKey: 'inner-from-outer',
+          idempotencyKey: '  inner-from-outer  ',
           resource,
           expectedRevision: 'revision-1',
           authorization: { mode: 'inherit-current-action' }
@@ -389,6 +500,7 @@ describe('main runtime contributions', () => {
     })).resolves.toMatchObject({
       output: { restored: true }
     })
+    expect(innerHandler).toHaveBeenCalledOnce()
   })
 })
 
