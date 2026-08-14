@@ -840,6 +840,7 @@ export function Workbench(): ReactElement {
   const stageInsetClass = 'ds-stage-inset'
   const installedRightPanels = installedRendererContributions.rightPanels.list()
   const installedToolbarActions = installedRendererContributions.toolbarActions.list()
+  const installedToolbarWidgets = installedRendererContributions.toolbarWidgets.list()
   const keyboardShortcuts = useKeyboardShortcutSettings()
   const keyboardShortcutBindings = useMemo(
     () => resolveKeyboardShortcutBindings(keyboardShortcuts),
@@ -3164,6 +3165,7 @@ export function Workbench(): ReactElement {
                     workspaceRoot={activeWorkspaceReferenceRoot}
                     planPanelEnabled={Boolean(activeGuiPlan)}
                     toolbarActions={installedToolbarActions}
+                    toolbarWidgets={installedToolbarWidgets}
                     toolbarCommandInvocation={toolbarCommandInvocation}
                     onExecuteToolbarCommand={(commandId) => {
                       void installedRendererContributions.commands.execute(

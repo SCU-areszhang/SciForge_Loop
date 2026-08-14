@@ -18,6 +18,7 @@ import {
   type DomainMainRuntimeLifecycleHost,
   type DomainMainSystemCapabilityInvoker
 } from '@sciforge/domain-sdk/host'
+import type { PrincipalSnapshot } from '@sciforge/domain-sdk/principal'
 import { capabilityJsonValueSchema } from '../../shared/capability-broker'
 import { CapabilityBroker } from '../capabilities/broker'
 import { DomainModuleCatalog } from './catalog'
@@ -105,6 +106,7 @@ export function createMainSystemCapabilityInvoker(
   options: Readonly<{
     callerId?: string
     createInvocationId?: () => string
+    getPrincipal?: () => PrincipalSnapshot | undefined
   }> = {}
 ): DomainMainSystemCapabilityInvoker {
   const callerId = options.callerId?.trim() || 'domain-runtime'
@@ -145,9 +147,11 @@ export function createMainSystemCapabilityInvoker(
           )
         }
       }
+      const principal = options.getPrincipal?.()
       const result = await broker.invoke({
         audience: 'system',
         callerId,
+        ...(principal ? { principal } : {}),
         ...(invokeOptions?.workspaceId?.trim()
           ? { workspaceId: invokeOptions.workspaceId.trim() }
           : {}),

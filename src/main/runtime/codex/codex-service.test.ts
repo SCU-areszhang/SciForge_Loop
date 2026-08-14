@@ -2327,6 +2327,7 @@ describe('CodexRuntimeService compatibility operations', () => {
       settings: async () => settings(),
       sink: { send: vi.fn() },
       storageRoot,
+      managedCodexHome: join(storageRoot, 'managed-codex-home'),
       createClient: () => queued.client
     })
     await service.startThread({ threadId: 'parent-thread', title: 'Parent' })
@@ -2727,13 +2728,21 @@ process.stdout.write(JSON.stringify({
       settings: async () => settings(),
       sink: { send: vi.fn() },
       storageRoot,
+      managedCodexHome: join(storageRoot, 'managed-codex-home'),
       createClient: () => queued.client
     })
+    const principal = {
+      userId: 'c07f29ee-801d-4cf3-90ef-96c56c65de21',
+      assurance: 'local-selection' as const,
+      deviceId: 'device-1',
+      identityVersion: 7
+    }
 
     await expect(service.startTurn({
       threadId: 'gui-thread-1',
       text: 'hello',
-      nativeVisualProofChainPending: true
+      nativeVisualProofChainPending: true,
+      principal
     })).resolves.toMatchObject({
       ok: true,
       threadId: 'gui-thread-1',
@@ -2823,6 +2832,9 @@ process.stdout.write(JSON.stringify({
     expect(events.some((item) =>
       item.event.runtimeError?.message.includes('public router model alias')
     )).toBe(false)
+    expect(events.find((item) =>
+      item.event.turnComplete === true && item.event.turnId === 'turn-retry'
+    )?.event.principal).toEqual(principal)
   })
 
   it('forces rematerialized Codex threads through the managed Model Router provider', async () => {

@@ -57,6 +57,7 @@ import type {
   AgentRuntimeTurnGovernanceSnapshot,
   AgentRuntimeTurnGovernanceSnapshotInput
 } from '../agent-runtime/adapter'
+import type { PrincipalSnapshot } from '@sciforge/domain-sdk/principal'
 import { createClaudeCodeAgentToolTransport } from './claude-code-agent-tool-transport'
 import { ClaudeCodeSessionStore } from './claude-code-session-store'
 import {
@@ -240,6 +241,7 @@ export class ClaudeCodeRuntimeService {
   private readonly eventStore: ClaudeCodeEventStore
   private readonly sessionStore: ClaudeCodeSessionStore
   private readonly activeTurns = new Map<string, ActiveClaudeTurn>()
+  private readonly turnPrincipals = new Map<string, PrincipalSnapshot>()
   private readonly turnGovernanceSnapshots = new Map<string, AgentRuntimeTurnGovernanceSnapshot>()
   private readonly eventSubscribers = new Set<ClaudeRuntimeEventSubscriber>()
   private readonly childState = new Map<string, AgentRuntimeChild>()
@@ -356,6 +358,7 @@ export class ClaudeCodeRuntimeService {
     ownedVisualToolsAvailable?: boolean
     nativeVisualProofChainPending?: boolean
     streamingInput?: boolean
+    principal?: PrincipalSnapshot
   }): Promise<ClaudeCodeTurnStartResult> {
     try {
       const settings = await this.options.settings()
@@ -365,6 +368,9 @@ export class ClaudeCodeRuntimeService {
       const turnId = `claude-turn-${randomUUID()}`
       const userMessageItemId = `claude-user-${randomUUID()}`
       const assistantItemId = `claude-assistant-${randomUUID()}`
+      if (payload.principal) {
+        this.turnPrincipals.set(turnGovernanceKey(payload.threadId, turnId), payload.principal)
+      }
       const launch = await prepareClaudeCodeSdkLaunch({
         settings,
         text: payload.text,
@@ -420,7 +426,8 @@ export class ClaudeCodeRuntimeService {
               threadId: payload.threadId,
               turnId,
               workspaceId: workspace,
-              requestId: turnId
+              requestId: turnId,
+              ...(payload.principal ? { principal: payload.principal } : {})
             }
           })
         : undefined
@@ -1920,6 +1927,7 @@ export class ClaudeCodeRuntimeService {
       state,
       message
     })
+    this.turnPrincipals.delete(turnGovernanceKey(threadId, turnId))
   }
 
   private async failTurn(threadId: string, turnId: string, error: unknown): Promise<void> {
@@ -1942,7 +1950,13 @@ export class ClaudeCodeRuntimeService {
   }
 
   private async emit(event: AgentRuntimeEvent): Promise<ClaudeCodeStoredEvent> {
-    const stored = await this.eventStore.append(event.threadId, event)
+    const principal = event.principal ?? (event.turnId
+      ? this.turnPrincipals.get(turnGovernanceKey(event.threadId, event.turnId))
+      : undefined)
+    const attributedEvent = principal && !event.principal
+      ? Object.freeze({ ...event, principal })
+      : event
+    const stored = await this.eventStore.append(attributedEvent.threadId, attributedEvent)
     const latestSeq = stored.seq
     const thread = await this.threadStore.get(stored.threadId)
     if (thread) {

@@ -257,6 +257,7 @@ type SurfaceCaptureUpload = {
 )
 
 class DevBrowserBridgeClient extends EventEmitter implements AppBridgeSender {
+  readonly trustedRendererTransport = 'dev-browser' as const
   readonly id: number
   readonly clientId: string
   private readonly responses = new Set<ServerResponse>()

@@ -30,6 +30,8 @@ const REQUIRED_CAPABILITY_IDS = Object.freeze([
   'browser-preview.fill',
   'browser-preview.select',
   'browser-preview.press',
+  'identity.local.inspect',
+  'identity.local.create-account',
   'paper-radar.status',
   'paper-radar.profiles.list',
   'paper-radar.profiles.save',
@@ -157,7 +159,7 @@ export async function runElectronDomainSmoke({
       'utf8'
     )
     const electron = await loadElectron()
-    electronApp = await electron.launch({
+    const launchApplication = () => electron.launch({
       executablePath: resolve(executablePath),
       cwd: applicationPath ? resolve(applicationPath) : dirname(resolve(executablePath)),
       args: [
@@ -173,8 +175,9 @@ export async function runElectronDomainSmoke({
       },
       timeout: timeoutMs
     })
+    electronApp = await launchApplication()
     phase = 'first window'
-    const processOutput = collectProcessOutput(electronApp.process())
+    const processOutputs = [collectProcessOutput(electronApp.process())]
     const rendererFailures = []
     const attachedPages = new WeakSet()
     const attachPage = (page) => {
@@ -185,13 +188,23 @@ export async function runElectronDomainSmoke({
     }
     electronApp.on('window', attachPage)
 
+    let expectedExit = false
+    let rejectUnexpectedExit
     const earlyExit = new Promise((_, reject) => {
-      electronApp.process().once('exit', (code, signal) => {
-        reject(new Error(
+      rejectUnexpectedExit = reject
+    })
+    const watchExit = (application) => {
+      application.process().once('exit', (code, signal) => {
+        if (expectedExit) {
+          expectedExit = false
+          return
+        }
+        rejectUnexpectedExit(new Error(
           `Electron exited before the smoke completed (code ${code ?? 'null'}, signal ${signal ?? 'none'}).`
         ))
       })
-    })
+    }
+    watchExit(electronApp)
     const operation = async () => {
       const window = await electronApp.firstWindow({ timeout: timeoutMs })
       phase = 'main-process diagnostics'
@@ -240,7 +253,7 @@ export async function runElectronDomainSmoke({
 
       phase = 'lifecycle diagnostics'
       const mainFailures = await readMainProcessDiagnostics(electronApp)
-      const outputFailures = processOutput.failures()
+      const outputFailures = processOutputs.flatMap((output) => output.failures())
       if (rendererFailures.length > 0 || mainFailures.length > 0 || outputFailures.length > 0) {
         throw new Error([...rendererFailures, ...mainFailures, ...outputFailures].join(' | '))
       }
@@ -257,6 +270,77 @@ export async function runElectronDomainSmoke({
         throw new Error('Paper Radar profile was not persisted inside the isolated userData directory.')
       }
       await verifyPersistedNativeVisualArtifact(workspaceDirectory, nativeVisual)
+      phase = 'Identity restart preservation'
+      const identityDatabasePath = join(userDataDirectory, 'identity-access', 'identity.sqlite')
+      const identityDigestBeforeRestart = createHash('sha256')
+        .update(await readFile(identityDatabasePath))
+        .digest('hex')
+
+      expectedExit = true
+      await closeElectron(electronApp)
+      electronApp = await launchApplication()
+      watchExit(electronApp)
+      processOutputs.push(collectProcessOutput(electronApp.process()))
+      const restartWindow = await electronApp.firstWindow({ timeout: timeoutMs })
+      attachPage(restartWindow)
+      await installMainProcessDiagnostics(electronApp)
+      await restartWindow.waitForLoadState('domcontentloaded', { timeout: timeoutMs })
+      await restartWindow.waitForFunction(
+        () => document.readyState === 'complete' &&
+          typeof globalThis.sciforge?.capabilities?.invoke === 'function',
+        undefined,
+        { timeout: timeoutMs }
+      )
+      const restoredIdentity = await restartWindow.evaluate(async ({ expectedUserId }) => {
+        const response = await globalThis.sciforge.capabilities.invoke({
+          request: { actionId: 'identity.local.inspect', input: {} }
+        })
+        const findAccountWidget = () => [...document.querySelectorAll('button')]
+          .find((button) => button.textContent?.trim() === 'Electron Smoke')
+        const deadline = Date.now() + 5_000
+        let widget = findAccountWidget()
+        while (!widget && Date.now() < deadline) {
+          await new Promise((resolvePromise) => setTimeout(resolvePromise, 25))
+          widget = findAccountWidget()
+        }
+        if (!widget) throw new Error('Identity toolbar widget was not rendered after restart.')
+        widget.click()
+        let overlay = document.querySelector('[role="dialog"]')
+        while (!overlay && Date.now() < deadline) {
+          await new Promise((resolvePromise) => setTimeout(resolvePromise, 25))
+          overlay = document.querySelector('[role="dialog"]')
+        }
+        if (!overlay) throw new Error('Identity application overlay did not open from the toolbar widget.')
+        return {
+          accountCount: response.output?.accountCount,
+          userId: response.output?.currentAccount?.userId,
+          username: response.output?.currentAccount?.username,
+          widgetRendered: true,
+          overlayOpened: true,
+          userIdMatches: response.output?.currentAccount?.userId === expectedUserId
+        }
+      }, { expectedUserId: result.identityUserId })
+      if (
+        restoredIdentity.accountCount !== 1 ||
+        restoredIdentity.username !== 'Electron Smoke' ||
+        restoredIdentity.userIdMatches !== true
+      ) {
+        throw new Error('Identity did not restore the immutable selected account after Electron restart.')
+      }
+      const restartMainFailures = await readMainProcessDiagnostics(electronApp)
+      const restartOutputFailures = processOutputs.at(-1).failures()
+      if (rendererFailures.length > 0 || restartMainFailures.length > 0 || restartOutputFailures.length > 0) {
+        throw new Error([...rendererFailures, ...restartMainFailures, ...restartOutputFailures].join(' | '))
+      }
+      expectedExit = true
+      await closeElectron(electronApp)
+      electronApp = undefined
+      const identityDigestAfterRestart = createHash('sha256')
+        .update(await readFile(identityDatabasePath))
+        .digest('hex')
+      if (identityDigestAfterRestart !== identityDigestBeforeRestart) {
+        throw new Error('Identity database bytes changed during a read-only restart cycle.')
+      }
       return {
         mode: label,
         executablePath: resolve(executablePath),
@@ -264,7 +348,11 @@ export async function runElectronDomainSmoke({
         nativeVisual,
         codexPreToolUseHook,
         workspaceEditPersisted: true,
-        paperRadarProfilePersisted: true
+        paperRadarProfilePersisted: true,
+        identityRestartRestored: true,
+        identityDatabasePreserved: true,
+        identityWidgetRendered: restoredIdentity.widgetRendered,
+        identityOverlayOpened: restoredIdentity.overlayOpened
       }
     }
 
@@ -328,6 +416,26 @@ async function smokeRendererWorkflow({ requiredCapabilityIds, workspaceDirectory
     requiredCapabilityIds
   })
   if (readiness.status !== 'ready') throw new Error(readiness.message)
+
+  const identityBefore = await api.capabilities.invoke({
+    request: { actionId: 'identity.local.inspect', input: {} }
+  })
+  if (identityBefore.output?.status !== 'available' || identityBefore.output.accountCount !== 0) {
+    throw new Error('Identity SQLite did not initialize an empty V1 schema.')
+  }
+  const identityCreated = await api.capabilities.invoke({
+    request: {
+      actionId: 'identity.local.create-account',
+      invocationId: 'electron-smoke-identity-create',
+      input: { username: 'Electron Smoke' }
+    }
+  })
+  if (
+    identityCreated.output?.currentAccount?.username !== 'Electron Smoke' ||
+    !/^[0-9a-f-]{36}$/u.test(identityCreated.output.currentAccount.userId)
+  ) {
+    throw new Error('Identity SQLite create/select did not return an immutable UUID account.')
+  }
 
   const paperRadarStatus = await api.capabilities.invoke({
     request: { actionId: 'paper-radar.status', input: {} }
@@ -429,6 +537,9 @@ async function smokeRendererWorkflow({ requiredCapabilityIds, workspaceDirectory
     version: await api.getAppVersion(),
     readiness: readiness.status,
     capabilityCount: readiness.availableCapabilityIds.length,
+    identityActionId: identityCreated.actionId,
+    identityAccountCount: identityCreated.output.accountCount,
+    identityUserId: identityCreated.output.currentAccount.userId,
     paperRadarActionId: paperRadarStatus.actionId,
     paperRadarProfileCount: listedProfiles.output.data.profiles.length,
     workspacePreviewActionId: plugins.actionId,
@@ -470,6 +581,12 @@ async function readMainProcessDiagnostics(electronApp) {
 function validateSmokeResult(result, { expectedRendererUrl }) {
   if (!result || typeof result !== 'object') throw new Error('Electron smoke returned no renderer result.')
   if (result.readiness !== 'ready') throw new Error(`Capability readiness was ${String(result.readiness)}.`)
+  if (result.identityActionId !== 'identity.local.create-account') {
+    throw new Error('Identity create-account action mismatch.')
+  }
+  if (result.identityAccountCount !== 1 || !/^[0-9a-f-]{36}$/u.test(result.identityUserId)) {
+    throw new Error('Identity smoke returned an invalid account result.')
+  }
   if (result.paperRadarActionId !== 'paper-radar.status') throw new Error('Paper Radar status action mismatch.')
   if (result.workspacePreviewActionId !== 'workspace-preview.list') throw new Error('Workspace Preview list action mismatch.')
   if (result.workspacePreviewPluginId !== 'markdown') throw new Error('Workspace Preview did not select Markdown.')

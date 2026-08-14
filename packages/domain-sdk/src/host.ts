@@ -3,6 +3,7 @@ import type { z } from 'zod'
 import type { DomainMainAgentExecutionHost } from './agent-execution.js'
 import type { DomainPackageJsonValue } from './contract.js'
 import type { DomainMainPowerHost } from './power.js'
+import type { PrincipalSnapshot } from './principal.js'
 import type { TrustedDomainProcessEntryInput } from './process-entry.js'
 import type {
   DomainCapabilityResourceHandle,
@@ -211,6 +212,7 @@ export type DomainAgentArtifactEvent = Readonly<{
   workspaceRoot?: string
   occurredAt: string
   artifacts: readonly unknown[]
+  principal?: PrincipalSnapshot
 }>
 
 export type DomainAgentArtifactConsumer = Readonly<{
@@ -339,6 +341,14 @@ export type DomainRendererWorkbenchHost = Readonly<{
   ) => Promise<DomainRendererWorkbenchSendMessageResult>
 }>
 
+export type DomainRendererApplicationHost = Readonly<{
+  openOverlay: (input: Readonly<{
+    contributionId: string
+    payload?: DomainPackageJsonValue
+  }>) => void
+  closeOverlay: (input: Readonly<{ contributionId: string }>) => void
+}>
+
 /**
  * Main-process services available to every trusted domain package.
  *
@@ -348,6 +358,8 @@ export type DomainRendererWorkbenchHost = Readonly<{
  */
 export type DomainMainHost = Readonly<{
   getUserDataDir: () => string
+  /** Stable installation identifier used only for device attribution. */
+  getDeviceId?: () => string
   defineCapability: (options: unknown) => unknown
   /** Opens one absolute local path with the operating system's configured application. */
   openPath?: (path: string) => Promise<void>
@@ -501,6 +513,7 @@ export type DomainRendererHost = Readonly<{
   workspace?: DomainRendererWorkspaceHost
   workspacePreview?: DomainRendererWorkspacePreviewHost
   workbench?: DomainRendererWorkbenchHost
+  application?: DomainRendererApplicationHost
   visibleContext?: DomainRendererVisibleContextHost
 }>
 

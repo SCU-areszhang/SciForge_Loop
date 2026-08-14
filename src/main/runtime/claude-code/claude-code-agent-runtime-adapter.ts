@@ -87,7 +87,8 @@ export function createClaudeCodeAgentRuntimeAdapter(
         ownedVisualToolsAvailable:
           context.turnGovernanceSnapshot?.ownedVisualToolsAvailable === true,
         nativeVisualProofChainPending:
-          context.turnGovernanceSnapshot?.nativeVisualProofChainPending === true
+          context.turnGovernanceSnapshot?.nativeVisualProofChainPending === true,
+        ...(context.principal ? { principal: context.principal } : {})
       })
       if (!result.ok) throw claudeFailure(result)
       return {

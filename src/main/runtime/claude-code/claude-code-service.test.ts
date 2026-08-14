@@ -1522,4 +1522,49 @@ describe('ClaudeCodeRuntimeService', () => {
       degraded: true
     })
   })
+
+  it('persists one immutable Host Principal on all events and materialized items for a turn', async () => {
+    const { sdk } = fakeSdk(() => [
+      init('claude-principal-session'),
+      assistantText('attributed response', 'claude-principal-session'),
+      result('attributed response', 'claude-principal-session')
+    ])
+    const service = new ClaudeCodeRuntimeService({
+      settings: async () => settings(),
+      storageRoot: await serviceRoot(),
+      claudeAgentSdk: sdk
+    })
+    const thread = await service.startThread({
+      threadId: 'claude-principal-thread',
+      workspace: '/tmp/workspace'
+    })
+    if (!thread.ok) throw new Error(thread.message)
+    const principal = {
+      userId: 'c07f29ee-801d-4cf3-90ef-96c56c65de21',
+      assurance: 'local-selection' as const,
+      deviceId: 'device-1',
+      identityVersion: 8
+    }
+    const turn = await service.startTurn({
+      threadId: thread.thread.id,
+      text: 'attribute this turn',
+      workspace: '/tmp/workspace',
+      principal
+    })
+    if (!turn.ok) throw new Error(turn.message)
+    await waitUntil(async () => (await storedEvents(service, thread.thread.id)).some((event) =>
+      event.kind === 'turn_lifecycle' && event.turnId === turn.turnId && event.state === 'completed'
+    ))
+    const events = (await storedEvents(service, thread.thread.id))
+      .filter((event) => event.turnId === turn.turnId)
+    expect(events.length).toBeGreaterThan(2)
+    expect(events.every((event) => event.principal?.userId === principal.userId)).toBe(true)
+    expect(events.every((event) => event.principal?.identityVersion === 8)).toBe(true)
+
+    const detail = await service.readThread(thread.thread.id)
+    if (!detail.ok) throw new Error(detail.message)
+    const items = detail.detail.items?.filter((item) => item.turnId === turn.turnId) ?? []
+    expect(items.length).toBeGreaterThan(0)
+    expect(items.every((item) => item.principal?.userId === principal.userId)).toBe(true)
+  })
 })

@@ -61,6 +61,44 @@ describe('createCodexAgentRuntimeAdapter', () => {
     })
   })
 
+  it('passes Host-captured Principal to Codex start and preserves persisted event attribution', async () => {
+    const principal = {
+      userId: 'c07f29ee-801d-4cf3-90ef-96c56c65de21',
+      assurance: 'local-selection' as const,
+      deviceId: 'device-1',
+      identityVersion: 6
+    }
+    const startTurn = vi.fn(async () => ({
+      ok: true as const,
+      threadId: 'thread-1',
+      turnId: 'turn-1'
+    }))
+    const adapter = createCodexAgentRuntimeAdapter({ startTurn } as never)
+    await adapter.startTurn({ settings: {} as never, principal }, {
+      runtimeId: 'codex',
+      threadId: 'thread-1',
+      text: 'attributed'
+    })
+    expect(startTurn).toHaveBeenCalledWith(expect.objectContaining({ principal }))
+
+    const eventAdapter = createCodexAgentRuntimeAdapter({
+      subscribeEvents: async function* () {
+        yield {
+          threadId: 'thread-1',
+          turnId: 'turn-1',
+          principal,
+          userMessage: { itemId: 'user-1', turnId: 'turn-1', text: 'attributed' }
+        }
+      }
+    } as never)
+    const events = []
+    for await (const event of eventAdapter.subscribeEvents({ settings: {} as never }, {
+      runtimeId: 'codex',
+      threadId: 'thread-1'
+    })) events.push(event)
+    expect(events).toEqual([expect.objectContaining({ principal })])
+  })
+
   it('bridges neutral coding-plan auxiliary operations to the Codex account lifecycle', async () => {
     const service = {
       getCodingPlanAccount: vi.fn(async () => ({

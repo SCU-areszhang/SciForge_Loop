@@ -4,7 +4,7 @@
 
 Authoritative source: `src/main/modules/index.ts`
 
-Registered actions: **123**
+Registered actions: **131**
 
 | Action ID | Version | Audiences | Effect | Approval | Scope |
 | --- | --- | --- | --- | --- | --- |
@@ -59,6 +59,14 @@ Registered actions: **123**
 | `git-checkpoints.list` | 1.0.0 | ui, agent, system | read | none | workspace |
 | `git-checkpoints.preview` | 1.0.0 | ui, agent, system | read | none | workspace |
 | `git-checkpoints.restore` | 1.0.0 | ui, agent | destructive | confirmation | workspace |
+| `identity.local.backup-and-reset` | 1.0.0 | ui | destructive | confirmation | global |
+| `identity.local.create-account` | 1.0.0 | ui | external-write | none | global |
+| `identity.local.dismiss-first-prompt` | 1.0.0 | ui | external-write | none | global |
+| `identity.local.exit-account` | 1.0.0 | ui | external-write | none | global |
+| `identity.local.inspect` | 1.0.0 | ui | read | none | global |
+| `identity.local.list-accounts` | 1.0.0 | ui | read | none | global |
+| `identity.local.rename-account` | 1.0.0 | ui | external-write | none | global |
+| `identity.local.select-account` | 1.0.0 | ui | external-write | none | global |
 | `paper-radar.digest` | 1.0.0 | ui, agent, system | read | none | global |
 | `paper-radar.profiles.list` | 1.0.0 | ui, agent, system | read | none | global |
 | `paper-radar.profiles.save` | 1.0.0 | ui, agent, system | external-write | confirmation | global |
@@ -10589,6 +10597,1019 @@ Captures a rescue checkpoint, then restores the selected checkpoint.
     "checkpoint"
   ],
   "title": "Restore Git checkpoint"
+}
+```
+
+## `identity.local.backup-and-reset`
+
+Backs up an unavailable Identity database before establishing a fresh one.
+
+- Version: `1.0.0`
+- Audiences: ui
+- Effect: `destructive`
+- Approval: confirmation
+- Scope: global
+
+### Contract
+
+```json
+{
+  "concurrency": {
+    "idempotency": "required",
+    "revision": "none"
+  },
+  "contractVersion": 1,
+  "inputSchema": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "additionalProperties": false,
+    "properties": {
+      "secondConfirmation": {
+        "const": "RESET LOCAL IDENTITY",
+        "type": "string"
+      }
+    },
+    "required": [
+      "secondConfirmation"
+    ],
+    "type": "object"
+  },
+  "outputSchema": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "additionalProperties": false,
+    "properties": {
+      "backupPath": {
+        "maxLength": 4096,
+        "minLength": 1,
+        "type": "string"
+      },
+      "state": {
+        "additionalProperties": false,
+        "properties": {
+          "accountCount": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "currentAccount": {
+            "anyOf": [
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "createdAt": {
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "type": "string"
+                  },
+                  "updatedAt": {
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "type": "string"
+                  },
+                  "userId": {
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "type": "string"
+                  },
+                  "username": {
+                    "maxLength": 64,
+                    "minLength": 1,
+                    "type": "string"
+                  }
+                },
+                "readOnly": true,
+                "required": [
+                  "userId",
+                  "username",
+                  "createdAt",
+                  "updatedAt"
+                ],
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "firstPromptDismissed": {
+            "type": "boolean"
+          },
+          "identityVersion": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "status": {
+            "const": "available",
+            "type": "string"
+          }
+        },
+        "readOnly": true,
+        "required": [
+          "status",
+          "identityVersion",
+          "currentAccount",
+          "accountCount",
+          "firstPromptDismissed"
+        ],
+        "type": "object"
+      }
+    },
+    "readOnly": true,
+    "required": [
+      "state",
+      "backupPath"
+    ],
+    "type": "object"
+  },
+  "resourceKinds": [],
+  "tags": [
+    "identity-access",
+    "local-account"
+  ],
+  "title": "Back Up and Reset Local Identity"
+}
+```
+
+## `identity.local.create-account`
+
+Creates and selects a display-only Local Account on this installation.
+
+- Version: `1.0.0`
+- Audiences: ui
+- Effect: `external-write`
+- Approval: none
+- Scope: global
+
+### Contract
+
+```json
+{
+  "concurrency": {
+    "idempotency": "required",
+    "revision": "none"
+  },
+  "contractVersion": 1,
+  "inputSchema": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "additionalProperties": false,
+    "properties": {
+      "username": {
+        "maxLength": 512,
+        "type": "string"
+      }
+    },
+    "required": [
+      "username"
+    ],
+    "type": "object"
+  },
+  "outputSchema": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "additionalProperties": false,
+    "properties": {
+      "accountCount": {
+        "maximum": 9007199254740991,
+        "minimum": 0,
+        "type": "integer"
+      },
+      "currentAccount": {
+        "anyOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "createdAt": {
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "type": "string"
+              },
+              "updatedAt": {
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "type": "string"
+              },
+              "userId": {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              "username": {
+                "maxLength": 64,
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "readOnly": true,
+            "required": [
+              "userId",
+              "username",
+              "createdAt",
+              "updatedAt"
+            ],
+            "type": "object"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "firstPromptDismissed": {
+        "type": "boolean"
+      },
+      "identityVersion": {
+        "maximum": 9007199254740991,
+        "minimum": 0,
+        "type": "integer"
+      },
+      "status": {
+        "const": "available",
+        "type": "string"
+      }
+    },
+    "readOnly": true,
+    "required": [
+      "status",
+      "identityVersion",
+      "currentAccount",
+      "accountCount",
+      "firstPromptDismissed"
+    ],
+    "type": "object"
+  },
+  "resourceKinds": [],
+  "tags": [
+    "identity-access",
+    "local-account"
+  ],
+  "title": "Create Local Account"
+}
+```
+
+## `identity.local.dismiss-first-prompt`
+
+Persists dismissal of the optional Local Account first-run prompt.
+
+- Version: `1.0.0`
+- Audiences: ui
+- Effect: `external-write`
+- Approval: none
+- Scope: global
+
+### Contract
+
+```json
+{
+  "concurrency": {
+    "idempotency": "required",
+    "revision": "none"
+  },
+  "contractVersion": 1,
+  "inputSchema": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "additionalProperties": false,
+    "properties": {},
+    "type": "object"
+  },
+  "outputSchema": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "additionalProperties": false,
+    "properties": {
+      "accountCount": {
+        "maximum": 9007199254740991,
+        "minimum": 0,
+        "type": "integer"
+      },
+      "currentAccount": {
+        "anyOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "createdAt": {
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "type": "string"
+              },
+              "updatedAt": {
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "type": "string"
+              },
+              "userId": {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              "username": {
+                "maxLength": 64,
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "readOnly": true,
+            "required": [
+              "userId",
+              "username",
+              "createdAt",
+              "updatedAt"
+            ],
+            "type": "object"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "firstPromptDismissed": {
+        "type": "boolean"
+      },
+      "identityVersion": {
+        "maximum": 9007199254740991,
+        "minimum": 0,
+        "type": "integer"
+      },
+      "status": {
+        "const": "available",
+        "type": "string"
+      }
+    },
+    "readOnly": true,
+    "required": [
+      "status",
+      "identityVersion",
+      "currentAccount",
+      "accountCount",
+      "firstPromptDismissed"
+    ],
+    "type": "object"
+  },
+  "resourceKinds": [],
+  "tags": [
+    "identity-access",
+    "local-account"
+  ],
+  "title": "Dismiss Local Account Prompt"
+}
+```
+
+## `identity.local.exit-account`
+
+Clears Local Account selection without changing installation-local data.
+
+- Version: `1.0.0`
+- Audiences: ui
+- Effect: `external-write`
+- Approval: none
+- Scope: global
+
+### Contract
+
+```json
+{
+  "concurrency": {
+    "idempotency": "required",
+    "revision": "none"
+  },
+  "contractVersion": 1,
+  "inputSchema": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "additionalProperties": false,
+    "properties": {},
+    "type": "object"
+  },
+  "outputSchema": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "additionalProperties": false,
+    "properties": {
+      "accountCount": {
+        "maximum": 9007199254740991,
+        "minimum": 0,
+        "type": "integer"
+      },
+      "currentAccount": {
+        "anyOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "createdAt": {
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "type": "string"
+              },
+              "updatedAt": {
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "type": "string"
+              },
+              "userId": {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              "username": {
+                "maxLength": 64,
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "readOnly": true,
+            "required": [
+              "userId",
+              "username",
+              "createdAt",
+              "updatedAt"
+            ],
+            "type": "object"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "firstPromptDismissed": {
+        "type": "boolean"
+      },
+      "identityVersion": {
+        "maximum": 9007199254740991,
+        "minimum": 0,
+        "type": "integer"
+      },
+      "status": {
+        "const": "available",
+        "type": "string"
+      }
+    },
+    "readOnly": true,
+    "required": [
+      "status",
+      "identityVersion",
+      "currentAccount",
+      "accountCount",
+      "firstPromptDismissed"
+    ],
+    "type": "object"
+  },
+  "resourceKinds": [],
+  "tags": [
+    "identity-access",
+    "local-account"
+  ],
+  "title": "Exit Local Account"
+}
+```
+
+## `identity.local.inspect`
+
+Reads the current installation-local account selection state.
+
+- Version: `1.0.0`
+- Audiences: ui
+- Effect: `read`
+- Approval: none
+- Scope: global
+
+### Contract
+
+```json
+{
+  "concurrency": {
+    "idempotency": "none",
+    "revision": "none"
+  },
+  "contractVersion": 1,
+  "inputSchema": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "additionalProperties": false,
+    "properties": {},
+    "type": "object"
+  },
+  "outputSchema": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "oneOf": [
+      {
+        "additionalProperties": false,
+        "properties": {
+          "accountCount": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "currentAccount": {
+            "anyOf": [
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "createdAt": {
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "type": "string"
+                  },
+                  "updatedAt": {
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "type": "string"
+                  },
+                  "userId": {
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "type": "string"
+                  },
+                  "username": {
+                    "maxLength": 64,
+                    "minLength": 1,
+                    "type": "string"
+                  }
+                },
+                "readOnly": true,
+                "required": [
+                  "userId",
+                  "username",
+                  "createdAt",
+                  "updatedAt"
+                ],
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "firstPromptDismissed": {
+            "type": "boolean"
+          },
+          "identityVersion": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "status": {
+            "const": "available",
+            "type": "string"
+          }
+        },
+        "readOnly": true,
+        "required": [
+          "status",
+          "identityVersion",
+          "currentAccount",
+          "accountCount",
+          "firstPromptDismissed"
+        ],
+        "type": "object"
+      },
+      {
+        "additionalProperties": false,
+        "properties": {
+          "reason": {
+            "enum": [
+              "open-failed",
+              "integrity-failed",
+              "migration-failed"
+            ],
+            "type": "string"
+          },
+          "recoveryAvailable": {
+            "type": "boolean"
+          },
+          "status": {
+            "const": "unavailable",
+            "type": "string"
+          }
+        },
+        "readOnly": true,
+        "required": [
+          "status",
+          "reason",
+          "recoveryAvailable"
+        ],
+        "type": "object"
+      }
+    ]
+  },
+  "resourceKinds": [],
+  "tags": [
+    "identity-access",
+    "local-account"
+  ],
+  "title": "Inspect Local Identity"
+}
+```
+
+## `identity.local.list-accounts`
+
+Lists display-only Local Accounts stored in this installation.
+
+- Version: `1.0.0`
+- Audiences: ui
+- Effect: `read`
+- Approval: none
+- Scope: global
+
+### Contract
+
+```json
+{
+  "concurrency": {
+    "idempotency": "none",
+    "revision": "none"
+  },
+  "contractVersion": 1,
+  "inputSchema": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "additionalProperties": false,
+    "properties": {},
+    "type": "object"
+  },
+  "outputSchema": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "additionalProperties": false,
+    "properties": {
+      "accounts": {
+        "items": {
+          "additionalProperties": false,
+          "properties": {
+            "createdAt": {
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "type": "string"
+            },
+            "updatedAt": {
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "type": "string"
+            },
+            "userId": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            },
+            "username": {
+              "maxLength": 64,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "readOnly": true,
+          "required": [
+            "userId",
+            "username",
+            "createdAt",
+            "updatedAt"
+          ],
+          "type": "object"
+        },
+        "maxItems": 10000,
+        "type": "array"
+      },
+      "state": {
+        "oneOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "accountCount": {
+                "maximum": 9007199254740991,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "currentAccount": {
+                "anyOf": [
+                  {
+                    "additionalProperties": false,
+                    "properties": {
+                      "createdAt": {
+                        "format": "date-time",
+                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                        "type": "string"
+                      },
+                      "updatedAt": {
+                        "format": "date-time",
+                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                        "type": "string"
+                      },
+                      "userId": {
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                        "type": "string"
+                      },
+                      "username": {
+                        "maxLength": 64,
+                        "minLength": 1,
+                        "type": "string"
+                      }
+                    },
+                    "readOnly": true,
+                    "required": [
+                      "userId",
+                      "username",
+                      "createdAt",
+                      "updatedAt"
+                    ],
+                    "type": "object"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "firstPromptDismissed": {
+                "type": "boolean"
+              },
+              "identityVersion": {
+                "maximum": 9007199254740991,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "status": {
+                "const": "available",
+                "type": "string"
+              }
+            },
+            "readOnly": true,
+            "required": [
+              "status",
+              "identityVersion",
+              "currentAccount",
+              "accountCount",
+              "firstPromptDismissed"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "reason": {
+                "enum": [
+                  "open-failed",
+                  "integrity-failed",
+                  "migration-failed"
+                ],
+                "type": "string"
+              },
+              "recoveryAvailable": {
+                "type": "boolean"
+              },
+              "status": {
+                "const": "unavailable",
+                "type": "string"
+              }
+            },
+            "readOnly": true,
+            "required": [
+              "status",
+              "reason",
+              "recoveryAvailable"
+            ],
+            "type": "object"
+          }
+        ]
+      }
+    },
+    "readOnly": true,
+    "required": [
+      "state",
+      "accounts"
+    ],
+    "type": "object"
+  },
+  "resourceKinds": [],
+  "tags": [
+    "identity-access",
+    "local-account"
+  ],
+  "title": "List Local Accounts"
+}
+```
+
+## `identity.local.rename-account`
+
+Changes a Local Account display name without changing its user ID.
+
+- Version: `1.0.0`
+- Audiences: ui
+- Effect: `external-write`
+- Approval: none
+- Scope: global
+
+### Contract
+
+```json
+{
+  "concurrency": {
+    "idempotency": "required",
+    "revision": "none"
+  },
+  "contractVersion": 1,
+  "inputSchema": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "additionalProperties": false,
+    "properties": {
+      "userId": {
+        "format": "uuid",
+        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+        "type": "string"
+      },
+      "username": {
+        "maxLength": 512,
+        "type": "string"
+      }
+    },
+    "required": [
+      "userId",
+      "username"
+    ],
+    "type": "object"
+  },
+  "outputSchema": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "additionalProperties": false,
+    "properties": {
+      "accountCount": {
+        "maximum": 9007199254740991,
+        "minimum": 0,
+        "type": "integer"
+      },
+      "currentAccount": {
+        "anyOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "createdAt": {
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "type": "string"
+              },
+              "updatedAt": {
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "type": "string"
+              },
+              "userId": {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              "username": {
+                "maxLength": 64,
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "readOnly": true,
+            "required": [
+              "userId",
+              "username",
+              "createdAt",
+              "updatedAt"
+            ],
+            "type": "object"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "firstPromptDismissed": {
+        "type": "boolean"
+      },
+      "identityVersion": {
+        "maximum": 9007199254740991,
+        "minimum": 0,
+        "type": "integer"
+      },
+      "status": {
+        "const": "available",
+        "type": "string"
+      }
+    },
+    "readOnly": true,
+    "required": [
+      "status",
+      "identityVersion",
+      "currentAccount",
+      "accountCount",
+      "firstPromptDismissed"
+    ],
+    "type": "object"
+  },
+  "resourceKinds": [],
+  "tags": [
+    "identity-access",
+    "local-account"
+  ],
+  "title": "Rename Local Account"
+}
+```
+
+## `identity.local.select-account`
+
+Selects an existing display-only Local Account on this installation.
+
+- Version: `1.0.0`
+- Audiences: ui
+- Effect: `external-write`
+- Approval: none
+- Scope: global
+
+### Contract
+
+```json
+{
+  "concurrency": {
+    "idempotency": "required",
+    "revision": "none"
+  },
+  "contractVersion": 1,
+  "inputSchema": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "additionalProperties": false,
+    "properties": {
+      "userId": {
+        "format": "uuid",
+        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+        "type": "string"
+      }
+    },
+    "required": [
+      "userId"
+    ],
+    "type": "object"
+  },
+  "outputSchema": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "additionalProperties": false,
+    "properties": {
+      "accountCount": {
+        "maximum": 9007199254740991,
+        "minimum": 0,
+        "type": "integer"
+      },
+      "currentAccount": {
+        "anyOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "createdAt": {
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "type": "string"
+              },
+              "updatedAt": {
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "type": "string"
+              },
+              "userId": {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              "username": {
+                "maxLength": 64,
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "readOnly": true,
+            "required": [
+              "userId",
+              "username",
+              "createdAt",
+              "updatedAt"
+            ],
+            "type": "object"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "firstPromptDismissed": {
+        "type": "boolean"
+      },
+      "identityVersion": {
+        "maximum": 9007199254740991,
+        "minimum": 0,
+        "type": "integer"
+      },
+      "status": {
+        "const": "available",
+        "type": "string"
+      }
+    },
+    "readOnly": true,
+    "required": [
+      "status",
+      "identityVersion",
+      "currentAccount",
+      "accountCount",
+      "firstPromptDismissed"
+    ],
+    "type": "object"
+  },
+  "resourceKinds": [],
+  "tags": [
+    "identity-access",
+    "local-account"
+  ],
+  "title": "Select Local Account"
 }
 ```
 
@@ -30090,6 +31111,7 @@ Releases an open Workspace Preview session.
 | Create Loop |  |  |
 | Evidence DAG | evidenceDag: |  |
 | Git Checkpoints |  |  |
+| Identity and Access |  |  |
 | Paper Radar | paperRadar: |  |
 | Project DAG | projectDag: |  |
 | Remote SSH |  |  |

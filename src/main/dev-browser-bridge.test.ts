@@ -226,7 +226,11 @@ describe('dev browser bridge server', () => {
       removeHandler: vi.fn(),
       handle: vi.fn()
     }
-    const capabilityDispatcher = registerCapabilityIpc({ broker, ipc: ipc as never })
+    const capabilityDispatcher = registerCapabilityIpc({
+      broker,
+      ipc: ipc as never,
+      isTrustedIpcSender: () => true
+    })
 
     server = await startDevBrowserBridgeServer({
       dispatcher: capabilityDispatcher,

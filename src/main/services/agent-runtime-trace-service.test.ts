@@ -29,6 +29,12 @@ describe('AgentRuntimeTraceRecorder', () => {
       status: 'running',
       toolName: 'read_file',
       meta: { arguments: { path: 'README.md' } },
+      principal: {
+        userId: 'c07f29ee-801d-4cf3-90ef-96c56c65de21',
+        assurance: 'local-selection',
+        deviceId: 'device-1',
+        identityVersion: 4
+      },
       createdAt: '2026-07-19T10:00:00.000Z'
     } satisfies AgentRuntimeEvent
 

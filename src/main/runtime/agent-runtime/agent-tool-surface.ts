@@ -6,6 +6,7 @@ import type {
   AgentRuntimeCompletionReceipt,
   AgentRuntimeExecutionEffectClass
 } from '../../../shared/agent-runtime-contract'
+import type { PrincipalSnapshot } from '@sciforge/domain-sdk/principal'
 
 export type AgentRuntimeToolDefinition = Readonly<{
   type: 'function'
@@ -21,6 +22,7 @@ export type AgentRuntimeToolCallContext = Readonly<{
   turnId?: string
   callId?: string
   workspaceId?: string
+  principal?: PrincipalSnapshot
 }>
 
 export type AgentRuntimeToolCall = Readonly<{
@@ -108,6 +110,7 @@ export type AgentRuntimeToolTurnIdentity = Readonly<{
   runtimeId: string
   threadId: string
   turnId: string
+  principal?: PrincipalSnapshot
 }>
 
 export type AgentRuntimeToolFailureMetadata = Readonly<{
@@ -629,6 +632,7 @@ export type AgentRuntimeToolSessionContext = Readonly<{
   turnId?: string
   workspaceId?: string
   requestId?: string | number
+  principal?: PrincipalSnapshot
 }>
 
 /** Composes runtime-neutral tool owners while rejecting ambiguous tool names. */

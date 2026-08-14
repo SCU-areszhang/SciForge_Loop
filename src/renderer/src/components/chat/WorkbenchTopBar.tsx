@@ -27,6 +27,9 @@ import { openWorkspacePathInEditor } from '../../lib/open-workspace-path'
 import type {
   RegisteredWorkbenchToolbarActionContribution
 } from '../../domain-modules/workbench-toolbar-slot'
+import type {
+  RegisteredWorkbenchToolbarWidgetContribution
+} from '../../domain-modules/workbench-toolbar-widget-slot'
 import { visibleWorkbenchToolbarActions } from '../../domain-modules/workbench-toolbar-preferences'
 import { useWorkbenchToolbarSettings } from '../../lib/use-workbench-toolbar-settings'
 import { WorkbenchToolbarCustomizer } from './WorkbenchToolbarCustomizer'
@@ -51,6 +54,7 @@ type Props = {
   workspaceRoot?: string
   planPanelEnabled?: boolean
   toolbarActions?: readonly RegisteredWorkbenchToolbarActionContribution[]
+  toolbarWidgets?: readonly RegisteredWorkbenchToolbarWidgetContribution[]
   toolbarCommandInvocation?: DomainRendererCommandInvocation
   onExecuteToolbarCommand?: (commandId: string) => void
   sideChatCount?: number
@@ -71,6 +75,7 @@ export function WorkbenchTopBar({
   workspaceRoot = '',
   planPanelEnabled = false,
   toolbarActions = [],
+  toolbarWidgets = [],
   toolbarCommandInvocation,
   onExecuteToolbarCommand,
   sideChatCount = 0,
@@ -551,6 +556,14 @@ export function WorkbenchTopBar({
           </button>
         )
       })}
+
+      {toolbarWidgets.map(({ id, contribution }) => (
+        <span key={id} aria-label={contribution.label}>
+          {contribution.render({
+            className: 'inline-flex items-center rounded-full border border-transparent bg-white/38 px-2.5 py-1.5 text-ds-faint transition hover:border-ds-border-muted hover:bg-white/55 hover:text-ds-ink dark:bg-white/4 dark:hover:bg-white/8'
+          })}
+        </span>
+      ))}
 
       <WorkbenchToolbarCustomizer
         actions={toolbarActions}

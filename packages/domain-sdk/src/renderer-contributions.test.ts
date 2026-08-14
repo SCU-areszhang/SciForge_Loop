@@ -3,6 +3,7 @@ import { describe, it } from 'node:test'
 import { z } from 'zod'
 
 import {
+  APPLICATION_OVERLAY_LOCATION,
   COMPOSER_CONTEXT_LOCATION,
   RENDERER_COMMAND_CONTRIBUTION_KIND,
   RENDERER_COMPOSER_CONTEXT_PROVIDER_CONTRIBUTION_KIND,
@@ -11,9 +12,11 @@ import {
   RENDERER_WORKBENCH_RIGHT_PANEL_CONTRIBUTION_KIND,
   RENDERER_WORKBENCH_TOOLBAR_ACTION_CONTRIBUTION_KIND,
   WORKBENCH_TOPBAR_LOCATION,
+  defineDomainRendererApplicationOverlayContract,
   defineDomainRendererComposerContextProviderContract,
   defineDomainRendererWorkbenchSurfaceContract,
   defineDomainRendererWorkbenchToolbarActionContract,
+  defineDomainRendererWorkbenchToolbarWidgetContract,
   domainRendererCommandInvocationSchema,
   domainRendererComposerContextResultSchema,
   domainRendererWorkspacePickResultSchema,
@@ -21,8 +24,10 @@ import {
   isDomainRendererCommandAvailable,
   isDomainRendererCommandHandler,
   isDomainRendererComposerContextProvider,
+  isDomainRendererApplicationOverlayValue,
   isDomainRendererWorkbenchSurfaceValue,
   isDomainRendererWorkbenchToolbarActionValue,
+  isDomainRendererWorkbenchToolbarWidgetValue,
   type DomainRendererCommandHandler,
   type DomainRendererCommandInvocation
 } from './renderer-contributions.js'
@@ -224,5 +229,26 @@ describe('renderer extension contribution contracts', () => {
       }),
       z.ZodError
     )
+  })
+
+  it('defines session-independent application overlays and renderable toolbar widgets', () => {
+    const overlay = defineDomainRendererApplicationOverlayContract({
+      location: APPLICATION_OVERLAY_LOCATION,
+      title: 'Account'
+    })
+    const widget = defineDomainRendererWorkbenchToolbarWidgetContract({
+      location: WORKBENCH_TOPBAR_LOCATION,
+      label: 'Account'
+    })
+
+    assert.equal(overlay.location, 'application.overlay')
+    assert.equal(widget.location, 'workbench.topbar')
+    assert.equal(isDomainRendererApplicationOverlayValue({ render: () => null }), true)
+    assert.equal(isDomainRendererApplicationOverlayValue({
+      render: () => null,
+      open: () => undefined
+    }), false)
+    assert.equal(isDomainRendererWorkbenchToolbarWidgetValue({ render: () => null }), true)
+    assert.equal(isDomainRendererWorkbenchToolbarWidgetValue({ icon: () => null }), false)
   })
 })

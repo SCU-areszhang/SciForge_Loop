@@ -41,6 +41,8 @@ import {
 import type { GuiUpdateState } from '../shared/gui-update'
 import { fetchUpstreamModelIds } from './upstream-models'
 import { isTrustedRendererUrl } from './renderer-trust'
+import { createTrustedRendererSenderPolicy } from './trusted-renderer-sender'
+import { createMainPrincipalContext } from './principal-context'
 import {
   codingPlanCredentialStateForAdapter,
   getModelAccessStatus
@@ -1062,6 +1064,8 @@ app.whenReady().then(async () => {
   store = new JsonSettingsStore(app.getPath('userData'))
   traceStartup('settings load:start')
   const initial = await store.load()
+  const deviceId = initial.installationId?.trim()
+  if (!deviceId) throw new Error('Stable installation identity is unavailable.')
   traceStartup('settings load:done')
   appBehavior = initial.appBehavior
   syncLoginItemSettings(initial)
@@ -1138,6 +1142,7 @@ app.whenReady().then(async () => {
   })
   const catalog = createApplicationDomainCatalog({
     getUserDataDir: () => app.getPath('userData'),
+    getDeviceId: () => deviceId,
     openPath: async (targetPath) => {
       const error = await shell.openPath(targetPath)
       if (error) throw new Error(error)
@@ -1158,6 +1163,13 @@ app.whenReady().then(async () => {
       }
     },
     visualCapture: registeredTargetVisualCapture
+  })
+  const principalContext = createMainPrincipalContext(catalog)
+  const trustedRendererSenderPolicy = createTrustedRendererSenderPolicy({
+    getMainWindow: () => mainWindow,
+    getExpectedRendererUrl: () => devServerHintUrl() ??
+      pathToFileURL(join(__dirname, '../renderer/index.html')).toString(),
+    allowDevBrowser: !app.isPackaged && process.env.SCIFORGE_DEV_BROWSER_BRIDGE !== '0'
   })
   const workspaceEgressService = new WorkspaceEgressService({
     routeResolver: {
@@ -1272,7 +1284,9 @@ app.whenReady().then(async () => {
     createApplicationCapabilityRegistry(catalog, appCapabilityDependencies)
   )
   capabilityBrokerForVisibleContext = capabilityBroker
-  domainSystemCapabilityInvoker = createMainSystemCapabilityInvoker(capabilityBroker)
+  domainSystemCapabilityInvoker = createMainSystemCapabilityInvoker(capabilityBroker, {
+    getPrincipal: principalContext.current
+  })
   const visualSourceRegistry = new VisualSourceRegistry([
     {
       ownerId: 'sciforge.agent-runtime',
@@ -1364,7 +1378,8 @@ app.whenReady().then(async () => {
     resolveCaller: (context) => ({
       audience: 'agent',
       callerId: capabilityAgentCallerId(context),
-      ...(context.workspaceId ? { workspaceId: context.workspaceId } : {})
+      ...(context.workspaceId ? { workspaceId: context.workspaceId } : {}),
+      ...(context.principal ? { principal: context.principal } : {})
     }),
     requestApproval: (request, options) => (
       agentRuntimeHostRef.current?.requestCapabilityApproval(request, options) ?? 'cancelled'
@@ -1380,6 +1395,8 @@ app.whenReady().then(async () => {
   installElectronDomainNativeVisualSmoke(capabilityAgentTools)
   const capabilityIpcRegistration = registerCapabilityIpc({
     broker: capabilityBroker,
+    isTrustedIpcSender: trustedRendererSenderPolicy,
+    getPrincipal: principalContext.current,
     onCallerDestroyed: (callerId) => {
       void workspacePlacement.disposeOwner(callerId)
     }
@@ -1387,6 +1404,7 @@ app.whenReady().then(async () => {
   const artifactConsumers = listMainAgentArtifactConsumers(catalog)
   const agentRuntimeHost = createAgentRuntimeHost({
     settings: async () => store.load(),
+    getPrincipal: principalContext.current,
     nativeVisualToolsAvailable: () => Boolean(capabilityAgentTools),
     subagentStoreRoot: join(app.getPath('userData'), 'agent-runtime', 'subagents'),
     artifactConsumers,
@@ -1768,16 +1786,7 @@ app.whenReady().then(async () => {
     actionGuardEvaluator,
     extensions: domainExtensionsApi,
     getMainWindow: () => mainWindow,
-    isTrustedIpcSender: (event) => {
-      const window = mainWindow
-      if (!window || window.isDestroyed()) return false
-      const contents = window.webContents
-      const frame = event.senderFrame
-      const expected = devServerHintUrl() ?? pathToFileURL(join(__dirname, '../renderer/index.html')).toString()
-      return event.sender === contents &&
-        frame === contents.mainFrame &&
-        isTrustedRendererUrl(frame?.url ?? '', expected)
-    },
+    isTrustedIpcSender: trustedRendererSenderPolicy,
     applySettingsPatch,
     getModelAccessStatus: readModelAccessStatus,
     traces: fullTraceStore,

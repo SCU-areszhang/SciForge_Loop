@@ -282,6 +282,20 @@ describe('app-ipc-schemas', () => {
     })
   })
 
+  it('rejects renderer-declared Principal fields on Agent turn start', () => {
+    expect(() => agentRuntimeStartTurnPayloadSchema.parse({
+      runtimeId: 'codex',
+      threadId: 'thread-1',
+      text: 'hello',
+      principal: {
+        userId: 'c07f29ee-801d-4cf3-90ef-96c56c65de21',
+        assurance: 'cloud-authenticated',
+        deviceId: 'forged-device',
+        identityVersion: 99
+      }
+    })).toThrow()
+  })
+
   it('rejects empty neutral agent runtime turn text', () => {
     expect(() =>
       agentRuntimeStartTurnPayloadSchema.parse({

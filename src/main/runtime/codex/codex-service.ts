@@ -98,6 +98,7 @@ import type {
   AgentRuntimeSubagentUsage,
   AgentRuntimeTurnGovernanceSnapshotInput
 } from '../agent-runtime/adapter'
+import type { PrincipalSnapshot } from '@sciforge/domain-sdk/principal'
 import {
   GUI_COMPUTER_USE_MCP_SERVER_NAME,
   isComputerUseMcpConfigured
@@ -192,6 +193,7 @@ type CodexPendingTurnRecovery = {
   threadId: string
   text: string
   workspace: string
+  principal?: PrincipalSnapshot
   model?: string
   reasoningEffort?: string
   fileReferences?: CodexTurnStartPayload['fileReferences']
@@ -286,6 +288,8 @@ export class CodexRuntimeService {
   private readonly activeSubagents = new Map<string, ActiveCodexSubagent>()
   private usageBackfillPromise: Promise<void> | null = null
   private readonly activeTurns = new Map<string, string>()
+  private readonly pendingTurnPrincipals = new Map<string, PrincipalSnapshot>()
+  private readonly turnPrincipals = new Map<string, PrincipalSnapshot>()
   private readonly turnTimings = new Map<string, CodexTurnTiming>()
   private readonly turnModelHints = new Map<string, string>()
   private readonly pendingTurnRecoveries = new Map<string, CodexPendingTurnRecovery>()
@@ -774,6 +778,8 @@ export class CodexRuntimeService {
 
   async startTurn(payload: CodexTurnStartPayload): Promise<CodexTurnStartResult> {
     let preparedGovernance: CodexPreparedTurnGovernance | null = null
+    if (payload.principal) this.pendingTurnPrincipals.set(payload.threadId, payload.principal)
+    else this.pendingTurnPrincipals.delete(payload.threadId)
     try {
       const startedAtMs = Date.now()
       const settings = await this.options.settings()
@@ -863,6 +869,10 @@ export class CodexRuntimeService {
       }
       const turn = asRecord(asRecord(response)?.turn) ?? {}
       const turnId = stringValue(turn.id) || ''
+      if (turnId && payload.principal) {
+        this.turnPrincipals.set(turnTimingKey(payload.threadId, turnId), payload.principal)
+      }
+      this.pendingTurnPrincipals.delete(payload.threadId)
       this.recordActiveTurn(
         payload.threadId,
         turnId,
@@ -880,6 +890,7 @@ export class CodexRuntimeService {
         threadId: payload.threadId,
         text: modelText,
         workspace,
+        ...(payload.principal ? { principal: payload.principal } : {}),
         model: runtimeModel,
         reasoningEffort: payload.reasoningEffort,
         fileReferences: payload.fileReferences,
@@ -919,6 +930,7 @@ export class CodexRuntimeService {
         userMessageItemId
       }
     } catch (error) {
+      this.pendingTurnPrincipals.delete(payload.threadId)
       await this.releasePreparedCodexTurnGovernance(preparedGovernance)
         .catch(() => undefined)
       await this.discardClientAfterFailure(error)
@@ -1652,7 +1664,10 @@ export class CodexRuntimeService {
         threadId,
         workspaceId,
         ...(request.turnId ? { turnId: request.turnId } : {}),
-        ...(request.callId ? { callId: request.callId } : {})
+        ...(request.callId ? { callId: request.callId } : {}),
+        ...(this.principalForToolRequest(threadId, request.turnId)
+          ? { principal: this.principalForToolRequest(threadId, request.turnId)! }
+          : {})
       }
     })
     const execution = nativeAgentToolExecutionMetadata(
@@ -2381,14 +2396,23 @@ export class CodexRuntimeService {
     event: CodexEventPayload['event']
   ): Promise<CodexStoredEvent | null> {
     if (!this.eventStore) return null
+    const eventTurnId = event.turnId || event.userMessage?.turnId
+    const principal = event.principal ?? (eventTurnId
+      ? this.turnPrincipals.get(turnTimingKey(threadId, eventTurnId))
+      : this.pendingTurnPrincipals.get(threadId))
+    const attributedEvent = principal && !event.principal
+      ? Object.freeze({ ...event, principal })
+      : event
     const storedThread = await this.threadStore?.get(threadId) ?? await this.threadStore?.getByCodexThreadId(threadId)
     if (!storedThread) {
       if ((await this.eventStore.latestSeq(threadId)) <= 0) return null
-      return this.eventStore.append(threadId, { ...event, threadId })
+      return this.eventStore.append(threadId, { ...attributedEvent, threadId })
     }
     const guiThreadId = storedThread?.guiThreadId ?? threadId
-    const stored = await this.eventStore.append(guiThreadId, { ...event, threadId: guiThreadId })
-    const turnId = isChildOnlyEvent(event) ? undefined : event.turnId || event.userMessage?.turnId
+    const stored = await this.eventStore.append(guiThreadId, { ...attributedEvent, threadId: guiThreadId })
+    const turnId = isChildOnlyEvent(attributedEvent)
+      ? undefined
+      : attributedEvent.turnId || attributedEvent.userMessage?.turnId
     await this.threadStore?.upsert({
       guiThreadId,
       codexThreadId: storedThread.codexThreadId,
@@ -2399,6 +2423,16 @@ export class CodexRuntimeService {
       ...(event.userMessage?.itemId ? { latestUserMessageId: event.userMessage.itemId } : {})
     })
     return stored
+  }
+
+  private principalForToolRequest(
+    threadId: string,
+    turnId: string | undefined
+  ): PrincipalSnapshot | undefined {
+    const resolvedTurnId = turnId?.trim() || this.activeTurns.get(threadId)
+    return resolvedTurnId
+      ? this.turnPrincipals.get(turnTimingKey(threadId, resolvedTurnId))
+      : this.pendingTurnPrincipals.get(threadId)
   }
 
   private async publishClientEvent(event: CodexThreadEventPayload): Promise<CodexThreadEventPayload> {
@@ -2463,6 +2497,12 @@ export class CodexRuntimeService {
       }))
       const turn = asRecord(asRecord(response)?.turn) ?? {}
       const retryTurnId = stringValue(turn.id) || ''
+      if (retryTurnId && recovery.principal) {
+        this.turnPrincipals.set(
+          turnTimingKey(event.threadId, retryTurnId),
+          recovery.principal
+        )
+      }
       this.recordActiveTurn(event.threadId, retryTurnId, Date.now(), false)
       await this.bindCodexTurnGovernance({
         threadId: event.threadId,
@@ -2872,6 +2912,7 @@ export class CodexRuntimeService {
     this.turnModelHints.delete(key)
     this.pendingTurnRecoveries.delete(key)
     this.governanceBindingsByTurn.delete(key)
+    this.turnPrincipals.delete(key)
     this.clearFirstActivityTimer(key)
     this.clearPendingToolBarrierForTurn(key)
     await Promise.all([

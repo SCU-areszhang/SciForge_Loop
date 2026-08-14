@@ -1,8 +1,9 @@
-import { lazy, Suspense, useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useState, useSyncExternalStore } from 'react'
 import { useChatStore } from './store/chat-store'
 import { clearPersistedActiveThread } from './store/chat-session-persistence'
 import type { AppRoute } from './store/chat-store-types'
 import { supportsDesktopTitleBar, WindowsTitleBar } from './components/WindowsTitleBar'
+import { installedRendererContributions } from './domain-modules/installed-renderer-contributions'
 
 const Workbench = lazy(() =>
   import('./components/Workbench').then((module) => ({ default: module.Workbench }))
@@ -85,6 +86,11 @@ export default function AppShell(): React.ReactElement {
   const initialSetupOpen = useChatStore((s) => s.initialSetupOpen)
   const platform = typeof window !== 'undefined' ? window.sciforge?.platform ?? 'unknown' : 'unknown'
   const hasDesktopTitleBar = supportsDesktopTitleBar(platform)
+  const activeApplicationOverlay = useSyncExternalStore(
+    installedRendererContributions.applicationOverlays.subscribe,
+    installedRendererContributions.applicationOverlays.snapshot,
+    installedRendererContributions.applicationOverlays.snapshot
+  )
 
   useEffect(() => {
     void boot()
@@ -107,6 +113,17 @@ export default function AppShell(): React.ReactElement {
           <InitialSetupDialog />
         </Suspense>
       ) : null}
+      {activeApplicationOverlay
+        ? activeApplicationOverlay.registration.contribution.render({
+            onClose: () => installedRendererContributions.applicationOverlays.close(
+              activeApplicationOverlay.registration.ownerId,
+              activeApplicationOverlay.registration.id
+            ),
+            ...(activeApplicationOverlay.payload === undefined
+              ? {}
+              : { payload: activeApplicationOverlay.payload })
+          })
+        : null}
     </div>
   )
 }

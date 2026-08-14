@@ -292,6 +292,11 @@ export async function storedThreadDetail(
 
 function itemsFromEvents(events: AgentRuntimeEvent[]): AgentRuntimeItem[] {
   const items = new Map<string, AgentRuntimeItem>()
+  const principalsByTurn = new Map(
+    events.flatMap((event) => event.turnId && event.principal
+      ? [[event.turnId, event.principal] as const]
+      : [])
+  )
   for (const event of events) {
     if (event.kind === 'user_message') {
       items.set(event.itemId, {
@@ -368,7 +373,10 @@ function itemsFromEvents(events: AgentRuntimeEvent[]): AgentRuntimeItem[] {
       })
     }
   }
-  return [...items.values()]
+  return [...items.values()].map((item) => {
+    const principal = item.turnId ? principalsByTurn.get(item.turnId) : undefined
+    return principal && !item.principal ? { ...item, principal } : item
+  })
 }
 
 function turnsFromEvents(

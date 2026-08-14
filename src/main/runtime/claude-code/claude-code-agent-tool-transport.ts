@@ -57,6 +57,7 @@ export function createClaudeCodeAgentToolTransport(
             ...(options.context.threadId ? { threadId: options.context.threadId } : {}),
             ...(options.context.turnId ? { turnId: options.context.turnId } : {}),
             ...(options.context.workspaceId ? { workspaceId: options.context.workspaceId } : {}),
+            ...(options.context.principal ? { principal: options.context.principal } : {}),
             callId: String(protocolRequestId ?? requestId)
           }
         }, signal ? { signal } : {})

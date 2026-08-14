@@ -19,6 +19,7 @@ import {
   type CapabilityCallerContextInput,
   type CapabilityResourceChangeEvent
 } from '../../shared/capability-broker'
+import type { PrincipalSnapshot } from '@sciforge/domain-sdk/principal'
 import type { CapabilityBroker } from './broker'
 
 export const CAPABILITY_IPC_CHANNELS = Object.freeze({
@@ -71,16 +72,22 @@ const capabilityResourceContentRangePayloadSchema = capabilityResourceContentPay
 
 type CapabilityIpcSender = {
   id: number
+  trustedRendererTransport?: 'dev-browser'
   send: (channel: string, ...args: unknown[]) => void
   once: (event: 'destroyed', listener: () => void) => unknown
   isDestroyed: () => boolean
 }
-type CapabilityIpcEvent = { sender: CapabilityIpcSender }
+type CapabilityIpcEvent = {
+  sender: CapabilityIpcSender
+  senderFrame?: Readonly<{ url?: string }> | null
+}
 type CapabilityIpcHandler = (event: CapabilityIpcEvent, payload: unknown) => unknown
 type CapabilityIpcMain = Pick<typeof ipcMain, 'handle' | 'removeHandler'>
 
 export type RegisterCapabilityIpcOptions = {
   broker: CapabilityBroker
+  isTrustedIpcSender: (event: CapabilityIpcEvent) => boolean
+  getPrincipal?: () => PrincipalSnapshot | undefined
   ipc?: CapabilityIpcMain
   onCallerDestroyed?: (callerId: string) => void
 }
@@ -104,13 +111,15 @@ function uiCaller(
   sender: CapabilityIpcSender,
   workspaceId?: string,
   approvals: CapabilityApprovalGrant[] = [],
-  workspaceLocator?: WorkspaceLocator
+  workspaceLocator?: WorkspaceLocator,
+  principal?: PrincipalSnapshot
 ): CapabilityCallerContextInput {
   return {
     audience: 'ui',
     callerId: `window:${sender.id}`,
     ...(workspaceId ? { workspaceId } : {}),
     ...(workspaceLocator ? { workspaceLocator } : {}),
+    ...(principal ? { principal } : {}),
     approvals
   }
 }
@@ -125,11 +134,26 @@ export function registerCapabilityIpc(options: RegisterCapabilityIpcOptions): Ca
   const watchedCallerIds = new Set<number>()
   const invokeHandlers = new Map<string, CapabilityIpcHandler>()
   const channels = Object.values(CAPABILITY_IPC_CHANNELS).filter((channel) => channel !== CAPABILITY_IPC_CHANNELS.event)
+  const caller = (
+    sender: CapabilityIpcSender,
+    workspaceId?: string,
+    approvals: CapabilityApprovalGrant[] = [],
+    workspaceLocator?: WorkspaceLocator
+  ) => uiCaller(
+    sender,
+    workspaceId,
+    approvals,
+    workspaceLocator,
+    options.getPrincipal?.()
+  )
 
   const handle = (channel: string, handler: CapabilityIpcHandler): void => {
     invokeHandlers.set(channel, handler)
     ipc.removeHandler(channel)
     ipc.handle(channel, (event, payload) => {
+      if (!options.isTrustedIpcSender(event)) {
+        throw new Error('Rejected capability IPC invocation from an untrusted renderer.')
+      }
       watchCaller(event.sender)
       return handler(event, payload)
     })
@@ -146,11 +170,11 @@ export function registerCapabilityIpc(options: RegisterCapabilityIpcOptions): Ca
 
   handle(CAPABILITY_IPC_CHANNELS.discover, (event, payload) => {
     const input = parse(capabilityDiscoverIpcSchema, payload)
-    return options.broker.discover(uiCaller(event.sender, input.workspaceId), input.query)
+    return options.broker.discover(caller(event.sender, input.workspaceId), input.query)
   })
   handle(CAPABILITY_IPC_CHANNELS.readiness, (event, payload) => {
     const input = parse(capabilityReadinessRequestSchema, payload)
-    const descriptors = options.broker.discover(uiCaller(event.sender, input.workspaceId))
+    const descriptors = options.broker.discover(caller(event.sender, input.workspaceId))
     const availableCapabilityIds = descriptors.map((descriptor) => descriptor.id).sort()
     const available = new Set(availableCapabilityIds)
     const missingCapabilityIds = input.requiredCapabilityIds
@@ -185,12 +209,12 @@ export function registerCapabilityIpc(options: RegisterCapabilityIpcOptions): Ca
   })
   handle(CAPABILITY_IPC_CHANNELS.observe, (event, payload) => {
     const input = parse(capabilityObserveIpcSchema, payload)
-    return options.broker.observe(uiCaller(event.sender, input.workspaceId), input.request)
+    return options.broker.observe(caller(event.sender, input.workspaceId), input.request)
   })
   handle(CAPABILITY_IPC_CHANNELS.bind, (event, payload) => {
     const input = parse(capabilityBindIpcSchema, payload)
     return options.broker.bindResourceRef(
-      uiCaller(event.sender, input.workspaceId),
+      caller(event.sender, input.workspaceId),
       input.request.resourceRef
     )
   })
@@ -204,19 +228,19 @@ export function registerCapabilityIpc(options: RegisterCapabilityIpcOptions): Ca
         }]
       : []
     return options.broker.invoke(
-      uiCaller(event.sender, input.workspaceId, approvals, input.workspaceLocator),
+      caller(event.sender, input.workspaceId, approvals, input.workspaceLocator),
       input.request
     )
   })
   handle(CAPABILITY_IPC_CHANNELS.events, (event, payload) => {
     const input = parse(capabilityEventsIpcSchema, payload)
-    return options.broker.listEvents(uiCaller(event.sender, input.workspaceId), input.query)
+    return options.broker.listEvents(caller(event.sender, input.workspaceId), input.query)
   })
   handle(CAPABILITY_IPC_CHANNELS.subscribe, (event, payload) => {
     const input = parse(capabilitySubscribeIpcSchema, payload)
     const subscriptionId = randomUUID()
     const sender = event.sender
-    const dispose = options.broker.subscribe(uiCaller(sender, input.workspaceId), (change) => {
+    const dispose = options.broker.subscribe(caller(sender, input.workspaceId), (change) => {
       if (sender.isDestroyed()) return
       sender.send(CAPABILITY_IPC_CHANNELS.event, {
         subscriptionId,
@@ -246,21 +270,31 @@ export function registerCapabilityIpc(options: RegisterCapabilityIpcOptions): Ca
     invoke: async (channel, payload, sender) => {
       const handler = invokeHandlers.get(channel)
       if (!handler) throw new Error(`Unknown capability bridge channel: ${channel}`)
+      const event = { sender }
+      if (!options.isTrustedIpcSender(event)) {
+        throw new Error('Rejected capability bridge invocation from an untrusted renderer.')
+      }
       watchCaller(sender)
-      return await handler({ sender }, payload)
+      return await handler(event, payload)
     },
     resourceContent: {
       describe: async (payload, sender) => {
+        if (!options.isTrustedIpcSender({ sender })) {
+          throw new Error('Rejected capability content request from an untrusted renderer.')
+        }
         const input = parse(capabilityResourceContentPayloadSchema, payload)
         return await options.broker.describeResourceContent(
-          uiCaller(sender, input.workspaceId),
+          caller(sender, input.workspaceId),
           input.resource
         )
       },
       readRange: async (payload, sender) => {
+        if (!options.isTrustedIpcSender({ sender })) {
+          throw new Error('Rejected capability content request from an untrusted renderer.')
+        }
         const input = parse(capabilityResourceContentRangePayloadSchema, payload)
         return await options.broker.readResourceContentRange(
-          uiCaller(sender, input.workspaceId),
+          caller(sender, input.workspaceId),
           input.resource,
           input.range
         )

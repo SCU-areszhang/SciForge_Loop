@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createExecutionReceipt } from '@sciforge/execution-governance'
 import type { DomainAgentArtifactEvent } from '@sciforge/domain-sdk/host'
 import { WORKSPACE_HOST_PROTOCOL_VERSION } from '@sciforge/domain-sdk/workspace-host'
+import type { PrincipalSnapshot } from '@sciforge/domain-sdk/principal'
 import {
   sanitizeTraceTextChunks,
   type TraceEvent,
@@ -4219,12 +4220,30 @@ describe('AgentRuntimeHost', () => {
         seq: 7
       } satisfies AgentRuntimeEvent
     })
+    vi.mocked(claude.startTurn).mockResolvedValue({
+      threadId: 'claude-thread',
+      turnId: 'turn-1'
+    })
+    const principal: PrincipalSnapshot = {
+      userId: 'c07f29ee-801d-4cf3-90ef-96c56c65de21',
+      assurance: 'local-selection',
+      deviceId: 'device-1',
+      identityVersion: 7
+    }
     const consume = vi.fn(async (_event: DomainAgentArtifactEvent) => undefined)
     const host = createAgentRuntimeHost({
       settings: async () => settings('claude'),
       adapters: [claude],
-      artifactConsumers: [{ consume }]
+      artifactConsumers: [{ consume }],
+      getPrincipal: () => principal
     })
+
+    await host.startTurn({
+      runtimeId: 'claude',
+      threadId: 'claude-thread',
+      text: 'question'
+    })
+    vi.mocked(claude.readThread).mockClear()
 
     for (let replay = 0; replay < 2; replay += 1) {
       for await (const _event of host.subscribeEvents({
@@ -4251,7 +4270,8 @@ describe('AgentRuntimeHost', () => {
       artifacts: [
         { id: 'u1', turnId: 'turn-1', kind: 'user_message', text: 'question' },
         { id: 'a1', turnId: 'turn-1', kind: 'assistant_message', text: 'answer' }
-      ]
+      ],
+      principal
     })
   })
 
@@ -5958,6 +5978,72 @@ describe('AgentRuntimeHost', () => {
       expect.objectContaining({ workspaceHost: placement }),
       expect.objectContaining({ workspaceLocator: locator })
     )
+  })
+
+  it('snapshots Principal once before queued turn dispatch and never rebinds in-flight attribution', async () => {
+    const codex = fakeAdapter('codex', {
+      id: 'codex-thread',
+      runtimeId: 'codex',
+      title: 'Codex',
+      updatedAt: '2026-08-14T00:00:00.000Z'
+    })
+    const firstGate = deferred<void>()
+    const contexts: AgentRuntimeAdapterContext[] = []
+    let starts = 0
+    codex.startTurn = vi.fn(async (context, input) => {
+      contexts.push(context)
+      starts += 1
+      if (starts === 1) await firstGate.promise
+      return { threadId: input.threadId, turnId: `turn-${starts}` }
+    })
+    let current: PrincipalSnapshot | undefined = {
+      userId: 'c07f29ee-801d-4cf3-90ef-96c56c65de21',
+      assurance: 'local-selection' as const,
+      deviceId: 'device-1',
+      identityVersion: 1
+    }
+    const host = createAgentRuntimeHost({
+      settings: async () => settings('codex'),
+      adapters: [codex],
+      getPrincipal: () => current
+    })
+
+    const first = host.startTurn({
+      runtimeId: 'codex',
+      threadId: 'codex-thread',
+      text: 'first'
+    })
+    current = {
+      userId: 'e3907969-aea2-47da-a83a-128f07d33762',
+      assurance: 'local-selection',
+      deviceId: 'device-1',
+      identityVersion: 2
+    }
+    const second = host.startTurn({
+      runtimeId: 'codex',
+      threadId: 'codex-thread',
+      text: 'second'
+    })
+    firstGate.resolve()
+    await Promise.all([first, second])
+
+    current = undefined
+    await host.startTurn({
+      runtimeId: 'codex',
+      threadId: 'codex-thread',
+      text: 'signed out'
+    })
+
+    expect(contexts[0]?.principal).toMatchObject({
+      userId: 'c07f29ee-801d-4cf3-90ef-96c56c65de21',
+      identityVersion: 1
+    })
+    expect(contexts[1]?.principal).toMatchObject({
+      userId: 'e3907969-aea2-47da-a83a-128f07d33762',
+      identityVersion: 2
+    })
+    expect(Object.isFrozen(contexts[0]?.principal)).toBe(true)
+    expect(contexts[2]?.principal).toBeUndefined()
   })
 })
 

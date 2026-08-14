@@ -1,0 +1,73 @@
+{
+  "contractVersion": 1,
+  "kind": "trusted-compile-time",
+  "packageName": "@sciforge/domain-identity-access",
+  "module": {
+    "id": "sciforge.identity-access",
+    "displayName": "Identity and Access",
+    "version": "1.0.0",
+    "hostApi": { "minimum": "1.0.0", "maximumExclusive": "2.0.0" },
+    "priority": 900
+  },
+  "contributionContracts": {
+    "sciforge.identity-access.application-overlay": {
+      "location": "application.overlay",
+      "title": "identity:accountTitle"
+    },
+    "sciforge.identity-access.toolbar-widget": {
+      "location": "workbench.topbar",
+      "label": "identity:accountTitle"
+    }
+  },
+  "packaging": {
+    "bundled": true,
+    "runtime": {
+      "requiredPaths": ["src"],
+      "dependencies": []
+    }
+  },
+  "entrypoints": [
+    {
+      "process": "main",
+      "export": "./main",
+      "contributions": [
+        {
+          "id": "sciforge.identity-access.capability-factory",
+          "kind": "main.capability-factory",
+          "priority": 900
+        },
+        {
+          "id": "sciforge.identity-access.principal-provider",
+          "kind": "main.principal-provider",
+          "priority": 900
+        }
+      ]
+    },
+    {
+      "process": "renderer",
+      "export": "./renderer",
+      "contributions": [
+        {
+          "id": "sciforge.identity-access.application-overlay",
+          "kind": "renderer.application-overlay",
+          "priority": 900
+        },
+        {
+          "id": "sciforge.identity-access.toolbar-widget",
+          "kind": "renderer.workbench-toolbar-widget",
+          "priority": 900
+        },
+        {
+          "id": "sciforge.identity-access.lifecycle",
+          "kind": "renderer.lifecycle",
+          "priority": 900
+        },
+        {
+          "id": "sciforge.identity-access.i18n",
+          "kind": "renderer.i18n-resource",
+          "priority": 900
+        }
+      ]
+    }
+  ]
+}

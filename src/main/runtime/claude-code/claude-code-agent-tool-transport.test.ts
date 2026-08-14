@@ -69,7 +69,13 @@ describe('Claude Code agent tool transport', () => {
         runtimeId: 'claude-next',
         threadId: 'thread-2',
         turnId: 'turn-2',
-        workspaceId: '/workspace-2'
+        workspaceId: '/workspace-2',
+        principal: {
+          userId: 'c07f29ee-801d-4cf3-90ef-96c56c65de21',
+          assurance: 'local-selection',
+          deviceId: 'device-1',
+          identityVersion: 6
+        }
       }
     }, {
       createServer: (options) => {
@@ -90,6 +96,12 @@ describe('Claude Code agent tool transport', () => {
         threadId: 'thread-2',
         turnId: 'turn-2',
         workspaceId: '/workspace-2',
+        principal: {
+          userId: 'c07f29ee-801d-4cf3-90ef-96c56c65de21',
+          assurance: 'local-selection',
+          deviceId: 'device-1',
+          identityVersion: 6
+        },
         callId: '42'
       }
     }, { signal: controller.signal })

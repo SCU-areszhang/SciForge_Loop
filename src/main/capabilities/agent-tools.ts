@@ -35,6 +35,7 @@ import {
   type AgentRuntimeToolTurnIdentity,
   type NativeVisualToolErrorContext
 } from '../runtime/agent-runtime/agent-tool-surface'
+import type { PrincipalSnapshot } from '@sciforge/domain-sdk/principal'
 
 export const CAPABILITY_AGENT_TOOL_NAMES = Object.freeze({
   discover: 'sciforge_discover',
@@ -62,6 +63,8 @@ export type CapabilityAgentToolRequestContext = Readonly<{
   turnId?: string
   callId?: string
   workspaceId?: string
+  /** Host-captured turn attribution; never included in model-visible schemas. */
+  principal?: PrincipalSnapshot
 }>
 
 export type CapabilityAgentToolCall = Readonly<{

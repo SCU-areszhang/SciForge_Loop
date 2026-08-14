@@ -117,7 +117,8 @@ export function createCodexAgentRuntimeAdapter(service: CodexRuntimeService): Ag
         ownedVisualToolsAvailable:
           context.turnGovernanceSnapshot?.ownedVisualToolsAvailable === true,
         nativeVisualProofChainPending:
-          context.turnGovernanceSnapshot?.nativeVisualProofChainPending === true
+          context.turnGovernanceSnapshot?.nativeVisualProofChainPending === true,
+        ...(context.principal ? { principal: context.principal } : {})
       })
       if (!result.ok) throw codexFailure(result)
       return {
@@ -1286,7 +1287,8 @@ function mapCodexStoredEvent(event: CodexThreadEventPayload): AgentRuntimeEvent[
     threadId: event.threadId,
     runtimeId: 'codex' as const,
     ...(event.turnId ? { turnId: event.turnId } : {}),
-    ...(typeof event.seq === 'number' ? { seq: event.seq } : {})
+    ...(typeof event.seq === 'number' ? { seq: event.seq } : {}),
+    ...(event.principal ? { principal: event.principal } : {})
   }
   const mapped: AgentRuntimeEvent[] = []
   if (event.userMessage) {

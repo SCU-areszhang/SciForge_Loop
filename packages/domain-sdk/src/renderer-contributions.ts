@@ -17,12 +17,17 @@ export const RENDERER_WORKBENCH_GLOBAL_OVERLAY_CONTRIBUTION_KIND =
   'renderer.workbench-global-overlay' as const
 export const RENDERER_COMPOSER_CONTEXT_PROVIDER_CONTRIBUTION_KIND =
   'renderer.composer-context-provider' as const
+export const RENDERER_APPLICATION_OVERLAY_CONTRIBUTION_KIND =
+  'renderer.application-overlay' as const
+export const RENDERER_WORKBENCH_TOOLBAR_WIDGET_CONTRIBUTION_KIND =
+  'renderer.workbench-toolbar-widget' as const
 
 export const WORKBENCH_TOPBAR_LOCATION = 'workbench.topbar' as const
 export const WORKBENCH_RIGHT_PANEL_LOCATION = 'workbench.right-panel' as const
 export const WORKBENCH_BOTTOM_PANEL_LOCATION = 'workbench.bottom-panel' as const
 export const WORKBENCH_GLOBAL_OVERLAY_LOCATION = 'workbench.global-overlay' as const
 export const COMPOSER_CONTEXT_LOCATION = 'composer.context' as const
+export const APPLICATION_OVERLAY_LOCATION = 'application.overlay' as const
 
 export const domainCapabilityResourceHandleSchema = z.object({
   token: z.string().min(1).max(4_096),
@@ -174,6 +179,53 @@ export function isDomainRendererWorkbenchToolbarActionValue(
   value: unknown
 ): value is DomainRendererWorkbenchToolbarActionValue {
   return hasOnlyKeys(value, ['icon']) && value.icon !== undefined && value.icon !== null
+}
+
+export const domainRendererApplicationOverlayContractSchema = z.object({
+  location: z.literal(APPLICATION_OVERLAY_LOCATION),
+  title: z.string().trim().min(1).max(160)
+}).strict()
+
+export type DomainRendererApplicationOverlayContract = z.infer<
+  typeof domainRendererApplicationOverlayContractSchema
+>
+
+export type DomainRendererApplicationOverlayRenderContext = Readonly<{
+  onClose: () => void
+  payload?: DomainPackageJsonValue
+}>
+
+export type DomainRendererApplicationOverlayValue<View = unknown> = Readonly<{
+  render: (context: DomainRendererApplicationOverlayRenderContext) => View
+}>
+
+export function isDomainRendererApplicationOverlayValue(
+  value: unknown
+): value is DomainRendererApplicationOverlayValue {
+  return hasOnlyKeys(value, ['render']) && typeof value.render === 'function'
+}
+
+export const domainRendererWorkbenchToolbarWidgetContractSchema = z.object({
+  location: z.literal(WORKBENCH_TOPBAR_LOCATION),
+  label: z.string().trim().min(1).max(160)
+}).strict()
+
+export type DomainRendererWorkbenchToolbarWidgetContract = z.infer<
+  typeof domainRendererWorkbenchToolbarWidgetContractSchema
+>
+
+export type DomainRendererWorkbenchToolbarWidgetRenderContext = Readonly<{
+  className: string
+}>
+
+export type DomainRendererWorkbenchToolbarWidgetValue<View = unknown> = Readonly<{
+  render: (context: DomainRendererWorkbenchToolbarWidgetRenderContext) => View
+}>
+
+export function isDomainRendererWorkbenchToolbarWidgetValue(
+  value: unknown
+): value is DomainRendererWorkbenchToolbarWidgetValue {
+  return hasOnlyKeys(value, ['render']) && typeof value.render === 'function'
 }
 
 const surfaceContractFields = {
@@ -328,6 +380,18 @@ export function defineDomainRendererWorkbenchToolbarActionContract(
   input: DomainRendererWorkbenchToolbarActionContract
 ): DomainRendererWorkbenchToolbarActionContract {
   return Object.freeze(domainRendererWorkbenchToolbarActionContractSchema.parse(input))
+}
+
+export function defineDomainRendererApplicationOverlayContract(
+  input: DomainRendererApplicationOverlayContract
+): DomainRendererApplicationOverlayContract {
+  return Object.freeze(domainRendererApplicationOverlayContractSchema.parse(input))
+}
+
+export function defineDomainRendererWorkbenchToolbarWidgetContract(
+  input: DomainRendererWorkbenchToolbarWidgetContract
+): DomainRendererWorkbenchToolbarWidgetContract {
+  return Object.freeze(domainRendererWorkbenchToolbarWidgetContractSchema.parse(input))
 }
 
 export function defineDomainRendererWorkbenchSurfaceContract(

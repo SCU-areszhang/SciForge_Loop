@@ -1,4 +1,4 @@
-import { app, dialog, ipcMain, shell, type BrowserWindow, type IpcMainInvokeEvent, type WebContents } from 'electron'
+import { app, dialog, ipcMain, shell, type BrowserWindow, type WebContents } from 'electron'
 import { randomUUID } from 'node:crypto'
 import { dirname, join } from 'node:path'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
@@ -267,6 +267,7 @@ type AgentRuntimeEventStreamRecord = {
 
 export type AppBridgeSender = {
   id: number
+  trustedRendererTransport?: 'dev-browser'
   isDestroyed: () => boolean
   send: (channel: string, ...args: unknown[]) => void
   once: (event: 'destroyed', listener: () => void) => unknown
@@ -280,6 +281,7 @@ function visibleContextWindowId(sender: AppBridgeSender): string {
 
 type AppBridgeInvokeEvent = {
   sender: AppBridgeSender
+  senderFrame?: Readonly<{ url?: string }> | null
 }
 
 type AppBridgeInvokeHandler = (
@@ -295,7 +297,7 @@ export type RegisterAppIpcHandlersOptions = {
   store: JsonSettingsStore
   actionGuardEvaluator: MainActionGuardEvaluator
   getMainWindow: () => BrowserWindow | null
-  isTrustedIpcSender: (event: IpcMainInvokeEvent) => boolean
+  isTrustedIpcSender: (event: AppBridgeInvokeEvent) => boolean
   applySettingsPatch: (partial: AppSettingsPatch) => Promise<AppSettingsV1>
   getModelAccessStatus: (settings: AppSettingsV1) => Promise<ModelAccessStatus>
   traces?: {
@@ -579,6 +581,9 @@ export function registerAppIpcHandlers(options: RegisterAppIpcHandlersOptions): 
     mainPerformanceMonitor.count(`main.devBridge.invoke.${channel}`)
     const handler = invokeHandlers.get(channel)
     try {
+      if (!options.isTrustedIpcSender({ sender })) {
+        throw new Error('Rejected app bridge invocation from an untrusted renderer.')
+      }
       if (!handler) throw new Error(`Unknown app bridge channel: ${channel}`)
       return await handler({ sender }, payload)
     } finally {

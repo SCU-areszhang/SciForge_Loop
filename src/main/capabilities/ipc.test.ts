@@ -39,6 +39,7 @@ describe('capability IPC adapter', () => {
     const onCallerDestroyed = vi.fn()
     const registration = registerCapabilityIpc({
       broker,
+      isTrustedIpcSender: () => true,
       ipc: ipc as never,
       onCallerDestroyed
     })
@@ -144,5 +145,60 @@ describe('capability IPC adapter', () => {
     senderEvents.emit('destroyed')
     expect(onCallerDestroyed).toHaveBeenCalledOnce()
     expect(onCallerDestroyed).toHaveBeenCalledWith('window:7')
+  })
+
+  it('rejects every untrusted capability channel before broker work and injects only Host Principal', async () => {
+    const handler = vi.fn((_input, context) => ({ output: {
+      userId: context.caller.principal?.userId ?? null
+    } }))
+    const broker = new CapabilityBroker(new CapabilityRegistry([defineCapability({
+      id: 'test-principal.read',
+      version: '1',
+      title: 'Read Principal',
+      description: 'Returns the Host-injected Principal identity for a test.',
+      audiences: ['ui'],
+      scope: 'global',
+      effect: 'read',
+      approval: 'none',
+      concurrency: { revision: 'none', idempotency: 'none' },
+      inputSchema: z.object({}).strict(),
+      outputSchema: z.object({ userId: z.string().uuid().nullable() }).strict(),
+      handler
+    })]))
+    let trusted = false
+    const registration = registerCapabilityIpc({
+      broker,
+      isTrustedIpcSender: () => trusted,
+      getPrincipal: () => ({
+        userId: 'c07f29ee-801d-4cf3-90ef-96c56c65de21',
+        assurance: 'local-selection',
+        deviceId: 'device-1',
+        identityVersion: 4
+      }),
+      ipc: { removeHandler: vi.fn(), handle: vi.fn() } as never
+    })
+    const sender = {
+      id: 12,
+      send: vi.fn(),
+      isDestroyed: () => false,
+      once: vi.fn()
+    }
+    await expect(registration.invoke(CAPABILITY_IPC_CHANNELS.invoke, {
+      principal: { userId: 'renderer-forged' },
+      request: { actionId: 'test-principal.read', input: {} }
+    }, sender)).rejects.toThrow('untrusted renderer')
+    expect(handler).not.toHaveBeenCalled()
+
+    trusted = true
+    await expect(registration.invoke(CAPABILITY_IPC_CHANNELS.invoke, {
+      request: { actionId: 'test-principal.read', input: {} }
+    }, sender)).resolves.toMatchObject({
+      output: { userId: 'c07f29ee-801d-4cf3-90ef-96c56c65de21' }
+    })
+    expect(handler).toHaveBeenCalledOnce()
+    await expect(registration.invoke(CAPABILITY_IPC_CHANNELS.invoke, {
+      principal: { userId: 'renderer-forged' },
+      request: { actionId: 'test-principal.read', input: {} }
+    }, sender)).rejects.toThrow()
   })
 })

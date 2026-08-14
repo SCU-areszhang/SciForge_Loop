@@ -9,6 +9,7 @@ import type {
   AgentRuntimeThreadGoalStatus,
   AgentRuntimeUsage
 } from '../../../shared/agent-runtime-contract'
+import type { PrincipalSnapshot } from '@sciforge/domain-sdk/principal'
 import type {
   CodexAppServerAccount,
   CodexAppServerGetAccountRateLimitsResponse,
@@ -79,6 +80,7 @@ export type CodexThreadDetail = {
 
 export type CodexThreadEventPayload = {
   threadId: string
+  principal?: PrincipalSnapshot
   turnId?: string
   seq?: number
   deltas?: Array<{ text: string; kind: 'agent_message' | 'agent_reasoning'; seq?: number; snapshot?: boolean }>
@@ -236,6 +238,7 @@ export type CodexTurnStartPayload = {
   fileReferences?: AgentRuntimeFileReference[]
   ownedVisualToolsAvailable?: boolean
   nativeVisualProofChainPending?: boolean
+  principal?: PrincipalSnapshot
 }
 
 export type CodexTurnStartResult =

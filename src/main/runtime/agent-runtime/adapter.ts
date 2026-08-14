@@ -21,11 +21,13 @@ import type {
 } from '../../../shared/agent-runtime-contract'
 import type { WorkspaceHostPlacement } from '../../../shared/workspace-host-state'
 import type { WorkspaceLocator } from '@sciforge/domain-sdk/workspace-host'
+import type { PrincipalSnapshot } from '@sciforge/domain-sdk/principal'
 
 export type AgentRuntimeAdapterContext = {
   settings: AppSettingsV1
   workspaceHost?: WorkspaceHostPlacement
   turnGovernanceSnapshot?: AgentRuntimeTurnGovernanceSnapshot
+  principal?: PrincipalSnapshot
 }
 
 export type AgentRuntimeThreadRenameInput = {

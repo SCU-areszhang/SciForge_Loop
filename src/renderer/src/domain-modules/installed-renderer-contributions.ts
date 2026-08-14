@@ -1,19 +1,27 @@
 import type { InstalledDomainProcessEntrySet } from '@sciforge/domain-sdk'
 import {
   RENDERER_COMMAND_CONTRIBUTION_KIND,
+  RENDERER_APPLICATION_OVERLAY_CONTRIBUTION_KIND,
   RENDERER_COMPOSER_CONTEXT_PROVIDER_CONTRIBUTION_KIND,
   RENDERER_WORKBENCH_BOTTOM_PANEL_CONTRIBUTION_KIND,
   RENDERER_WORKBENCH_GLOBAL_OVERLAY_CONTRIBUTION_KIND,
   RENDERER_WORKBENCH_RIGHT_PANEL_CONTRIBUTION_KIND,
+  RENDERER_WORKBENCH_TOOLBAR_WIDGET_CONTRIBUTION_KIND,
+  domainRendererApplicationOverlayContractSchema,
   domainRendererComposerContextProviderContractSchema,
   domainRendererWorkbenchBottomPanelContractSchema,
   domainRendererWorkbenchGlobalOverlayContractSchema,
   domainRendererWorkbenchRightPanelContractSchema,
   domainRendererWorkbenchToolbarActionContractSchema,
+  domainRendererWorkbenchToolbarWidgetContractSchema,
   isDomainRendererCommandHandler,
+  isDomainRendererApplicationOverlayValue,
   isDomainRendererComposerContextProvider,
   isDomainRendererWorkbenchSurfaceValue,
   isDomainRendererWorkbenchToolbarActionValue,
+  isDomainRendererWorkbenchToolbarWidgetValue,
+  type DomainRendererApplicationOverlayContract,
+  type DomainRendererApplicationOverlayValue,
   type DomainRendererCommandHandler,
   type DomainRendererComposerContextProvider,
   type DomainRendererComposerContextProviderContract,
@@ -22,7 +30,9 @@ import {
   type DomainRendererWorkbenchGlobalOverlayContract,
   type DomainRendererWorkbenchGlobalOverlayValue,
   type DomainRendererWorkbenchRightPanelContract,
-  type DomainRendererWorkbenchRightPanelValue
+  type DomainRendererWorkbenchRightPanelValue,
+  type DomainRendererWorkbenchToolbarWidgetContract,
+  type DomainRendererWorkbenchToolbarWidgetValue
 } from '@sciforge/domain-sdk/renderer'
 import type { ReactElement } from 'react'
 import i18n from '../i18n'
@@ -66,6 +76,13 @@ import {
   isRendererLifecycleContribution,
   type RendererLifecycleContribution
 } from './renderer-lifecycle'
+import {
+  ApplicationOverlayContributionRegistry,
+  bindApplicationOverlayRegistry
+} from './application-overlay-slot'
+import {
+  WorkbenchToolbarWidgetContributionRegistry
+} from './workbench-toolbar-widget-slot'
 
 export const RENDERER_I18N_RESOURCE_CONTRIBUTION_KIND = 'renderer.i18n-resource' as const
 
@@ -92,8 +109,10 @@ export type InstalledRendererContributions = Readonly<{
   rightPanels: WorkbenchRightPanelContributionRegistry
   bottomPanels: WorkbenchBottomPanelContributionRegistry
   globalOverlays: WorkbenchGlobalOverlayContributionRegistry
+  applicationOverlays: ApplicationOverlayContributionRegistry
   composerContexts: ComposerContextProviderRegistry
   toolbarActions: WorkbenchToolbarActionContributionRegistry
+  toolbarWidgets: WorkbenchToolbarWidgetContributionRegistry
   workspacePreviews: RendererWorkspacePreviewRegistry
   readonly disposed: boolean
   dispose(): void
@@ -134,6 +153,14 @@ export function createInstalledRendererContributions(
     value: DomainRendererWorkbenchGlobalOverlayValue<ReactElement>
     onDispose?: () => void
   }> = []
+  const applicationOverlays: Array<{
+    id: string
+    ownerId: string
+    order: number
+    contract: DomainRendererApplicationOverlayContract
+    value: DomainRendererApplicationOverlayValue<ReactElement>
+    onDispose?: () => void
+  }> = []
   const composerContexts: Array<{
     id: string
     ownerId: string
@@ -161,6 +188,14 @@ export function createInstalledRendererContributions(
     value: WorkbenchToolbarActionValue
     onDispose?: () => void
   }> = []
+  const toolbarWidgets: Array<{
+    id: string
+    ownerId: string
+    order: number
+    contract: DomainRendererWorkbenchToolbarWidgetContract
+    value: DomainRendererWorkbenchToolbarWidgetValue<ReactElement>
+    onDispose?: () => void
+  }> = []
   const workspacePreviewPlugins: RendererWorkspacePreviewPluginRegistrationInput[] = []
   const lifecycles: Array<{
     contribution: RendererLifecycleContribution
@@ -177,6 +212,21 @@ export function createInstalledRendererContributions(
         ownerId: installed.owner.moduleId,
         order: installed.declaration.priority,
         contribution: installed.value,
+        ...(installed.onDispose ? { onDispose: installed.onDispose } : {})
+      })
+      continue
+    }
+    if (installed.declaration.kind === RENDERER_APPLICATION_OVERLAY_CONTRIBUTION_KIND) {
+      const contract = domainRendererApplicationOverlayContractSchema.safeParse(installed.contract)
+      if (!contract.success || !isDomainRendererApplicationOverlayValue(installed.value)) {
+        throw invalidContribution(installed.declaration.id, installed.owner.moduleId)
+      }
+      applicationOverlays.push({
+        id: installed.declaration.id,
+        ownerId: installed.owner.moduleId,
+        order: installed.declaration.priority,
+        contract: contract.data,
+        value: installed.value as DomainRendererApplicationOverlayValue<ReactElement>,
         ...(installed.onDispose ? { onDispose: installed.onDispose } : {})
       })
       continue
@@ -282,6 +332,23 @@ export function createInstalledRendererContributions(
       })
       continue
     }
+    if (installed.declaration.kind === RENDERER_WORKBENCH_TOOLBAR_WIDGET_CONTRIBUTION_KIND) {
+      const contract = domainRendererWorkbenchToolbarWidgetContractSchema.safeParse(
+        installed.contract
+      )
+      if (!contract.success || !isDomainRendererWorkbenchToolbarWidgetValue(installed.value)) {
+        throw invalidContribution(installed.declaration.id, installed.owner.moduleId)
+      }
+      toolbarWidgets.push({
+        id: installed.declaration.id,
+        ownerId: installed.owner.moduleId,
+        order: installed.declaration.priority,
+        contract: contract.data,
+        value: installed.value as DomainRendererWorkbenchToolbarWidgetValue<ReactElement>,
+        ...(installed.onDispose ? { onDispose: installed.onDispose } : {})
+      })
+      continue
+    }
     if (installed.declaration.kind === RENDERER_I18N_RESOURCE_CONTRIBUTION_KIND) {
       if (!isRendererI18nResourceContribution(installed.value)) {
         throw invalidContribution(installed.declaration.id, installed.owner.moduleId)
@@ -321,10 +388,12 @@ export function createInstalledRendererContributions(
   const rightPanels = new WorkbenchRightPanelContributionRegistry()
   const workbenchBottomPanels = new WorkbenchBottomPanelContributionRegistry()
   const workbenchGlobalOverlays = new WorkbenchGlobalOverlayContributionRegistry()
+  const applicationOverlayRegistry = new ApplicationOverlayContributionRegistry()
   const workbenchComposerContexts = new ComposerContextProviderRegistry()
   const workbenchToolbarActions = new WorkbenchToolbarActionContributionRegistry(
     workbenchCommands
   )
+  const workbenchToolbarWidgets = new WorkbenchToolbarWidgetContributionRegistry()
   const workspacePreviews = createRendererWorkspacePreviewRegistry({
     registrations: [
       ...createBuiltInWorkspacePreviewPluginRegistrations(),
@@ -336,11 +405,14 @@ export function createInstalledRendererContributions(
     () => rightPanels.dispose(),
     () => workbenchBottomPanels.dispose(),
     () => workbenchGlobalOverlays.dispose(),
+    () => applicationOverlayRegistry.dispose(),
     () => workbenchComposerContexts.dispose(),
     () => workbenchToolbarActions.dispose(),
+    () => workbenchToolbarWidgets.dispose(),
     () => workspacePreviews.dispose()
   ]
   try {
+    registrationDisposers.push(bindApplicationOverlayRegistry(applicationOverlayRegistry))
     for (const command of commands) {
       pushOwnedRegistration(
         registrationDisposers,
@@ -369,6 +441,13 @@ export function createInstalledRendererContributions(
         workbenchGlobalOverlays.register(overlay).dispose
       )
     }
+    for (const overlay of applicationOverlays) {
+      pushOwnedRegistration(
+        registrationDisposers,
+        overlay.onDispose,
+        applicationOverlayRegistry.register(overlay).dispose
+      )
+    }
     for (const context of composerContexts) {
       pushOwnedRegistration(
         registrationDisposers,
@@ -381,6 +460,13 @@ export function createInstalledRendererContributions(
         registrationDisposers,
         action.onDispose,
         workbenchToolbarActions.register(action).dispose
+      )
+    }
+    for (const widget of toolbarWidgets) {
+      pushOwnedRegistration(
+        registrationDisposers,
+        widget.onDispose,
+        workbenchToolbarWidgets.register(widget).dispose
       )
     }
     for (const resource of resources) {
@@ -416,8 +502,10 @@ export function createInstalledRendererContributions(
     rightPanels,
     bottomPanels: workbenchBottomPanels,
     globalOverlays: workbenchGlobalOverlays,
+    applicationOverlays: applicationOverlayRegistry,
     composerContexts: workbenchComposerContexts,
     toolbarActions: workbenchToolbarActions,
+    toolbarWidgets: workbenchToolbarWidgets,
     workspacePreviews,
     get disposed() {
       return disposed

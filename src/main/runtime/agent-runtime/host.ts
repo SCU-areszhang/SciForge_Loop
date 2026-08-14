@@ -104,6 +104,7 @@ import type {
   WorkspaceHostPlacement
 } from '../../../shared/workspace-host-state'
 import type { WorkspaceLocator } from '@sciforge/domain-sdk/workspace-host'
+import type { PrincipalSnapshot } from '@sciforge/domain-sdk/principal'
 import { redactSecrets } from '../../../shared/secret-redaction'
 import type {
   AgentRuntimeToolSurface,
@@ -140,6 +141,7 @@ export type AgentRuntimeHostOptions = {
   nativeVisualToolsAvailable?: () => boolean
   artifactConsumers?: readonly DomainAgentArtifactConsumer[]
   subagentStoreRoot?: string
+  getPrincipal?: () => PrincipalSnapshot | undefined
 }
 
 export function createAgentRuntimeHost(options: AgentRuntimeHostOptions): AgentRuntimeHost {
@@ -204,6 +206,7 @@ export class AgentRuntimeHost {
   private readonly terminalWaiters = new Map<string, Set<() => void>>()
   private readonly turnGovernanceProfiles = new Map<string, AgentRuntimeGovernanceProfile>()
   private readonly turnWorkspaces = new Map<string, string>()
+  private readonly turnPrincipals = new Map<string, PrincipalSnapshot>()
   private readonly threadWorkspaceHosts = new Map<string, WorkspaceHostPlacement>()
   private readonly artifactBroadcastTurns = new Set<string>()
   private readonly turnLifecycleSubscribers = new Set<
@@ -370,24 +373,30 @@ export class AgentRuntimeHost {
   }
 
   async startTurn(input: AgentRuntimeTurnStartInput): Promise<AgentRuntimeTurnHandle> {
+    const principal = this.options.getPrincipal?.()
     return this.withUserDirectiveDelivery(input, async (clientDirectiveId) => {
       const handle = await this.startTurnInternal({
         ...input,
         ...(clientDirectiveId ? { clientDirectiveId } : {})
-      }, { includeSharedContext: true })
+      }, { includeSharedContext: true }, principal)
       return { value: handle, turnId: handle.turnId }
     }, (turnId) => ({ threadId: input.threadId, turnId }))
   }
 
   private async startTurnInternal(
     input: AgentRuntimeTurnStartInput,
-    options: { includeSharedContext: boolean }
+    options: { includeSharedContext: boolean },
+    principal?: PrincipalSnapshot
   ): Promise<AgentRuntimeTurnHandle> {
     const { adapter, context: baseContext } = await this.resolveRequiredRuntime(
       input.runtimeId,
       input.threadId
     )
-    const context = await this.withWorkspaceHostPlacement(baseContext, input.workspaceLocator)
+    const placedContext = await this.withWorkspaceHostPlacement(baseContext, input.workspaceLocator)
+    const context: AgentRuntimeAdapterContext = Object.freeze({
+      ...placedContext,
+      ...(principal ? { principal: Object.freeze({ ...principal }) } : {})
+    })
     const placedInput = withWorkspaceLocatorPath(input)
     await this.autoCompactThreadIfNeeded(adapter, context, placedInput)
     const safeInput = this.withWorkspaceRelativeFileReferences(context, placedInput)
@@ -411,6 +420,16 @@ export class AgentRuntimeHost {
       occurredAt: new Date().toISOString()
     }))
     const handle = await this.enqueueThreadTurnStart(adapter, context, integrityGuardedInput)
+    if (context.principal) {
+      this.turnPrincipals.set(
+        turnGovernanceKey(
+          adapter.id,
+          handle.threadId || integrityGuardedInput.threadId,
+          handle.turnId
+        ),
+        context.principal
+      )
+    }
     this.rememberThreadWorkspaceHost(
       adapter.id,
       handle.threadId || integrityGuardedInput.threadId,
@@ -439,7 +458,7 @@ export class AgentRuntimeHost {
         signal: controller.signal
       })) {
         if (event.turnId !== handle.turnId) continue
-        await trace.observeEvent(adapter.id, event)
+        await trace.observeEvent(adapter.id, this.withTurnPrincipal(adapter.id, event))
         if (
           event.kind === 'turn_lifecycle' &&
           event.turnId === handle.turnId &&
@@ -632,7 +651,8 @@ export class AgentRuntimeHost {
         publishSyntheticEvent: (payload) => this.publishSyntheticEvent(adapter, context, payload)
       })
     }
-    for await (const sourceEvent of source) {
+    for await (const rawSourceEvent of source) {
+      const sourceEvent = this.withTurnPrincipal(adapter.id, rawSourceEvent)
       if (isExecutionPublicationControlEvent(sourceEvent)) continue
       const turnId = sourceEvent.turnId?.trim() ?? ''
       const publicationKey = turnId
@@ -812,6 +832,7 @@ export class AgentRuntimeHost {
       summary: `${request.title}\n\n${request.description}\n\nRequested input:\n${inputPreview.text}`,
       toolName: request.actionId,
       createdAt,
+      ...(request.context.principal ? { principal: request.context.principal } : {}),
       meta: {
         source: 'sciforge-capability-broker',
         actionId: request.actionId,
@@ -875,6 +896,7 @@ export class AgentRuntimeHost {
     this.capabilityApprovals.clear()
     this.capabilityApprovalOrder.splice(0)
     this.artifactBroadcastTurns.clear()
+    this.turnPrincipals.clear()
   }
 
   async resolveUserInput(input: AgentRuntimeUserInputResolveInput): Promise<void> {
@@ -1364,6 +1386,7 @@ export class AgentRuntimeHost {
       patch: runtimeContextLedgerPatch({ packet })
     })
 
+    const handoffPrincipal = this.options.getPrincipal?.()
     const turn = await this.withUserDirectiveDelivery({
       runtimeId: targetRuntimeId,
       threadId: targetThread.id,
@@ -1386,7 +1409,7 @@ export class AgentRuntimeHost {
         ...(governanceProfile(payload.governanceProfile) ? { governanceProfile: governanceProfile(payload.governanceProfile) } : {}),
         ...(attachmentIds ? { attachmentIds } : {}),
         ...(fileReferences ? { fileReferences } : {})
-      }, { includeSharedContext: false })
+      }, { includeSharedContext: false }, handoffPrincipal)
       return { value: handle, turnId: handle.turnId }
     }, (turnId) => ({ threadId: targetThread.id, turnId }))
     if (targetThreadId && title) {
@@ -2303,6 +2326,7 @@ export class AgentRuntimeHost {
     record: CapabilityApprovalRecord,
     event: CapabilityApprovalRecord['event']
   ): void {
+    event = this.withTurnPrincipal(record.runtimeId, event) as CapabilityApprovalRecord['event']
     record.event = event
     const subscribers = this.capabilityApprovalSubscribers.get(capabilityApprovalRecordKey(record))
     if (subscribers) {
@@ -2477,7 +2501,7 @@ export class AgentRuntimeHost {
     event: AgentRuntimeEvent
   ): Promise<AgentRuntimeEvent | null> {
     if (!adapter.publishSyntheticEvent) return null
-    return adapter.publishSyntheticEvent(context, event)
+    return adapter.publishSyntheticEvent(context, this.withTurnPrincipal(adapter.id, event))
   }
 
   private async publishSharedGoalEvent(
@@ -2936,7 +2960,10 @@ export class AgentRuntimeHost {
           ...(event.seq === undefined ? {} : { sequence: event.seq }),
           ...(workspaceRoot ? { workspaceRoot } : {}),
           occurredAt: event.createdAt || turn?.completedAt || new Date().toISOString(),
-          artifacts: Object.freeze([...artifacts])
+          artifacts: Object.freeze([...artifacts]),
+          ...(this.turnPrincipals.get(key)
+            ? { principal: this.turnPrincipals.get(key)! }
+            : {})
         })
         await Promise.allSettled(consumers.map((consumer) => consumer.consume(artifactEvent)))
       } catch {
@@ -2944,6 +2971,17 @@ export class AgentRuntimeHost {
         this.artifactBroadcastTurns.delete(key)
       }
     })()
+  }
+
+  private withTurnPrincipal(
+    runtimeId: AgentRuntimeId,
+    event: AgentRuntimeEvent
+  ): AgentRuntimeEvent {
+    if (event.principal || !event.turnId) return event
+    const principal = this.turnPrincipals.get(
+      turnGovernanceKey(runtimeId, event.threadId, event.turnId)
+    )
+    return principal ? Object.freeze({ ...event, principal }) : event
   }
 }
 
