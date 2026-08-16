@@ -52,8 +52,15 @@ export type ResolvedCapabilityResource = {
   layoutRevision?: string
 }
 
+export type IssuedCapabilityResource = Readonly<{
+  resource: CapabilityResourceHandle
+  resourceRef: string
+}>
+
 export type CapabilityHandlerContext = {
   caller: CapabilityCallerContext
+  /** Broker-validated logical invocation identity for governed non-read operations. */
+  invocationId?: string
   resource?: ResolvedCapabilityResource
   issueResource: (registration: CapabilityResourceRegistration) => CapabilityResourceHandle
   signal?: AbortSignal

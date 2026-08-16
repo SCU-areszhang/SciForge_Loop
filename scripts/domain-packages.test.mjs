@@ -87,6 +87,134 @@ test('projects only workspace-server process entries into the server composition
   assert.doesNotMatch(server, /\/renderer'/)
 })
 
+test('projects portable reference owners through the same source and packaged main composition', async (context) => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'sciforge-domain-generator-'))
+  context.after(() => rm(root, { recursive: true, force: true }))
+  await createFixture(root, 'portable-owner', {
+    packageName: '@fixture/portable-owner',
+    process: 'main',
+    packaging: { bundled: true },
+    contributionContracts: {
+      'fixture.portable-owner.codec': {
+        contractVersion: 1,
+        kind: 'fixture.logical-resource',
+        resourceKind: 'fixture.local-resource'
+      },
+      'fixture.portable-owner.resolver': {
+        contractVersion: 1,
+        resolverId: 'fixture.authority-resolver'
+      }
+    },
+    contributions: [
+      {
+        id: 'fixture.portable-owner.codec',
+        kind: 'main.portable-resource-codec'
+      },
+      {
+        id: 'fixture.portable-owner.resolver',
+        kind: 'main.portable-authority-resolver'
+      }
+    ]
+  })
+
+  const packages = await discoverDomainPackages(root, {
+    parseDefinition: (definition) => definition
+  })
+  const generated = renderGeneratedDomainPackageFiles(packages)
+  const sourceAndPackagedMain = generated['src/main/modules/installed-domain-main.ts']
+
+  assert.match(sourceAndPackagedMain, /@fixture\/portable-owner\/main/u)
+  assert.match(sourceAndPackagedMain, /createDomainMainEntry/u)
+  assert.doesNotMatch(sourceAndPackagedMain, /logical-resource|authority-resolver/u)
+  assert.doesNotMatch(
+    generated['src/renderer/src/domain-modules/installed-domain-renderer.ts'],
+    /portable-owner/u
+  )
+})
+
+test('adds and removes Provider factories and instance entries through source and packaged main composition', async (context) => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'sciforge-domain-generator-'))
+  context.after(() => rm(root, { recursive: true, force: true }))
+  await createFixture(root, 'foundation', {
+    packageName: '@fixture/foundation',
+    process: 'main',
+    packaging: { bundled: true }
+  })
+  await createFixture(root, 'provider-integration', {
+    packageName: '@fixture/provider-integration',
+    process: 'main',
+    packaging: { bundled: true },
+    contributionContracts: {
+      'fixture.provider-integration.document': {
+        contractVersion: '1.0.0',
+        providerKind: 'fixture-cloud'
+      },
+      'fixture.provider-integration.content-space': {
+        contractVersion: '1.0.0',
+        providerKind: 'fixture-cloud'
+      },
+      'fixture.provider-integration.instance': {
+        contractVersion: '1.0.0',
+        providerInstanceRef: 'provider_instance_alpha',
+        providerKind: 'fixture-cloud',
+        displayName: 'Fixture instance'
+      }
+    },
+    contributions: [
+      {
+        id: 'fixture.provider-integration.document',
+        kind: 'main.document-provider-factory',
+        version: '1.0.0'
+      },
+      {
+        id: 'fixture.provider-integration.content-space',
+        kind: 'main.content-space-provider-factory',
+        version: '1.0.0'
+      },
+      {
+        id: 'fixture.provider-integration.instance',
+        kind: 'main.provider-instance-directory-entry',
+        version: '1.0.0'
+      }
+    ]
+  })
+
+  const installed = await discoverDomainPackages(root, {
+    parseDefinition: (definition) => definition
+  })
+  const withProvider = renderGeneratedDomainPackageFiles(installed)
+  const sourceAndPackagedMain = withProvider['src/main/modules/installed-domain-main.ts']
+  assert.equal(
+    sourceAndPackagedMain.match(/@fixture\/provider-integration\/main/gu)?.length,
+    1
+  )
+  assert.doesNotMatch(
+    sourceAndPackagedMain,
+    /fixture-cloud|provider_instance_alpha|Fixture instance|switch\s*\(/u
+  )
+  assert.doesNotMatch(
+    withProvider['src/renderer/src/domain-modules/installed-domain-renderer.ts'],
+    /provider-integration/u
+  )
+
+  await rm(path.join(root, 'packages/domains/provider-integration'), {
+    recursive: true,
+    force: true
+  })
+  const removed = await discoverDomainPackages(root, {
+    parseDefinition: (definition) => definition
+  })
+  const withoutProvider = renderGeneratedDomainPackageFiles(removed)
+  assert.doesNotMatch(
+    withoutProvider['src/main/modules/installed-domain-main.ts'],
+    /provider-integration/u
+  )
+  assert.match(
+    withoutProvider['src/main/modules/installed-domain-main.ts'],
+    /@fixture\/foundation\/main/u
+  )
+})
+
 test('fails closed when a process entry does not export its conventional factory', async (context) => {
   const root = await mkdtemp(path.join(os.tmpdir(), 'sciforge-domain-generator-'))
   context.after(() => rm(root, { recursive: true, force: true }))

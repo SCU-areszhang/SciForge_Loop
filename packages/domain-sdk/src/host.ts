@@ -3,8 +3,18 @@ import type { z } from 'zod'
 import type { DomainMainAgentExecutionHost } from './agent-execution.js'
 import type { DomainPackageJsonValue } from './contract.js'
 import type { DomainMainPowerHost } from './power.js'
-import type { PrincipalSnapshot } from './principal.js'
+import type {
+  DomainMainFileTransferHost,
+  DomainRendererFileTransferHost
+} from './file-transfer.js'
+import type { DomainMainExternalNavigationHost } from './external-navigation.js'
+import type { DomainMainPortableResourceReferencesHost } from './portable-resource-references.js'
 import type { TrustedDomainProcessEntryInput } from './process-entry.js'
+import type { PrincipalSnapshot } from './principal.js'
+import type {
+  DomainMainContributionSource,
+  DomainMainProviderInstanceDirectorySource
+} from './provider-composition.js'
 import type {
   DomainCapabilityResourceHandle,
   DomainRendererSessionResource,
@@ -365,6 +375,11 @@ export type DomainMainHost = Readonly<{
   openPath?: (path: string) => Promise<void>
   resolveWorkspaceServerArtifact?: () => Promise<WorkspaceHostArtifact>
   capabilities?: DomainMainSystemCapabilityInvoker
+  mainContributions?: DomainMainContributionSource
+  providerInstances?: DomainMainProviderInstanceDirectorySource
+  fileTransfers?: DomainMainFileTransferHost
+  externalNavigation?: DomainMainExternalNavigationHost
+  portableResources?: DomainMainPortableResourceReferencesHost
   visualCapture?: DomainMainVisualCaptureHost
 }>
 
@@ -510,6 +525,7 @@ export type DomainRendererCapabilityInvoker = Readonly<{
 export type DomainRendererHost = Readonly<{
   capabilityInvoker: DomainRendererCapabilityInvoker
   openExternal: (url: string) => void | Promise<void>
+  fileTransfers?: DomainRendererFileTransferHost
   workspace?: DomainRendererWorkspaceHost
   workspacePreview?: DomainRendererWorkspacePreviewHost
   workbench?: DomainRendererWorkbenchHost

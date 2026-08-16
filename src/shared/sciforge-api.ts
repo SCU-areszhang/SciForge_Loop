@@ -163,6 +163,12 @@ import type {
 import type { DomainExtensionsApi } from './domain-extensions'
 
 export type WorkspacePickResult = { canceled: boolean; path: string | null }
+export type FileTransferUploadSelection =
+  | { cancelled: true }
+  | { cancelled: false; handle: string; name: string; size: number }
+export type FileTransferDownloadSelection =
+  | { cancelled: true }
+  | { cancelled: false; handle: string; label: string }
 export type WorkspaceFilePickerFilter = {
   name: string
   extensions: string[]
@@ -866,6 +872,10 @@ export type SciForgeApi = {
   ) => Promise<ZulipGuardResult>
   pickWorkspaceDirectory: (defaultPath?: string) => Promise<WorkspacePickResult>
   pickFile: (request: WorkspaceFilePickerRequest) => Promise<WorkspacePickResult>
+  pickUploadTransfer: (input: { title: string; maxBytes: number }) =>
+    Promise<FileTransferUploadSelection>
+  pickDownloadTransfer: (input: { title: string; suggestedName: string }) =>
+    Promise<FileTransferDownloadSelection>
   buildScientificSkillsMcpConfig: (workspaceRoot?: string) => Promise<ScientificSkillsMcpConfigResult>
   buildScientificPlottingMcpConfig: (workspaceRoot?: string) => Promise<ScientificPlottingMcpConfigResult>
   buildBgcDiscoveryMcpConfig: (workspaceRoot?: string) => Promise<BgcDiscoveryMcpConfigResult>

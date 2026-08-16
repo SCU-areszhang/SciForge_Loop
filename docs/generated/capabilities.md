@@ -4,7 +4,7 @@
 
 Authoritative source: `src/main/modules/index.ts`
 
-Registered actions: **131**
+Registered actions: **142**
 
 | Action ID | Version | Audiences | Effect | Approval | Scope |
 | --- | --- | --- | --- | --- | --- |
@@ -35,6 +35,17 @@ Registered actions: **131**
 | `browser-preview.reload` | 1.0.0 | ui, agent | external-write | confirmation | resource |
 | `browser-preview.select` | 1.0.0 | ui, agent | external-write | confirmation | resource |
 | `change-inspector.open-session` | 1.0.0 | ui | read | none | workspace |
+| `content-space.create-folder` | 1.0.0 | ui, agent, system | external-write | confirmation | global |
+| `content-space.describe-capabilities` | 1.0.0 | ui, agent, system | read | none | global |
+| `content-space.download` | 1.0.0 | ui, agent, system | external-write | confirmation | global |
+| `content-space.list-containers` | 1.0.0 | ui, agent, system | read | none | global |
+| `content-space.list-entries` | 1.0.0 | ui, agent, system | read | none | global |
+| `content-space.list-provider-instances` | 1.0.0 | ui, agent, system | read | none | global |
+| `content-space.observe-entry` | 1.0.0 | ui, agent, system | read | none | global |
+| `content-space.observe-immutable-version` | 1.0.0 | ui, agent, system | read | none | global |
+| `content-space.open-portal-target` | 1.0.0 | ui, agent, system | external-write | confirmation | global |
+| `content-space.resolve-portal-target` | 1.0.0 | ui, agent, system | read | none | global |
+| `content-space.upload-new` | 1.0.0 | ui, agent, system | external-write | confirmation | global |
 | `controlled-process.create` | 1.0.0 | ui | external-write | none | workspace |
 | `controlled-process.dispose` | 1.0.0 | ui | external-write | none | resource |
 | `controlled-process.read` | 1.0.0 | ui | read | none | resource |
@@ -6004,6 +6015,1495 @@ Issues a read-only resource for one session change snapshot.
     "audit"
   ],
   "title": "Observe session changes"
+}
+```
+
+## `content-space.create-folder`
+
+Creates one new folder without overwriting an existing entry.
+
+- Version: `1.0.0`
+- Audiences: ui, agent, system
+- Effect: `external-write`
+- Approval: confirmation
+- Scope: global
+
+### Contract
+
+```json
+{
+  "concurrency": {
+    "idempotency": "required",
+    "revision": "none"
+  },
+  "contractVersion": 1,
+  "inputSchema": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "additionalProperties": false,
+    "properties": {
+      "name": {
+        "maxLength": 128,
+        "minLength": 1,
+        "type": "string"
+      },
+      "parent": {
+        "additionalProperties": false,
+        "properties": {
+          "containerId": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+            "type": "string"
+          },
+          "providerInstanceRef": {
+            "maxLength": 256,
+            "minLength": 3,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{2,255}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "providerInstanceRef",
+          "containerId"
+        ],
+        "type": "object"
+      }
+    },
+    "required": [
+      "parent",
+      "name"
+    ],
+    "type": "object"
+  },
+  "outputSchema": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "additionalProperties": false,
+    "properties": {
+      "invocationId": {
+        "maxLength": 128,
+        "minLength": 16,
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]+$",
+        "type": "string"
+      },
+      "reference": {
+        "additionalProperties": false,
+        "properties": {
+          "containerId": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+            "type": "string"
+          },
+          "providerInstanceRef": {
+            "maxLength": 256,
+            "minLength": 3,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{2,255}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "providerInstanceRef",
+          "containerId"
+        ],
+        "type": "object"
+      }
+    },
+    "required": [
+      "invocationId",
+      "reference"
+    ],
+    "type": "object"
+  },
+  "resourceKinds": [],
+  "tags": [
+    "content-space",
+    "provider-neutral"
+  ],
+  "title": "Create Content Space Folder"
+}
+```
+
+## `content-space.describe-capabilities`
+
+Reads trusted operation readiness for one pinned Provider Instance.
+
+- Version: `1.0.0`
+- Audiences: ui, agent, system
+- Effect: `read`
+- Approval: none
+- Scope: global
+
+### Contract
+
+```json
+{
+  "concurrency": {
+    "idempotency": "none",
+    "revision": "none"
+  },
+  "contractVersion": 1,
+  "inputSchema": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "additionalProperties": false,
+    "properties": {
+      "providerInstanceRef": {
+        "maxLength": 256,
+        "minLength": 3,
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{2,255}$",
+        "type": "string"
+      }
+    },
+    "required": [
+      "providerInstanceRef"
+    ],
+    "type": "object"
+  },
+  "outputSchema": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "additionalProperties": false,
+    "properties": {
+      "items": {
+        "items": {
+          "additionalProperties": false,
+          "properties": {
+            "operation": {
+              "enum": [
+                "list-containers",
+                "list-entries",
+                "observe-entry",
+                "create-folder",
+                "upload-new",
+                "download",
+                "portal-target",
+                "observe-immutable-version"
+              ],
+              "type": "string"
+            },
+            "readiness": {
+              "enum": [
+                "poc_only",
+                "blocked_by_contract",
+                "production_ready"
+              ],
+              "type": "string"
+            },
+            "reasonCode": {
+              "enum": [
+                "available",
+                "verification_profile_required",
+                "provider_contract_missing",
+                "instance_policy_blocked",
+                "resource_capability_missing",
+                "platform_gate_blocked",
+                "audience_policy_blocked"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "operation",
+            "readiness",
+            "reasonCode"
+          ],
+          "type": "object"
+        },
+        "maxItems": 8,
+        "type": "array"
+      }
+    },
+    "required": [
+      "items"
+    ],
+    "type": "object"
+  },
+  "resourceKinds": [],
+  "tags": [
+    "content-space",
+    "provider-neutral"
+  ],
+  "title": "Describe Content Space Capabilities"
+}
+```
+
+## `content-space.download`
+
+Downloads bytes only to a Host-selected bounded destination.
+
+- Version: `1.0.0`
+- Audiences: ui, agent, system
+- Effect: `external-write`
+- Approval: confirmation
+- Scope: global
+
+### Contract
+
+```json
+{
+  "concurrency": {
+    "idempotency": "required",
+    "revision": "none"
+  },
+  "contractVersion": 1,
+  "inputSchema": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "additionalProperties": false,
+    "properties": {
+      "destinationHandle": {
+        "pattern": "^xfer_[A-Za-z0-9_-]{20,}$",
+        "type": "string"
+      },
+      "reference": {
+        "anyOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "fileId": {
+                "maxLength": 256,
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+                "type": "string"
+              },
+              "providerInstanceRef": {
+                "maxLength": 256,
+                "minLength": 3,
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{2,255}$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "providerInstanceRef",
+              "fileId"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "digest": {
+                "additionalProperties": false,
+                "properties": {
+                  "algorithm": {
+                    "const": "sha256",
+                    "type": "string"
+                  },
+                  "value": {
+                    "pattern": "^[a-f0-9]{64}$",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "algorithm",
+                  "value"
+                ],
+                "type": "object"
+              },
+              "fileId": {
+                "maxLength": 256,
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+                "type": "string"
+              },
+              "immutableVersionId": {
+                "maxLength": 256,
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+                "type": "string"
+              },
+              "providerInstanceRef": {
+                "maxLength": 256,
+                "minLength": 3,
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{2,255}$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "providerInstanceRef",
+              "fileId",
+              "immutableVersionId"
+            ],
+            "type": "object"
+          }
+        ]
+      }
+    },
+    "required": [
+      "reference",
+      "destinationHandle"
+    ],
+    "type": "object"
+  },
+  "outputSchema": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "additionalProperties": false,
+    "properties": {
+      "bytesWritten": {
+        "maximum": 1073741824,
+        "minimum": 0,
+        "type": "integer"
+      },
+      "digest": {
+        "additionalProperties": false,
+        "properties": {
+          "algorithm": {
+            "const": "sha256",
+            "type": "string"
+          },
+          "value": {
+            "pattern": "^[a-f0-9]{64}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "algorithm",
+          "value"
+        ],
+        "type": "object"
+      },
+      "invocationId": {
+        "maxLength": 128,
+        "minLength": 16,
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]+$",
+        "type": "string"
+      }
+    },
+    "required": [
+      "invocationId",
+      "bytesWritten"
+    ],
+    "type": "object"
+  },
+  "resourceKinds": [],
+  "tags": [
+    "content-space",
+    "provider-neutral"
+  ],
+  "title": "Download Content Space File"
+}
+```
+
+## `content-space.list-containers`
+
+Lists a bounded page of containers from one pinned Provider Instance.
+
+- Version: `1.0.0`
+- Audiences: ui, agent, system
+- Effect: `read`
+- Approval: none
+- Scope: global
+
+### Contract
+
+```json
+{
+  "concurrency": {
+    "idempotency": "none",
+    "revision": "none"
+  },
+  "contractVersion": 1,
+  "inputSchema": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "additionalProperties": false,
+    "properties": {
+      "page": {
+        "additionalProperties": false,
+        "properties": {
+          "cursor": {
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          },
+          "limit": {
+            "maximum": 200,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "limit"
+        ],
+        "type": "object"
+      },
+      "providerInstanceRef": {
+        "maxLength": 256,
+        "minLength": 3,
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{2,255}$",
+        "type": "string"
+      }
+    },
+    "required": [
+      "providerInstanceRef",
+      "page"
+    ],
+    "type": "object"
+  },
+  "outputSchema": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "additionalProperties": false,
+    "properties": {
+      "items": {
+        "items": {
+          "additionalProperties": false,
+          "properties": {
+            "label": {
+              "maxLength": 256,
+              "minLength": 1,
+              "type": "string"
+            },
+            "reference": {
+              "additionalProperties": false,
+              "properties": {
+                "containerId": {
+                  "maxLength": 256,
+                  "minLength": 1,
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+                  "type": "string"
+                },
+                "providerInstanceRef": {
+                  "maxLength": 256,
+                  "minLength": 3,
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{2,255}$",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "providerInstanceRef",
+                "containerId"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "reference",
+            "label"
+          ],
+          "type": "object"
+        },
+        "maxItems": 200,
+        "type": "array"
+      },
+      "nextCursor": {
+        "maxLength": 256,
+        "minLength": 1,
+        "type": "string"
+      }
+    },
+    "required": [
+      "items"
+    ],
+    "type": "object"
+  },
+  "resourceKinds": [],
+  "tags": [
+    "content-space",
+    "provider-neutral"
+  ],
+  "title": "List Content Space Containers"
+}
+```
+
+## `content-space.list-entries`
+
+Lists one bounded page of direct children for an explicit container.
+
+- Version: `1.0.0`
+- Audiences: ui, agent, system
+- Effect: `read`
+- Approval: none
+- Scope: global
+
+### Contract
+
+```json
+{
+  "concurrency": {
+    "idempotency": "none",
+    "revision": "none"
+  },
+  "contractVersion": 1,
+  "inputSchema": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "additionalProperties": false,
+    "properties": {
+      "page": {
+        "additionalProperties": false,
+        "properties": {
+          "cursor": {
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          },
+          "limit": {
+            "maximum": 200,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "limit"
+        ],
+        "type": "object"
+      },
+      "parent": {
+        "additionalProperties": false,
+        "properties": {
+          "containerId": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+            "type": "string"
+          },
+          "providerInstanceRef": {
+            "maxLength": 256,
+            "minLength": 3,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{2,255}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "providerInstanceRef",
+          "containerId"
+        ],
+        "type": "object"
+      }
+    },
+    "required": [
+      "parent",
+      "page"
+    ],
+    "type": "object"
+  },
+  "outputSchema": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "additionalProperties": false,
+    "properties": {
+      "items": {
+        "items": {
+          "oneOf": [
+            {
+              "additionalProperties": false,
+              "properties": {
+                "kind": {
+                  "const": "container",
+                  "type": "string"
+                },
+                "label": {
+                  "maxLength": 256,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "reference": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "containerId": {
+                      "maxLength": 256,
+                      "minLength": 1,
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+                      "type": "string"
+                    },
+                    "providerInstanceRef": {
+                      "maxLength": 256,
+                      "minLength": 3,
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{2,255}$",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "providerInstanceRef",
+                    "containerId"
+                  ],
+                  "type": "object"
+                }
+              },
+              "required": [
+                "kind",
+                "reference",
+                "label"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "kind": {
+                  "const": "file",
+                  "type": "string"
+                },
+                "label": {
+                  "maxLength": 256,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "modifiedAt": {
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                  "type": "string"
+                },
+                "reference": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "fileId": {
+                      "maxLength": 256,
+                      "minLength": 1,
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+                      "type": "string"
+                    },
+                    "providerInstanceRef": {
+                      "maxLength": 256,
+                      "minLength": 3,
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{2,255}$",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "providerInstanceRef",
+                    "fileId"
+                  ],
+                  "type": "object"
+                },
+                "size": {
+                  "maximum": 1073741824,
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "kind",
+                "reference",
+                "label",
+                "size"
+              ],
+              "type": "object"
+            }
+          ]
+        },
+        "maxItems": 200,
+        "type": "array"
+      },
+      "nextCursor": {
+        "maxLength": 256,
+        "minLength": 1,
+        "type": "string"
+      }
+    },
+    "required": [
+      "items"
+    ],
+    "type": "object"
+  },
+  "resourceKinds": [],
+  "tags": [
+    "content-space",
+    "provider-neutral"
+  ],
+  "title": "List Content Space Entries"
+}
+```
+
+## `content-space.list-provider-instances`
+
+Lists explicit trusted Provider Instances supported by Content Space.
+
+- Version: `1.0.0`
+- Audiences: ui, agent, system
+- Effect: `read`
+- Approval: none
+- Scope: global
+
+### Contract
+
+```json
+{
+  "concurrency": {
+    "idempotency": "none",
+    "revision": "none"
+  },
+  "contractVersion": 1,
+  "inputSchema": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "additionalProperties": false,
+    "properties": {},
+    "type": "object"
+  },
+  "outputSchema": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "additionalProperties": false,
+    "properties": {
+      "items": {
+        "items": {
+          "additionalProperties": false,
+          "properties": {
+            "label": {
+              "maxLength": 160,
+              "minLength": 1,
+              "type": "string"
+            },
+            "providerInstanceRef": {
+              "maxLength": 256,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{2,255}$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "providerInstanceRef",
+            "label"
+          ],
+          "type": "object"
+        },
+        "maxItems": 64,
+        "type": "array"
+      }
+    },
+    "required": [
+      "items"
+    ],
+    "type": "object"
+  },
+  "resourceKinds": [],
+  "tags": [
+    "content-space",
+    "provider-neutral"
+  ],
+  "title": "List Content Space Provider Instances"
+}
+```
+
+## `content-space.observe-entry`
+
+Reads provider-neutral entry metadata and trusted operation readiness.
+
+- Version: `1.0.0`
+- Audiences: ui, agent, system
+- Effect: `read`
+- Approval: none
+- Scope: global
+
+### Contract
+
+```json
+{
+  "concurrency": {
+    "idempotency": "none",
+    "revision": "none"
+  },
+  "contractVersion": 1,
+  "inputSchema": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "additionalProperties": false,
+    "properties": {
+      "reference": {
+        "anyOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "containerId": {
+                "maxLength": 256,
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+                "type": "string"
+              },
+              "providerInstanceRef": {
+                "maxLength": 256,
+                "minLength": 3,
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{2,255}$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "providerInstanceRef",
+              "containerId"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "fileId": {
+                "maxLength": 256,
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+                "type": "string"
+              },
+              "providerInstanceRef": {
+                "maxLength": 256,
+                "minLength": 3,
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{2,255}$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "providerInstanceRef",
+              "fileId"
+            ],
+            "type": "object"
+          }
+        ]
+      }
+    },
+    "required": [
+      "reference"
+    ],
+    "type": "object"
+  },
+  "outputSchema": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "additionalProperties": false,
+    "properties": {
+      "capabilities": {
+        "items": {
+          "additionalProperties": false,
+          "properties": {
+            "operation": {
+              "enum": [
+                "list-containers",
+                "list-entries",
+                "observe-entry",
+                "create-folder",
+                "upload-new",
+                "download",
+                "portal-target",
+                "observe-immutable-version"
+              ],
+              "type": "string"
+            },
+            "readiness": {
+              "enum": [
+                "poc_only",
+                "blocked_by_contract",
+                "production_ready"
+              ],
+              "type": "string"
+            },
+            "reasonCode": {
+              "enum": [
+                "available",
+                "verification_profile_required",
+                "provider_contract_missing",
+                "instance_policy_blocked",
+                "resource_capability_missing",
+                "platform_gate_blocked",
+                "audience_policy_blocked"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "operation",
+            "readiness",
+            "reasonCode"
+          ],
+          "type": "object"
+        },
+        "maxItems": 8,
+        "type": "array"
+      },
+      "entry": {
+        "oneOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "kind": {
+                "const": "container",
+                "type": "string"
+              },
+              "label": {
+                "maxLength": 256,
+                "minLength": 1,
+                "type": "string"
+              },
+              "reference": {
+                "additionalProperties": false,
+                "properties": {
+                  "containerId": {
+                    "maxLength": 256,
+                    "minLength": 1,
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+                    "type": "string"
+                  },
+                  "providerInstanceRef": {
+                    "maxLength": 256,
+                    "minLength": 3,
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{2,255}$",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "providerInstanceRef",
+                  "containerId"
+                ],
+                "type": "object"
+              }
+            },
+            "required": [
+              "kind",
+              "reference",
+              "label"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "kind": {
+                "const": "file",
+                "type": "string"
+              },
+              "label": {
+                "maxLength": 256,
+                "minLength": 1,
+                "type": "string"
+              },
+              "modifiedAt": {
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "type": "string"
+              },
+              "reference": {
+                "additionalProperties": false,
+                "properties": {
+                  "fileId": {
+                    "maxLength": 256,
+                    "minLength": 1,
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+                    "type": "string"
+                  },
+                  "providerInstanceRef": {
+                    "maxLength": 256,
+                    "minLength": 3,
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{2,255}$",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "providerInstanceRef",
+                  "fileId"
+                ],
+                "type": "object"
+              },
+              "size": {
+                "maximum": 1073741824,
+                "minimum": 0,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "kind",
+              "reference",
+              "label",
+              "size"
+            ],
+            "type": "object"
+          }
+        ]
+      }
+    },
+    "required": [
+      "entry",
+      "capabilities"
+    ],
+    "type": "object"
+  },
+  "resourceKinds": [],
+  "tags": [
+    "content-space",
+    "provider-neutral"
+  ],
+  "title": "Observe Content Space Entry"
+}
+```
+
+## `content-space.observe-immutable-version`
+
+Requests Provider proof for retained version-specific immutable bytes.
+
+- Version: `1.0.0`
+- Audiences: ui, agent, system
+- Effect: `read`
+- Approval: none
+- Scope: global
+
+### Contract
+
+```json
+{
+  "concurrency": {
+    "idempotency": "none",
+    "revision": "none"
+  },
+  "contractVersion": 1,
+  "inputSchema": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "additionalProperties": false,
+    "properties": {
+      "reference": {
+        "additionalProperties": false,
+        "properties": {
+          "fileId": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+            "type": "string"
+          },
+          "providerInstanceRef": {
+            "maxLength": 256,
+            "minLength": 3,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{2,255}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "providerInstanceRef",
+          "fileId"
+        ],
+        "type": "object"
+      }
+    },
+    "required": [
+      "reference"
+    ],
+    "type": "object"
+  },
+  "outputSchema": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "oneOf": [
+      {
+        "additionalProperties": false,
+        "properties": {
+          "proven": {
+            "const": false,
+            "type": "boolean"
+          },
+          "reasonCode": {
+            "enum": [
+              "available",
+              "verification_profile_required",
+              "provider_contract_missing",
+              "instance_policy_blocked",
+              "resource_capability_missing",
+              "platform_gate_blocked",
+              "audience_policy_blocked"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "proven",
+          "reasonCode"
+        ],
+        "type": "object"
+      },
+      {
+        "additionalProperties": false,
+        "properties": {
+          "proof": {
+            "additionalProperties": false,
+            "properties": {
+              "digest": {
+                "additionalProperties": false,
+                "properties": {
+                  "algorithm": {
+                    "const": "sha256",
+                    "type": "string"
+                  },
+                  "value": {
+                    "pattern": "^[a-f0-9]{64}$",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "algorithm",
+                  "value"
+                ],
+                "type": "object"
+              },
+              "immutableIdentity": {
+                "const": true,
+                "type": "boolean"
+              },
+              "immutableVersionId": {
+                "maxLength": 256,
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+                "type": "string"
+              },
+              "reference": {
+                "additionalProperties": false,
+                "properties": {
+                  "fileId": {
+                    "maxLength": 256,
+                    "minLength": 1,
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+                    "type": "string"
+                  },
+                  "providerInstanceRef": {
+                    "maxLength": 256,
+                    "minLength": 3,
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{2,255}$",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "providerInstanceRef",
+                  "fileId"
+                ],
+                "type": "object"
+              },
+              "retained": {
+                "const": true,
+                "type": "boolean"
+              },
+              "versionSpecificRetrieval": {
+                "const": true,
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "reference",
+              "immutableVersionId",
+              "immutableIdentity",
+              "retained",
+              "versionSpecificRetrieval"
+            ],
+            "type": "object"
+          },
+          "proven": {
+            "const": true,
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "proven",
+          "proof"
+        ],
+        "type": "object"
+      }
+    ]
+  },
+  "resourceKinds": [],
+  "tags": [
+    "content-space",
+    "provider-neutral"
+  ],
+  "title": "Observe Immutable Content Version"
+}
+```
+
+## `content-space.open-portal-target`
+
+Opens one short-lived Host-validated portal target in the system browser.
+
+- Version: `1.0.0`
+- Audiences: ui, agent, system
+- Effect: `external-write`
+- Approval: confirmation
+- Scope: global
+
+### Contract
+
+```json
+{
+  "concurrency": {
+    "idempotency": "required",
+    "revision": "none"
+  },
+  "contractVersion": 1,
+  "inputSchema": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "additionalProperties": false,
+    "properties": {
+      "handle": {
+        "pattern": "^portal_[A-Za-z0-9_-]{20,}$",
+        "type": "string"
+      }
+    },
+    "required": [
+      "handle"
+    ],
+    "type": "object"
+  },
+  "outputSchema": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "additionalProperties": false,
+    "properties": {
+      "opened": {
+        "const": true,
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "opened"
+    ],
+    "type": "object"
+  },
+  "resourceKinds": [],
+  "tags": [
+    "content-space",
+    "provider-neutral"
+  ],
+  "title": "Open Content Space Portal Target"
+}
+```
+
+## `content-space.resolve-portal-target`
+
+Resolves a Provider portal target into a short-lived Host-owned handle.
+
+- Version: `1.0.0`
+- Audiences: ui, agent, system
+- Effect: `read`
+- Approval: none
+- Scope: global
+
+### Contract
+
+```json
+{
+  "concurrency": {
+    "idempotency": "none",
+    "revision": "none"
+  },
+  "contractVersion": 1,
+  "inputSchema": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "additionalProperties": false,
+    "properties": {
+      "reference": {
+        "anyOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "containerId": {
+                "maxLength": 256,
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+                "type": "string"
+              },
+              "providerInstanceRef": {
+                "maxLength": 256,
+                "minLength": 3,
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{2,255}$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "providerInstanceRef",
+              "containerId"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "fileId": {
+                "maxLength": 256,
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+                "type": "string"
+              },
+              "providerInstanceRef": {
+                "maxLength": 256,
+                "minLength": 3,
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{2,255}$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "providerInstanceRef",
+              "fileId"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "digest": {
+                "additionalProperties": false,
+                "properties": {
+                  "algorithm": {
+                    "const": "sha256",
+                    "type": "string"
+                  },
+                  "value": {
+                    "pattern": "^[a-f0-9]{64}$",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "algorithm",
+                  "value"
+                ],
+                "type": "object"
+              },
+              "fileId": {
+                "maxLength": 256,
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+                "type": "string"
+              },
+              "immutableVersionId": {
+                "maxLength": 256,
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+                "type": "string"
+              },
+              "providerInstanceRef": {
+                "maxLength": 256,
+                "minLength": 3,
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{2,255}$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "providerInstanceRef",
+              "fileId",
+              "immutableVersionId"
+            ],
+            "type": "object"
+          }
+        ]
+      }
+    },
+    "required": [
+      "reference"
+    ],
+    "type": "object"
+  },
+  "outputSchema": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "additionalProperties": false,
+    "properties": {
+      "expiresAt": {
+        "format": "date-time",
+        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+        "type": "string"
+      },
+      "handle": {
+        "pattern": "^portal_[A-Za-z0-9_-]{20,}$",
+        "type": "string"
+      }
+    },
+    "required": [
+      "handle",
+      "expiresAt"
+    ],
+    "type": "object"
+  },
+  "resourceKinds": [],
+  "tags": [
+    "content-space",
+    "provider-neutral"
+  ],
+  "title": "Resolve Content Space Portal Target"
+}
+```
+
+## `content-space.upload-new`
+
+Uploads one Host-selected bounded file without overwrite.
+
+- Version: `1.0.0`
+- Audiences: ui, agent, system
+- Effect: `external-write`
+- Approval: confirmation
+- Scope: global
+
+### Contract
+
+```json
+{
+  "concurrency": {
+    "idempotency": "required",
+    "revision": "none"
+  },
+  "contractVersion": 1,
+  "inputSchema": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "additionalProperties": false,
+    "properties": {
+      "name": {
+        "maxLength": 128,
+        "minLength": 1,
+        "type": "string"
+      },
+      "parent": {
+        "additionalProperties": false,
+        "properties": {
+          "containerId": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+            "type": "string"
+          },
+          "providerInstanceRef": {
+            "maxLength": 256,
+            "minLength": 3,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{2,255}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "providerInstanceRef",
+          "containerId"
+        ],
+        "type": "object"
+      },
+      "sourceHandle": {
+        "pattern": "^xfer_[A-Za-z0-9_-]{20,}$",
+        "type": "string"
+      }
+    },
+    "required": [
+      "parent",
+      "name",
+      "sourceHandle"
+    ],
+    "type": "object"
+  },
+  "outputSchema": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "additionalProperties": false,
+    "properties": {
+      "invocationId": {
+        "maxLength": 128,
+        "minLength": 16,
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]+$",
+        "type": "string"
+      },
+      "reference": {
+        "additionalProperties": false,
+        "properties": {
+          "fileId": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+            "type": "string"
+          },
+          "providerInstanceRef": {
+            "maxLength": 256,
+            "minLength": 3,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{2,255}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "providerInstanceRef",
+          "fileId"
+        ],
+        "type": "object"
+      }
+    },
+    "required": [
+      "invocationId",
+      "reference"
+    ],
+    "type": "object"
+  },
+  "resourceKinds": [],
+  "tags": [
+    "content-space",
+    "provider-neutral"
+  ],
+  "title": "Upload New Content Space File"
 }
 ```
 
@@ -31107,6 +32607,7 @@ Releases an open Workspace Preview session.
 | Biology Room | biologyRoom: |  |
 | Browser Preview | browserPreview: |  |
 | Change Inspector |  |  |
+| Content Space |  |  |
 | Controlled Process |  |  |
 | Create Loop |  |  |
 | Evidence DAG | evidenceDag: |  |

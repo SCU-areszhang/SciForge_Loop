@@ -44,6 +44,10 @@ import { isTrustedRendererUrl } from './renderer-trust'
 import { createTrustedRendererSenderPolicy } from './trusted-renderer-sender'
 import { createMainPrincipalContext } from './principal-context'
 import {
+  PortableResourceReferenceService,
+  composePortableResourceReferenceRegistries
+} from './modules/portable-resource-references'
+import {
   codingPlanCredentialStateForAdapter,
   getModelAccessStatus
 } from './model-access-status'
@@ -99,6 +103,8 @@ import {
   type SurfaceCaptureResult
 } from './services/visible-context-service'
 import { RegisteredTargetVisualCaptureService } from './services/registered-target-visual-capture-service'
+import { HostFileTransferService } from './modules/file-transfer'
+import { HostExternalNavigationService } from './modules/external-navigation'
 import type { VisibleContextBounds } from '../shared/visible-context'
 import { createModelRouterVisualInspector } from '../../packages/workers/workspace-intel/src/visual-inspection'
 import { AgentVisualRuntime } from './runtime/agent-runtime/agent-visual-runtime'
@@ -1107,6 +1113,7 @@ app.whenReady().then(async () => {
   const workspaceReferenceService = new WorkspaceReferenceService()
   let domainSystemCapabilityInvoker:
   ReturnType<typeof createMainSystemCapabilityInvoker> | null = null
+  let portableResourceReferenceService: PortableResourceReferenceService | null = null
   let capabilityBrokerForVisibleContext: CapabilityBroker | null = null
   const visibleContextService = new VisibleContextService(app.getPath('userData'), {
     surfaceCaptureProvider: visibleContextSurfaceCaptureProvider,
@@ -1140,6 +1147,10 @@ app.whenReady().then(async () => {
       }
     }
   })
+  const hostFileTransfers = new HostFileTransferService()
+  const hostExternalNavigation = new HostExternalNavigationService({
+    openExternal: async (url) => { await shell.openExternal(url) }
+  })
   const catalog = createApplicationDomainCatalog({
     getUserDataDir: () => app.getPath('userData'),
     getDeviceId: () => deviceId,
@@ -1160,6 +1171,22 @@ app.whenReady().then(async () => {
           throw new Error('The Host capability broker is not ready.')
         }
         return domainSystemCapabilityInvoker.invoke(contract, input, options)
+      }
+    },
+    fileTransfers: hostFileTransfers,
+    externalNavigation: hostExternalNavigation,
+    portableResources: {
+      materialize: (reference, caller, options) => {
+        if (!portableResourceReferenceService) {
+          throw new Error('Portable resource references are not ready.')
+        }
+        return portableResourceReferenceService.materialize(reference, caller, options)
+      },
+      export: (caller, input) => {
+        if (!portableResourceReferenceService) {
+          throw new Error('Portable resource references are not ready.')
+        }
+        return portableResourceReferenceService.export(caller, input)
       }
     },
     visualCapture: registeredTargetVisualCapture
@@ -1284,6 +1311,13 @@ app.whenReady().then(async () => {
     createApplicationCapabilityRegistry(catalog, appCapabilityDependencies)
   )
   capabilityBrokerForVisibleContext = capabilityBroker
+  const portableReferenceRegistries = composePortableResourceReferenceRegistries(catalog)
+  portableResourceReferenceService = new PortableResourceReferenceService(
+    capabilityBroker,
+    portableReferenceRegistries.codecs,
+    portableReferenceRegistries.resolvers,
+    principalContext.current
+  )
   domainSystemCapabilityInvoker = createMainSystemCapabilityInvoker(capabilityBroker, {
     getPrincipal: principalContext.current
   })
@@ -1793,6 +1827,7 @@ app.whenReady().then(async () => {
     agentRuntime: agentRuntimeHost,
     remoteWorkspace: remoteWorkspaceController,
     workspacePlacement,
+    fileTransfers: hostFileTransfers,
     fetchUpstreamModels: fetchModels,
     getRemoteChannelRuntime: () => remoteChannelRuntime,
     getDiscordBotRuntime: () => discordBotRuntime,

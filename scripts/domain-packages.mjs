@@ -116,7 +116,9 @@ export function renderGeneratedDomainPackageFiles(packages) {
   return Object.freeze({
     [GENERATED_PATHS.definitions]: renderDefinitions(packages),
     [GENERATED_PATHS.main]: renderMain(packages.filter(hasEntrypoint('main'))),
-    [GENERATED_PATHS.renderer]: renderRenderer(packages.filter(hasEntrypoint('renderer'))),
+    [GENERATED_PATHS.renderer]: addFileTransferHost(
+      renderRenderer(packages.filter(hasEntrypoint('renderer')))
+    ),
     [GENERATED_PATHS.workspaceServer]: renderWorkspaceServer(
       packages.filter(hasEntrypoint('workspace-server'))
     )
@@ -184,6 +186,18 @@ function renderWorkspaceServer(packages) {
     (_candidate, index) => `      createDomainWorkspaceServerEntry${index}(host)`
   )
   return `${GENERATED_HEADER}import { defineInstalledDomainPackageSet } from '@sciforge/domain-sdk'\nimport type { DomainWorkspaceServerHost } from '@sciforge/domain-sdk/workspace-server'\nimport { defineInstalledWorkspaceServerDomainEntrySet } from '@sciforge/domain-sdk/workspace-server'\n${definitionImports.join('\n')}${definitionImports.length > 0 ? '\n' : ''}${entryImports.join('\n')}${entryImports.length > 0 ? '\n' : ''}\nconst installedWorkspaceServerDomainPackages = defineInstalledDomainPackageSet([\n${definitions.join(',\n')}\n])\n\nexport function createInstalledWorkspaceServerDomainEntries(host: DomainWorkspaceServerHost) {\n  return defineInstalledWorkspaceServerDomainEntrySet<unknown>(\n    installedWorkspaceServerDomainPackages,\n    [\n${values.join(',\n')}\n    ]\n  ).entries\n}\n`
+}
+
+function addFileTransferHost(source) {
+  return source.replace(
+    "    application: createDomainRendererApplicationHost(ownerId),\n    workspace: {",
+    "    application: createDomainRendererApplicationHost(ownerId),\n" +
+      "    fileTransfers: {\n" +
+      "      pickUploadSource: (input) => window.sciforge.pickUploadTransfer(input),\n" +
+      "      pickDownloadDestination: (input) => window.sciforge.pickDownloadTransfer(input)\n" +
+      "    },\n" +
+      "    workspace: {"
+  )
 }
 
 function hasEntrypoint(processName) {

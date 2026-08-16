@@ -34,6 +34,7 @@ import {
 import {
   CapabilityRegistry,
   type CapabilityDefinition,
+  type IssuedCapabilityResource,
   type CapabilityResourceRegistration,
   type ResolvedCapabilityResource
 } from './registry'
@@ -197,6 +198,18 @@ export class CapabilityBroker {
     rawCaller: CapabilityCallerContextInput,
     rawRegistration: CapabilityResourceRegistration
   ): CapabilityResourceHandle {
+    return this.issueResource(rawCaller, rawRegistration).resource
+  }
+
+  /**
+   * Canonically issues both the process-local handle and its opaque resource
+   * reference. All resource issuance, including portable materialization,
+   * shares this single Broker implementation.
+   */
+  issueResource(
+    rawCaller: CapabilityCallerContextInput,
+    rawRegistration: CapabilityResourceRegistration
+  ): IssuedCapabilityResource {
     const caller = this.#parseCaller(rawCaller)
     const registration = this.#parseResourceRegistration(rawRegistration)
     const workspaceId = registration.workspaceId ?? caller.workspaceId
@@ -255,10 +268,13 @@ export class CapabilityBroker {
       expiresAt
     }
     this.#handles.set(token, grant)
-    return capabilityResourceHandleSchema.parse({
-      token,
-      semanticRevision: registration.semanticRevision,
-      expiresAt
+    return Object.freeze({
+      resource: capabilityResourceHandleSchema.parse({
+        token,
+        semanticRevision: registration.semanticRevision,
+        expiresAt
+      }),
+      resourceRef: resource.resourceRef
     })
   }
 
@@ -694,6 +710,7 @@ export class CapabilityBroker {
         approved
       }), () => definition.handler(options.parsedInput, {
         caller,
+        ...(request.invocationId ? { invocationId: request.invocationId } : {}),
         resource: resource && this.#resolvedResource(resource),
         issueResource: (registration) => this.issueResourceHandle(caller, registration),
         signal

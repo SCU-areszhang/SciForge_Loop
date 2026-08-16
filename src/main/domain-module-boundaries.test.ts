@@ -440,6 +440,50 @@ describe('domain module boundaries', () => {
     }
   })
 
+  it('keeps Content Space and its local Provider inside the provider-neutral package boundary', () => {
+    const contentRoot = resolve(packagesRoot, 'domains/content-space')
+    const mockRoot = resolve(packagesRoot, 'domains/content-space-mock-provider')
+    const contentFiles = productionSourceFiles(relative(projectRoot, join(contentRoot, 'src')))
+    const mockFiles = productionSourceFiles(relative(projectRoot, join(mockRoot, 'src')))
+    const violations = [...contentFiles, ...mockFiles].flatMap((path) => {
+      const specifiers = importSpecifiers(readFileSync(path, 'utf8'))
+      return specifiers.flatMap((specifier) => {
+        const relativePath = relative(projectRoot, path)
+        if (/^(?:@shared|@renderer|@main)(?:\/|$)|^src\/(?:main|renderer|shared)(?:\/|$)/u
+          .test(specifier)) {
+          return [`${relativePath} -> ${specifier}`]
+        }
+        if (isWithin(path, contentRoot) &&
+          /^@sciforge\/domain-(?!sdk(?:\/|$))/u.test(specifier)) {
+          return [`${relativePath} -> integration package ${specifier}`]
+        }
+        if (isWithin(path, mockRoot) &&
+          /^@sciforge\/domain-(?!sdk(?:\/|$)|content-space\/contract$)/u.test(specifier)) {
+          return [`${relativePath} -> unrelated domain package ${specifier}`]
+        }
+        return []
+      })
+    })
+    expect(violations).toEqual([])
+
+    const production = [...contentFiles, ...mockFiles]
+      .map((path) => readFileSync(path, 'utf8'))
+      .join('\n')
+    expect(production).not.toMatch(
+      /SharedDocuments|DocumentProvider|DocumentReference|OpenContent|DocumentLaunchTarget|\b(?:Project|Task|Coordinator|Workspace)\b/u
+    )
+    expect(production).not.toMatch(
+      /google(?:drive|docs)|microsoft(?:graph)?|dropbox|vendor(?:Dto|DTO)/iu
+    )
+
+    for (const root of [contentRoot, mockRoot]) {
+      const manifest = JSON.parse(readFileSync(join(root, 'sciforge.domain.json'), 'utf8')) as {
+        entrypoints: Array<{ process: string }>
+      }
+      expect(manifest.entrypoints.some(({ process }) => process === 'workspace-server')).toBe(false)
+    }
+  })
+
   it('keeps the runtime installer on public SDK contracts and out of extension execution', () => {
     const installerFiles = productionSourceFiles('src/main/extensions')
     expect(installerFiles.length).toBeGreaterThan(0)

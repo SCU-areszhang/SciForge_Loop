@@ -127,6 +127,8 @@ const api = {
   pickWorkspaceDirectory: (defaultPath) =>
     ipcRenderer.invoke('workspace:pick-directory', defaultPath),
   pickFile: (request) => ipcRenderer.invoke('workspace:pick-file', request),
+  pickUploadTransfer: (input) => ipcRenderer.invoke('file-transfer:pick-upload', input),
+  pickDownloadTransfer: (input) => ipcRenderer.invoke('file-transfer:pick-download', input),
   buildScientificSkillsMcpConfig: (workspaceRoot) =>
     ipcRenderer.invoke('mcp:scientific-skills-config', { workspaceRoot }),
   buildScientificPlottingMcpConfig: (workspaceRoot) =>

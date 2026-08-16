@@ -1,0 +1,110 @@
+{
+  "contractVersion": 1,
+  "kind": "trusted-compile-time",
+  "packageName": "@sciforge/domain-content-space",
+  "publisher": {
+    "id": "sciforge",
+    "displayName": "SciForge"
+  },
+  "module": {
+    "id": "sciforge.content-space",
+    "displayName": "Content Space",
+    "version": "1.0.0",
+    "hostApi": {
+      "minimum": "1.0.0",
+      "maximumExclusive": "2.0.0"
+    },
+    "priority": 300
+  },
+  "contributionContracts": {
+    "content-space.container-reference-codec": {
+      "contractVersion": 1,
+      "kind": "content-space.container-reference",
+      "resourceKind": "content-space.container"
+    },
+    "content-space.file-reference-codec": {
+      "contractVersion": 1,
+      "kind": "content-space.file-reference",
+      "resourceKind": "content-space.file"
+    },
+    "content-space.artifact-reference-codec": {
+      "contractVersion": 1,
+      "kind": "content-space.artifact-reference",
+      "resourceKind": "content-space.artifact"
+    },
+    "content-space.provider-instance-authority": {
+      "contractVersion": 1,
+      "resolverId": "content-space.provider-instance-authority"
+    },
+    "content-space.workbench-right-panel": {
+      "location": "workbench.right-panel",
+      "title": "Content Space"
+    },
+    "content-space.workbench-toolbar-action": {
+      "location": "workbench.topbar",
+      "commandId": "content-space.open",
+      "label": "Content Space"
+    }
+  },
+  "packaging": {
+    "bundled": true,
+    "runtime": {
+      "requiredPaths": ["src"],
+      "dependencies": []
+    }
+  },
+  "entrypoints": [
+    {
+      "process": "main",
+      "export": "./main",
+      "contributions": [
+        {
+          "id": "content-space.capabilities",
+          "kind": "main.capability-factory",
+          "priority": 300
+        },
+        {
+          "id": "content-space.container-reference-codec",
+          "kind": "main.portable-resource-codec",
+          "priority": 300
+        },
+        {
+          "id": "content-space.file-reference-codec",
+          "kind": "main.portable-resource-codec",
+          "priority": 300
+        },
+        {
+          "id": "content-space.artifact-reference-codec",
+          "kind": "main.portable-resource-codec",
+          "priority": 300
+        },
+        {
+          "id": "content-space.provider-instance-authority",
+          "kind": "main.portable-authority-resolver",
+          "priority": 300
+        }
+      ]
+    },
+    {
+      "process": "renderer",
+      "export": "./renderer",
+      "contributions": [
+        {
+          "id": "content-space.workbench-right-panel",
+          "kind": "renderer.workbench-right-panel",
+          "priority": 300
+        },
+        {
+          "id": "content-space.open",
+          "kind": "renderer.command",
+          "priority": 300
+        },
+        {
+          "id": "content-space.workbench-toolbar-action",
+          "kind": "renderer.workbench-toolbar-action",
+          "priority": 300
+        }
+      ]
+    }
+  ]
+}

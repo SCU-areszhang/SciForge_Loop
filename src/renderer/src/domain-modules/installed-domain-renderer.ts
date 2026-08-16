@@ -4,16 +4,17 @@ import { defineInstalledRendererDomainEntrySet } from '@sciforge/domain-sdk/rend
 import { createDomainRendererEntry as createDomainRendererEntry0 } from '@sciforge/domain-anchored-comments/renderer'
 import { createDomainRendererEntry as createDomainRendererEntry1 } from '@sciforge/domain-browser-preview/renderer'
 import { createDomainRendererEntry as createDomainRendererEntry2 } from '@sciforge/domain-change-inspector/renderer'
-import { createDomainRendererEntry as createDomainRendererEntry3 } from '@sciforge/domain-create-loop/renderer'
-import { createDomainRendererEntry as createDomainRendererEntry4 } from '@sciforge/domain-evidence-dag/renderer'
-import { createDomainRendererEntry as createDomainRendererEntry5 } from '@sciforge/domain-git-checkpoints/renderer'
-import { createDomainRendererEntry as createDomainRendererEntry6 } from '@sciforge/domain-identity-access/renderer'
-import { createDomainRendererEntry as createDomainRendererEntry7 } from '@sciforge/domain-life-science-preview/renderer'
-import { createDomainRendererEntry as createDomainRendererEntry8 } from '@sciforge/domain-paper-radar/renderer'
-import { createDomainRendererEntry as createDomainRendererEntry9 } from '@sciforge/domain-project-dag/renderer'
-import { createDomainRendererEntry as createDomainRendererEntry10 } from '@sciforge/domain-remote-ssh/renderer'
-import { createDomainRendererEntry as createDomainRendererEntry11 } from '@sciforge/domain-terminal/renderer'
-import { createDomainRendererEntry as createDomainRendererEntry12 } from '@sciforge/domain-visual-review/renderer'
+import { createDomainRendererEntry as createDomainRendererEntry3 } from '@sciforge/domain-content-space/renderer'
+import { createDomainRendererEntry as createDomainRendererEntry4 } from '@sciforge/domain-create-loop/renderer'
+import { createDomainRendererEntry as createDomainRendererEntry5 } from '@sciforge/domain-evidence-dag/renderer'
+import { createDomainRendererEntry as createDomainRendererEntry6 } from '@sciforge/domain-git-checkpoints/renderer'
+import { createDomainRendererEntry as createDomainRendererEntry7 } from '@sciforge/domain-identity-access/renderer'
+import { createDomainRendererEntry as createDomainRendererEntry8 } from '@sciforge/domain-life-science-preview/renderer'
+import { createDomainRendererEntry as createDomainRendererEntry9 } from '@sciforge/domain-paper-radar/renderer'
+import { createDomainRendererEntry as createDomainRendererEntry10 } from '@sciforge/domain-project-dag/renderer'
+import { createDomainRendererEntry as createDomainRendererEntry11 } from '@sciforge/domain-remote-ssh/renderer'
+import { createDomainRendererEntry as createDomainRendererEntry12 } from '@sciforge/domain-terminal/renderer'
+import { createDomainRendererEntry as createDomainRendererEntry13 } from '@sciforge/domain-visual-review/renderer'
 import { installedDomainPackages } from '@shared/installed-domain-packages'
 import type { VisibleContextComponentSnapshot } from '@shared/visible-context'
 import { rendererCapabilityClient } from '../lib/capability-client'
@@ -34,6 +35,10 @@ function domainHost(ownerId: string): DomainRendererHost {
       await openSafeExternalUrl(url)
     },
     application: createDomainRendererApplicationHost(ownerId),
+    fileTransfers: {
+      pickUploadSource: (input) => window.sciforge.pickUploadTransfer(input),
+      pickDownloadDestination: (input) => window.sciforge.pickDownloadTransfer(input)
+    },
     workspace: {
       pickFile: (request) => window.sciforge.pickFile(request),
       openRemoteSession: async (input) => {
@@ -61,15 +66,16 @@ export const installedRendererDomainEntrySet = defineInstalledRendererDomainEntr
     createDomainRendererEntry0(domainHost('sciforge.anchored-comments')),
     createDomainRendererEntry1(domainHost('sciforge.browser-preview')),
     createDomainRendererEntry2(domainHost('sciforge.change-inspector')),
-    createDomainRendererEntry3(domainHost('sciforge.create-loop')),
-    createDomainRendererEntry4(domainHost('sciforge.evidence-dag')),
-    createDomainRendererEntry5(domainHost('sciforge.git-checkpoints')),
-    createDomainRendererEntry6(domainHost('sciforge.identity-access')),
-    createDomainRendererEntry7(domainHost('sciforge.life-science-preview')),
-    createDomainRendererEntry8(domainHost('sciforge.paper-radar')),
-    createDomainRendererEntry9(domainHost('sciforge.project-dag')),
-    createDomainRendererEntry10(domainHost('sciforge.remote-ssh')),
-    createDomainRendererEntry11(domainHost('sciforge.terminal')),
-    createDomainRendererEntry12(domainHost('sciforge.visual-review'))
+    createDomainRendererEntry3(domainHost('sciforge.content-space')),
+    createDomainRendererEntry4(domainHost('sciforge.create-loop')),
+    createDomainRendererEntry5(domainHost('sciforge.evidence-dag')),
+    createDomainRendererEntry6(domainHost('sciforge.git-checkpoints')),
+    createDomainRendererEntry7(domainHost('sciforge.identity-access')),
+    createDomainRendererEntry8(domainHost('sciforge.life-science-preview')),
+    createDomainRendererEntry9(domainHost('sciforge.paper-radar')),
+    createDomainRendererEntry10(domainHost('sciforge.project-dag')),
+    createDomainRendererEntry11(domainHost('sciforge.remote-ssh')),
+    createDomainRendererEntry12(domainHost('sciforge.terminal')),
+    createDomainRendererEntry13(domainHost('sciforge.visual-review'))
   ]
 )

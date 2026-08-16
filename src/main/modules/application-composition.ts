@@ -18,6 +18,10 @@ import {
   MAIN_CAPABILITY_FACTORY_CONTRIBUTION_KIND,
   composeMainCapabilityRegistry
 } from './main-contributions'
+import {
+  createDomainMainContributionSource,
+  createDomainMainProviderInstanceDirectorySource
+} from './provider-composition'
 
 const CORE_MAIN_DOMAIN_ENTRIES: readonly MainDomainModuleDefinition[] = Object.freeze([
   coreCapabilityEntry({
@@ -54,12 +58,24 @@ const CORE_MAIN_DOMAIN_ENTRIES: readonly MainDomainModuleDefinition[] = Object.f
   })
 ])
 
-export function createApplicationDomainCatalog(host: InstalledMainDomainHost): DomainModuleCatalog {
+export function createApplicationDomainCatalog(
+  host: Omit<InstalledMainDomainHost, 'mainContributions' | 'providerInstances'>
+): DomainModuleCatalog {
   const catalog = new DomainModuleCatalog()
+  let compositionReady = false
+  const mainContributions = createDomainMainContributionSource(
+    catalog,
+    () => compositionReady
+  )
+  const providerInstances = createDomainMainProviderInstanceDirectorySource(
+    catalog,
+    () => compositionReady
+  )
   catalog.registerBatch([
     ...CORE_MAIN_DOMAIN_ENTRIES,
-    ...createInstalledMainDomainEntries(host)
+    ...createInstalledMainDomainEntries({ ...host, mainContributions, providerInstances })
   ])
+  compositionReady = true
   return catalog
 }
 

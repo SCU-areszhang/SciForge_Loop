@@ -331,6 +331,18 @@ export type RegisterAppIpcHandlersOptions = {
   }
   remoteWorkspace?: RemoteWorkspaceController
   workspacePlacement?: WorkspacePlacementRouter
+  fileTransfers?: Readonly<{
+    registerUpload(ownerId: string, path: string): Promise<Readonly<{
+      handle: string
+      name: string
+      size: number
+    }>>
+    registerDownload(ownerId: string, path: string): Readonly<{
+      handle: string
+      label: string
+    }>
+    revokeOwner(ownerId: string): void
+  }>
   fetchUpstreamModels: () => Promise<UpstreamModelsResult>
   getRemoteChannelRuntime: () => RemoteChannelRuntime | null
   getDiscordBotRuntime?: () => DiscordBotRuntime | null
@@ -1403,6 +1415,56 @@ export function registerAppIpcHandlers(options: RegisterAppIpcHandlersOptions): 
       canceled: result.canceled,
       path: result.canceled ? null : (result.filePaths[0] ?? null)
     }
+  })
+  handleInvoke('file-transfer:pick-upload', async (event, payload: unknown) => {
+    const transfers = options.fileTransfers
+    if (!transfers) throw new Error('Host-owned file transfer is unavailable.')
+    const request = parseIpcPayload('file-transfer:pick-upload', z.object({
+      title: z.string().trim().min(1).max(160),
+      maxBytes: z.number().int().min(1).max(1_073_741_824)
+    }).strict(), payload)
+    const mainWindow = getMainWindow()
+    const result = mainWindow
+      ? await dialog.showOpenDialog(mainWindow, {
+          title: request.title,
+          properties: ['openFile', 'dontAddToRecent']
+        })
+      : await dialog.showOpenDialog({
+          title: request.title,
+          properties: ['openFile', 'dontAddToRecent']
+        })
+    if (result.canceled || !result.filePaths[0]) return { cancelled: true as const }
+    const ownerId = `window:${event.sender.id}`
+    const selected = await transfers.registerUpload(ownerId, result.filePaths[0])
+    if (selected.size > request.maxBytes) throw new Error('The upload source exceeds the requested bound.')
+    event.sender.once('destroyed', () => transfers.revokeOwner(ownerId))
+    return { cancelled: false as const, ...selected }
+  })
+  handleInvoke('file-transfer:pick-download', async (event, payload: unknown) => {
+    const transfers = options.fileTransfers
+    if (!transfers) throw new Error('Host-owned file transfer is unavailable.')
+    const request = parseIpcPayload('file-transfer:pick-download', z.object({
+      title: z.string().trim().min(1).max(160),
+      suggestedName: z.string().trim().min(1).max(256)
+        .refine((name) => !/[\\/\0]/u.test(name) && name !== '.' && name !== '..')
+    }).strict(), payload)
+    const mainWindow = getMainWindow()
+    const result = mainWindow
+      ? await dialog.showSaveDialog(mainWindow, {
+          title: request.title,
+          defaultPath: request.suggestedName,
+          properties: ['dontAddToRecent']
+        })
+      : await dialog.showSaveDialog({
+          title: request.title,
+          defaultPath: request.suggestedName,
+          properties: ['dontAddToRecent']
+        })
+    if (result.canceled || !result.filePath) return { cancelled: true as const }
+    const ownerId = `window:${event.sender.id}`
+    const selected = transfers.registerDownload(ownerId, result.filePath)
+    event.sender.once('destroyed', () => transfers.revokeOwner(ownerId))
+    return { cancelled: false as const, ...selected }
   })
   handleInvoke(
     'skill:save-file',

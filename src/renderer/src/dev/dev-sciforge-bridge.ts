@@ -231,6 +231,8 @@ function createApi(): SciForgeApi {
       }),
     pickWorkspaceDirectory: (defaultPath) => invoke('workspace:pick-directory', defaultPath),
     pickFile: (request) => invoke('workspace:pick-file', request),
+    pickUploadTransfer: (input) => invoke('file-transfer:pick-upload', input),
+    pickDownloadTransfer: (input) => invoke('file-transfer:pick-download', input),
     buildScientificSkillsMcpConfig: (workspaceRoot) =>
       invoke('mcp:scientific-skills-config', { workspaceRoot }),
     buildScientificPlottingMcpConfig: (workspaceRoot) =>

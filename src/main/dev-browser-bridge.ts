@@ -108,6 +108,8 @@ export const DEFAULT_DEV_BROWSER_BRIDGE_ALLOWED_CHANNELS = [
   'file:suggest-workspace-pdf-name',
   'file:unwatch-workspace',
   'file:watch-workspace',
+  'file-transfer:pick-download',
+  'file-transfer:pick-upload',
   'file:write-workspace',
   'git:branches',
   'git:create-and-switch-branch',
