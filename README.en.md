@@ -156,11 +156,11 @@ For complete instructions on installation, first-time setup, runtime selection, 
 
 ### Mobile and cloud collaboration
 
-The collaboration backend is part of this open-source repository rather than a hidden desktop service. The cloud server and PostgreSQL migrations live in [`packages/collaboration-server`](./packages/collaboration-server/), the Zulip provider in [`packages/collaboration-provider-zulip`](./packages/collaboration-provider-zulip/), the shared protocol in [`packages/collaboration-contracts`](./packages/collaboration-contracts/), and the desktop domain in [`packages/domains/collaboration`](./packages/domains/collaboration/).
+Collaboration is split across explicit A/B/C/E boundaries. A owns authoritative Cloud Tasks, executions, ResourceRefs, confirmations, and receipts. B owns the backend-only Coordinator, Worker Runner, and durable journal/outbox in [`packages/domains/project-coordinator`](./packages/domains/project-coordinator/). C supplies the Principal, and E supplies Content Space. The A-owned protocol is pinned in [`packages/collaboration-contracts`](./packages/collaboration-contracts/); the Zulip endpoint provider remains separate in [`packages/collaboration-provider-zulip`](./packages/collaboration-provider-zulip/).
 
-The repository has one long-lived branch, `gui`. Desktop, cloud, and the current Zulip phone entrypoint are built and tested from the same exact commit instead of drifting per-client source branches. They still release independently: Electron installers contain the desktop application; ECS installs only the contracts, Zulip provider, and collaboration-server tarballs; phones currently use the official Zulip app. The future native client entrypoint is reserved at [`apps/mobile`](./apps/mobile/); it currently contains architecture and open-source reuse guidance, not installable code. Shared-contract changes run both desktop and cloud validation.
+Desktop does not embed A Server, and B does not persist C credentials or E content, tokens, paths, or local handles in A. Phones currently use the official Zulip app; the future native entrypoint remains reserved at [`apps/mobile`](./apps/mobile/).
 
-See the [server README](./packages/collaboration-server/README.md) for source builds, migrations, configuration, probes, and tests. Production systemd, Nginx, backup, upgrade, and rollback procedures are documented in the [Chinese operations guide](./docs/operations/zulip-aliyun-deployment.zh-CN.md). Passwords, API keys, private keys, and tokens must always be injected from deployment-managed secret files or a secret manager outside Git.
+Passwords, API keys, private keys, and tokens must always be injected from deployment-managed secret files or a secret manager outside Git.
 
 ## Documentation
 
@@ -169,9 +169,7 @@ See the [server README](./packages/collaboration-server/README.md) for source bu
 | [Usage Wiki](./docs/wiki/README.md) | From installation to your first task, plus common scenarios, configuration, and troubleshooting |
 | [SciForge Paper](./paper/sciforge-report.pdf) | System positioning, architecture, real interfaces, and eight end-to-end showcases |
 | [Development Guide](./docs/DEVELOPMENT.md) | Local development, testing, and builds |
-| [Collaboration Server README](./packages/collaboration-server/README.md) | Cloud architecture, source startup, migrations, configuration, probes, and tests |
-| [Collaboration User Guide (Chinese)](./docs/collaboration-user-guide.zh-CN.md) | Phone pairing, Agent registration, personal Sessions, Projects, and recovery |
-| [Collaboration Operations Guide (Chinese)](./docs/operations/zulip-aliyun-deployment.zh-CN.md) | Production deployment, systemd, Nginx, backups, upgrades, and rollback |
+| [B package README](./packages/domains/project-coordinator/README.md) | Coordinator, Worker Runner, recovery, and A/C/E boundaries |
 | [Runtime Contract](./docs/agent-runtime-contract.md) | The unified adaptation boundary for Codex, Claude Code, and the GUI |
 | [Architecture](./DESIGN.md) | Agent runtime, GUI, and service boundaries |
 | [Context Map](./CONTEXT-MAP.md) | Authority boundaries across identity, collaboration, content, documents, and provider integration |

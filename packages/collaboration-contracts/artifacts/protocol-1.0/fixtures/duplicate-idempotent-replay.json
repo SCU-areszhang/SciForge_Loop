@@ -1,0 +1,46 @@
+{
+  "category": "duplicate",
+  "contractCommit": "__SCIFORGE_COLLABORATION_COMMIT__",
+  "contractStatus": "current",
+  "documents": [
+    {
+      "role": "original-request",
+      "schema": "command",
+      "value": {
+        "executionId": "exe_Execution0001",
+        "expectedRevision": 3,
+        "idempotencyKey": "idem_contract_fixture_duplicate-progress",
+        "percent": 50,
+        "protocolVersion": "1.0",
+        "requestId": "req_duplicate010",
+        "summary": "Half of the bounded work is complete.",
+        "taskId": "tsk_Task00000001",
+        "type": "task.progress.report"
+      }
+    },
+    {
+      "role": "replay-request",
+      "schema": "command",
+      "value": {
+        "executionId": "exe_Execution0001",
+        "expectedRevision": 3,
+        "idempotencyKey": "idem_contract_fixture_duplicate-progress",
+        "percent": 50,
+        "protocolVersion": "1.0",
+        "requestId": "req_duplicate020",
+        "summary": "Half of the bounded work is complete.",
+        "taskId": "tsk_Task00000001",
+        "type": "task.progress.report"
+      }
+    }
+  ],
+  "expectations": {
+    "accepted": true,
+    "duplicateDomainWrites": 0,
+    "note": "requestId may change; actor, idempotency key, and business payload do not.",
+    "sameBusinessReceipt": true
+  },
+  "fixtureVersion": 1,
+  "id": "duplicate-idempotent-replay",
+  "protocolVersion": "1.0"
+}

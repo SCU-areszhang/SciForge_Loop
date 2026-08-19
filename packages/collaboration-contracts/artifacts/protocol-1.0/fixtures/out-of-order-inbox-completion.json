@@ -1,0 +1,158 @@
+{
+  "category": "out-of-order",
+  "contractCommit": "__SCIFORGE_COLLABORATION_COMMIT__",
+  "contractStatus": "current",
+  "documents": [
+    {
+      "role": "sequence-12",
+      "schema": "inbox",
+      "value": {
+        "createdAt": "2026-08-15T08:00:00.000Z",
+        "disposition": "active",
+        "inboxMessageId": "ibx_Fixture00000012",
+        "payload": {
+          "executionId": "exe_Execution0001",
+          "projectId": "prj_Proj00000001",
+          "protocolVersion": "1.0",
+          "revision": 4,
+          "status": "running",
+          "taskId": "tsk_Task00000001",
+          "type": "task.updated"
+        },
+        "recipientAgentId": "agt_Agent0000001",
+        "recipientType": "agent",
+        "schemaVersion": 1,
+        "sequence": 12,
+        "status": "pending",
+        "type": "inbox_message"
+      }
+    },
+    {
+      "role": "sequence-13",
+      "schema": "inbox",
+      "value": {
+        "createdAt": "2026-08-15T08:00:00.000Z",
+        "disposition": "active",
+        "inboxMessageId": "ibx_Fixture00000013",
+        "payload": {
+          "executionId": "exe_Execution0001",
+          "projectId": "prj_Proj00000001",
+          "protocolVersion": "1.0",
+          "revision": 5,
+          "status": "running",
+          "taskId": "tsk_Task00000001",
+          "type": "task.updated"
+        },
+        "recipientAgentId": "agt_Agent0000001",
+        "recipientType": "agent",
+        "schemaVersion": 1,
+        "sequence": 13,
+        "status": "pending",
+        "type": "inbox_message"
+      }
+    },
+    {
+      "role": "premature-ack-13",
+      "schema": "command",
+      "value": {
+        "idempotencyKey": "idem_contract_fixture_ack-gap-13",
+        "inboxMessageId": "ibx_Fixture00000013",
+        "protocolVersion": "1.0",
+        "requestId": "req_ackgap130000",
+        "sequence": 13,
+        "type": "inbox.ack"
+      }
+    },
+    {
+      "role": "gap-response",
+      "schema": "response",
+      "value": {
+        "error": {
+          "ackedSequence": 11,
+          "category": "conflict",
+          "code": "inbox_ack_gap",
+          "httpStatus": 409,
+          "message": "Inbox ACK cannot pass an unfinished active message.",
+          "nextSequence": 12,
+          "protocolVersion": "1.0",
+          "requestId": "req_ackgap130000",
+          "retryable": false,
+          "traceId": "trc_Trace00000001",
+          "type": "error"
+        },
+        "protocolVersion": "1.0",
+        "requestId": "req_ackgap130000",
+        "type": "rest.error"
+      }
+    },
+    {
+      "role": "continuous-ack-12",
+      "schema": "command",
+      "value": {
+        "idempotencyKey": "idem_contract_fixture_ack-sequence-12",
+        "inboxMessageId": "ibx_Fixture00000012",
+        "protocolVersion": "1.0",
+        "requestId": "req_ackseq120000",
+        "sequence": 12,
+        "type": "inbox.ack"
+      }
+    },
+    {
+      "role": "cursor-after-ack-12",
+      "schema": "response",
+      "value": {
+        "ackedSequence": 12,
+        "nextSequence": 13,
+        "protocolVersion": "1.0",
+        "requestId": "req_ackseq120000",
+        "type": "inbox.acked"
+      }
+    },
+    {
+      "role": "continuous-ack-13",
+      "schema": "command",
+      "value": {
+        "idempotencyKey": "idem_contract_fixture_ack-sequence-13",
+        "inboxMessageId": "ibx_Fixture00000013",
+        "protocolVersion": "1.0",
+        "requestId": "req_ackseq130000",
+        "sequence": 13,
+        "type": "inbox.ack"
+      }
+    },
+    {
+      "role": "server-cursor-after-ack-13",
+      "schema": "response",
+      "value": {
+        "ackedSequence": 13,
+        "nextSequence": 14,
+        "protocolVersion": "1.0",
+        "requestId": "req_ackseq130000",
+        "type": "inbox.acked"
+      }
+    }
+  ],
+  "expectations": {
+    "authoritativeAckSequenceAfterCompletion": 13,
+    "forbiddenAckUntilGapClosed": [
+      13
+    ],
+    "gapErrorCode": "inbox_ack_gap",
+    "localCompletionOrder": [
+      13,
+      12
+    ],
+    "note": "This is the normative enforced continuous-ACK scenario: sequence 13 is rejected until active sequence 12 is complete.",
+    "permittedAckOrder": [
+      12,
+      13
+    ],
+    "serverCursorAtGap": {
+      "ackedSequence": 11,
+      "nextSequence": 12
+    }
+  },
+  "fixtureVersion": 1,
+  "id": "out-of-order-inbox-completion",
+  "protocolVersion": "1.0"
+}

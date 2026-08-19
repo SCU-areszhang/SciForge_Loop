@@ -18,6 +18,28 @@ export const STATE_TRANSITIONS = {
     suspended: ['active', 'revoked'],
     revoked: []
   },
+  oidc_identity: {
+    active: ['revoked'],
+    revoked: []
+  },
+  device_enrollment: {
+    pending: ['consumed', 'expired'],
+    consumed: [],
+    expired: []
+  },
+  device: {
+    active: ['revoked'],
+    revoked: []
+  },
+  zulip_binding_request: {
+    pending: ['confirmed', 'expired'],
+    confirmed: [],
+    expired: []
+  },
+  external_identity: {
+    active: ['revoked'],
+    revoked: []
+  },
   ['agent']: {
     active: ['revoked'],
     revoked: []
@@ -53,19 +75,26 @@ export const STATE_TRANSITIONS = {
     closed: []
   },
   task: {
-    offered: ['accepted', 'rejected', 'cancelled'],
-    accepted: ['running', 'cancelled'],
-    rejected: [],
-    running: ['needs_human', 'succeeded', 'failed', 'cancelled'],
-    needs_human: ['running', 'failed', 'cancelled'],
-    succeeded: [],
+    offered: ['offered', 'accepted', 'rejected', 'cancelled'],
+    accepted: ['offered', 'running', 'rejected', 'cancelled'],
+    rejected: ['offered'],
+    running: ['offered', 'needs_human', 'succeeded', 'failed', 'cancelled'],
+    needs_human: ['offered', 'running', 'failed', 'cancelled'],
+    succeeded: ['offered'],
     failed: ['offered'],
     cancelled: []
   },
   project_record: {
-    proposed: ['accepted', 'rejected'],
+    proposed: ['accepted', 'rejected', 'superseded'],
     accepted: [],
-    rejected: []
+    rejected: ['superseded'],
+    superseded: []
+  },
+  resource_ref: {
+    available: ['unavailable', 'revoked', 'invalidated'],
+    unavailable: ['available', 'revoked'],
+    revoked: ['available', 'unavailable'],
+    invalidated: []
   },
   human_needed: {
     pending: ['answered', 'expired', 'cancelled'],
@@ -74,11 +103,14 @@ export const STATE_TRANSITIONS = {
     cancelled: []
   },
   inbox: {
-    pending: ['delivered', 'acknowledged', 'expired', 'dead_letter'],
-    delivered: ['acknowledged', 'expired', 'dead_letter'],
+    pending: ['acknowledged', 'superseded'],
     acknowledged: [],
-    expired: [],
-    dead_letter: []
+    superseded: []
+  },
+  action_confirmation: {
+    approved: ['consumed', 'superseded'],
+    consumed: [],
+    superseded: []
   }
 } as const
 
@@ -169,16 +201,25 @@ export function providerIdentityKey(identity: ProviderIdentity): string {
 export const STABLE_ENTITY_ID_FIELDS = {
   user_principal: 'userId',
   human_endpoint_binding: 'humanEndpointId',
+  oidc_identity: 'identityId',
+  device_enrollment: 'enrollmentId',
+  device: 'deviceId',
+  zulip_binding_request: 'bindingRequestId',
+  external_identity: 'externalIdentityId',
   agent_node: 'agentId',
+  agent_capability_profile: 'agentId',
   participant_profile: 'participantId',
   remote_session_projection: 'projectionId',
   project_input: 'projectInputId',
   project: 'projectId',
+  project_capability_directory: 'projectId',
   project_endpoint_binding: 'projectEndpointBindingId',
   task: 'taskId',
   project_record: 'projectRecordId',
+  resource_ref: 'resourceRefId',
   human_needed: 'humanRequestId',
-  human_answer: 'humanAnswerId'
+  human_answer: 'humanAnswerId',
+  action_confirmation: 'confirmationId'
 } as const
 
 export function hasStableEntityIdentity(

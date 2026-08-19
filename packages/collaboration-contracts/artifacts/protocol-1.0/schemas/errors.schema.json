@@ -1,0 +1,175 @@
+{
+  "$defs": {
+    "__schema0": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        },
+        {
+          "items": {
+            "$ref": "#/$defs/__schema0"
+          },
+          "type": "array"
+        },
+        {
+          "additionalProperties": {
+            "$ref": "#/$defs/__schema0"
+          },
+          "propertyNames": {
+            "type": "string"
+          },
+          "type": "object"
+        }
+      ]
+    }
+  },
+  "$id": "https://contracts.sciforge.invalid/collaboration/1.0/errors.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "ackedSequence": {
+      "maximum": 9007199254740991,
+      "minimum": 0,
+      "type": "integer"
+    },
+    "category": {
+      "enum": [
+        "validation",
+        "authentication",
+        "authorization",
+        "conflict",
+        "routing",
+        "provider",
+        "limit",
+        "version",
+        "internal"
+      ],
+      "type": "string"
+    },
+    "code": {
+      "enum": [
+        "validation_error",
+        "authentication_required",
+        "credential_revoked",
+        "permission_denied",
+        "assurance_insufficient",
+        "not_found",
+        "identity_conflict",
+        "IDENTITY_ALREADY_BOUND",
+        "BINDING_CODE_USED",
+        "BINDING_CODE_EXPIRED",
+        "ownership_conflict",
+        "revision_conflict",
+        "execution_conflict",
+        "idempotency_conflict",
+        "invalid_state_transition",
+        "assignee_mismatch",
+        "coordinator_mismatch",
+        "confirmation_required",
+        "confirmation_mismatch",
+        "resource_unavailable",
+        "capability_profile_expired",
+        "inbox_ack_gap",
+        "routing_ambiguous",
+        "routing_not_found",
+        "provider_unavailable",
+        "recipient_mismatch",
+        "payload_too_large",
+        "rate_limited",
+        "expired",
+        "version_incompatible",
+        "internal_error"
+      ],
+      "type": "string"
+    },
+    "confirmationId": {
+      "pattern": "^cnf_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+      "type": "string"
+    },
+    "currentExecutionId": {
+      "pattern": "^exe_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+      "type": "string"
+    },
+    "currentRevision": {
+      "maximum": 9007199254740991,
+      "minimum": 1,
+      "type": "integer"
+    },
+    "details": {
+      "$ref": "#/$defs/__schema0"
+    },
+    "expectedRevision": {
+      "maximum": 9007199254740991,
+      "minimum": 1,
+      "type": "integer"
+    },
+    "httpStatus": {
+      "maximum": 599,
+      "minimum": 400,
+      "type": "integer"
+    },
+    "message": {
+      "maxLength": 500,
+      "minLength": 1,
+      "type": "string"
+    },
+    "nextSequence": {
+      "maximum": 9007199254740991,
+      "minimum": 1,
+      "type": "integer"
+    },
+    "protocolVersion": {
+      "const": "1.0",
+      "type": "string"
+    },
+    "requestId": {
+      "pattern": "^req_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+      "type": "string"
+    },
+    "resourceId": {
+      "maxLength": 128,
+      "minLength": 1,
+      "type": "string"
+    },
+    "resourceType": {
+      "pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+      "type": "string"
+    },
+    "retryable": {
+      "type": "boolean"
+    },
+    "traceId": {
+      "pattern": "^trc_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+      "type": "string"
+    },
+    "type": {
+      "const": "error",
+      "type": "string"
+    }
+  },
+  "required": [
+    "protocolVersion",
+    "type",
+    "traceId",
+    "code",
+    "category",
+    "httpStatus",
+    "retryable",
+    "message"
+  ],
+  "title": "SciForge Collaboration errors",
+  "type": "object",
+  "x-sciforge-contract": {
+    "contractCommit": "__SCIFORGE_COLLABORATION_COMMIT__",
+    "protocolVersion": "1.0"
+  }
+}

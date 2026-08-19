@@ -1,0 +1,1281 @@
+{
+  "$id": "https://contracts.sciforge.invalid/collaboration/1.0/inbox.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "oneOf": [
+    {
+      "additionalProperties": false,
+      "properties": {
+        "createdAt": {
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "type": "string"
+        },
+        "disposition": {
+          "enum": [
+            "active",
+            "superseded"
+          ],
+          "type": "string"
+        },
+        "expiresAt": {
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "type": "string"
+        },
+        "inboxMessageId": {
+          "pattern": "^ibx_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "payload": {
+          "oneOf": [
+            {
+              "additionalProperties": false,
+              "properties": {
+                "humanEndpointId": {
+                  "pattern": "^hep_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+                  "type": "string"
+                },
+                "occurredAt": {
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                  "type": "string"
+                },
+                "projectionId": {
+                  "pattern": "^rsp_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+                  "type": "string"
+                },
+                "projectionRevision": {
+                  "maximum": 9007199254740991,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                "protocolVersion": {
+                  "const": "1.0",
+                  "type": "string"
+                },
+                "providerMessageId": {
+                  "maxLength": 512,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "reroutedFromMessageId": {
+                  "pattern": "^ibx_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+                  "type": "string"
+                },
+                "senderUserId": {
+                  "pattern": "^usr_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+                  "type": "string"
+                },
+                "text": {
+                  "maxLength": 32000,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "type": {
+                  "const": "personal.message.received",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "protocolVersion",
+                "type",
+                "projectionId",
+                "projectionRevision",
+                "senderUserId",
+                "humanEndpointId",
+                "providerMessageId",
+                "text",
+                "occurredAt"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "executionId": {
+                  "pattern": "^exe_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+                  "type": "string"
+                },
+                "projectId": {
+                  "pattern": "^prj_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+                  "type": "string"
+                },
+                "protocolVersion": {
+                  "const": "1.0",
+                  "type": "string"
+                },
+                "reroutedFromMessageId": {
+                  "pattern": "^ibx_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+                  "type": "string"
+                },
+                "revision": {
+                  "maximum": 9007199254740991,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                "taskId": {
+                  "pattern": "^tsk_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+                  "type": "string"
+                },
+                "type": {
+                  "const": "task.offered",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "protocolVersion",
+                "type",
+                "projectId",
+                "taskId",
+                "executionId",
+                "revision"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "projectionId": {
+                  "pattern": "^rsp_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+                  "type": "string"
+                },
+                "protocolVersion": {
+                  "const": "1.0",
+                  "type": "string"
+                },
+                "reroutedFromMessageId": {
+                  "pattern": "^ibx_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+                  "type": "string"
+                },
+                "revision": {
+                  "maximum": 9007199254740991,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                "type": {
+                  "const": "projection.updated",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "protocolVersion",
+                "type",
+                "projectionId",
+                "revision"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "locatorRevision": {
+                  "maximum": 9007199254740991,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                "projectEndpointBindingId": {
+                  "pattern": "^peb_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+                  "type": "string"
+                },
+                "projectId": {
+                  "pattern": "^prj_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+                  "type": "string"
+                },
+                "protocolVersion": {
+                  "const": "1.0",
+                  "type": "string"
+                },
+                "reroutedFromMessageId": {
+                  "pattern": "^ibx_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+                  "type": "string"
+                },
+                "revision": {
+                  "maximum": 9007199254740991,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                "type": {
+                  "const": "project.endpoint.updated",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "protocolVersion",
+                "type",
+                "projectId",
+                "projectEndpointBindingId",
+                "revision",
+                "locatorRevision"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "executionId": {
+                  "pattern": "^exe_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+                  "type": "string"
+                },
+                "projectId": {
+                  "pattern": "^prj_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+                  "type": "string"
+                },
+                "protocolVersion": {
+                  "const": "1.0",
+                  "type": "string"
+                },
+                "reason": {
+                  "maxLength": 500,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "reroutedFromMessageId": {
+                  "pattern": "^ibx_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+                  "type": "string"
+                },
+                "revision": {
+                  "maximum": 9007199254740991,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                "taskId": {
+                  "pattern": "^tsk_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+                  "type": "string"
+                },
+                "type": {
+                  "const": "task.cancelled",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "protocolVersion",
+                "type",
+                "projectId",
+                "taskId",
+                "executionId",
+                "revision",
+                "reason"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "executionId": {
+                  "pattern": "^exe_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+                  "type": "string"
+                },
+                "humanRequestId": {
+                  "pattern": "^hrq_[A-Za-z0-9]{12,64}$",
+                  "type": "string"
+                },
+                "projectId": {
+                  "pattern": "^prj_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+                  "type": "string"
+                },
+                "protocolVersion": {
+                  "const": "1.0",
+                  "type": "string"
+                },
+                "reroutedFromMessageId": {
+                  "pattern": "^ibx_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+                  "type": "string"
+                },
+                "resultProjectRecordId": {
+                  "pattern": "^rec_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+                  "type": "string"
+                },
+                "revision": {
+                  "maximum": 9007199254740991,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                "safeFailureCode": {
+                  "pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+                  "type": "string"
+                },
+                "safeFailureSummary": {
+                  "maxLength": 2000,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "status": {
+                  "enum": [
+                    "offered",
+                    "accepted",
+                    "rejected",
+                    "running",
+                    "needs_human",
+                    "succeeded",
+                    "failed",
+                    "cancelled"
+                  ],
+                  "type": "string"
+                },
+                "taskId": {
+                  "pattern": "^tsk_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+                  "type": "string"
+                },
+                "type": {
+                  "const": "task.updated",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "protocolVersion",
+                "type",
+                "projectId",
+                "taskId",
+                "executionId",
+                "revision",
+                "status"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "projectId": {
+                  "pattern": "^prj_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+                  "type": "string"
+                },
+                "projectRecordId": {
+                  "pattern": "^rec_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+                  "type": "string"
+                },
+                "protocolVersion": {
+                  "const": "1.0",
+                  "type": "string"
+                },
+                "reroutedFromMessageId": {
+                  "pattern": "^ibx_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+                  "type": "string"
+                },
+                "revision": {
+                  "maximum": 9007199254740991,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                "sourceExecutionId": {
+                  "anyOf": [
+                    {
+                      "pattern": "^exe_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "sourceTaskId": {
+                  "anyOf": [
+                    {
+                      "pattern": "^tsk_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "type": {
+                  "const": "project_record.submitted",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "protocolVersion",
+                "type",
+                "projectId",
+                "projectRecordId",
+                "sourceTaskId",
+                "sourceExecutionId",
+                "revision"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "agentId": {
+                  "pattern": "^agt_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+                  "type": "string"
+                },
+                "protocolVersion": {
+                  "const": "1.0",
+                  "type": "string"
+                },
+                "reroutedFromMessageId": {
+                  "pattern": "^ibx_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+                  "type": "string"
+                },
+                "type": {
+                  "const": "agent.revoked",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "protocolVersion",
+                "type",
+                "agentId"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "answer": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "answer": {
+                      "maxLength": 32000,
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "answeredAt": {
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                      "type": "string"
+                    },
+                    "answeredByUserId": {
+                      "pattern": "^usr_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+                      "type": "string"
+                    },
+                    "answeredFromHumanEndpointId": {
+                      "pattern": "^hep_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+                      "type": "string"
+                    },
+                    "assurance": {
+                      "enum": [
+                        "basic",
+                        "verified",
+                        "strong"
+                      ],
+                      "type": "string"
+                    },
+                    "confirmationId": {
+                      "anyOf": [
+                        {
+                          "pattern": "^cnf_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "createdAt": {
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                      "type": "string"
+                    },
+                    "decision": {
+                      "anyOf": [
+                        {
+                          "enum": [
+                            "approve",
+                            "reject"
+                          ],
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "executionId": {
+                      "anyOf": [
+                        {
+                          "pattern": "^exe_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "humanAnswerId": {
+                      "pattern": "^han_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+                      "type": "string"
+                    },
+                    "humanRequestId": {
+                      "pattern": "^hrq_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+                      "type": "string"
+                    },
+                    "projectId": {
+                      "pattern": "^prj_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+                      "type": "string"
+                    },
+                    "requestRevision": {
+                      "maximum": 9007199254740991,
+                      "minimum": 1,
+                      "type": "integer"
+                    },
+                    "revision": {
+                      "maximum": 9007199254740991,
+                      "minimum": 1,
+                      "type": "integer"
+                    },
+                    "schemaVersion": {
+                      "const": 1,
+                      "type": "number"
+                    },
+                    "taskId": {
+                      "anyOf": [
+                        {
+                          "pattern": "^tsk_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "type": {
+                      "const": "human_answer",
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "schemaVersion",
+                    "revision",
+                    "createdAt",
+                    "updatedAt",
+                    "type",
+                    "humanAnswerId",
+                    "humanRequestId",
+                    "projectId",
+                    "taskId",
+                    "executionId",
+                    "requestRevision",
+                    "answeredByUserId",
+                    "answeredFromHumanEndpointId",
+                    "assurance",
+                    "answer",
+                    "decision",
+                    "confirmationId",
+                    "answeredAt"
+                  ],
+                  "type": "object"
+                },
+                "protocolVersion": {
+                  "const": "1.0",
+                  "type": "string"
+                },
+                "reroutedFromMessageId": {
+                  "pattern": "^ibx_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+                  "type": "string"
+                },
+                "type": {
+                  "const": "human.answer.received",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "protocolVersion",
+                "type",
+                "answer"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "projectId": {
+                  "pattern": "^prj_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+                  "type": "string"
+                },
+                "protocolVersion": {
+                  "const": "1.0",
+                  "type": "string"
+                },
+                "reroutedFromMessageId": {
+                  "pattern": "^ibx_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+                  "type": "string"
+                },
+                "revision": {
+                  "maximum": 9007199254740991,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                "type": {
+                  "const": "project.started",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "protocolVersion",
+                "type",
+                "projectId",
+                "revision"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "projectId": {
+                  "pattern": "^prj_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+                  "type": "string"
+                },
+                "projectInputId": {
+                  "pattern": "^pin_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+                  "type": "string"
+                },
+                "protocolVersion": {
+                  "const": "1.0",
+                  "type": "string"
+                },
+                "reroutedFromMessageId": {
+                  "pattern": "^ibx_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+                  "type": "string"
+                },
+                "revision": {
+                  "maximum": 9007199254740991,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                "type": {
+                  "const": "project.input.received",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "protocolVersion",
+                "type",
+                "projectId",
+                "projectInputId",
+                "revision"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "coordinatorAgentId": {
+                  "pattern": "^agt_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+                  "type": "string"
+                },
+                "previousCoordinatorAgentId": {
+                  "pattern": "^agt_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+                  "type": "string"
+                },
+                "projectId": {
+                  "pattern": "^prj_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+                  "type": "string"
+                },
+                "protocolVersion": {
+                  "const": "1.0",
+                  "type": "string"
+                },
+                "reroutedFromMessageId": {
+                  "pattern": "^ibx_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+                  "type": "string"
+                },
+                "revision": {
+                  "maximum": 9007199254740991,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                "type": {
+                  "const": "coordinator.transferred",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "protocolVersion",
+                "type",
+                "projectId",
+                "previousCoordinatorAgentId",
+                "coordinatorAgentId",
+                "revision"
+              ],
+              "type": "object"
+            }
+          ]
+        },
+        "recipientAgentId": {
+          "pattern": "^agt_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "recipientType": {
+          "const": "agent",
+          "type": "string"
+        },
+        "schemaVersion": {
+          "const": 1,
+          "type": "number"
+        },
+        "sequence": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "status": {
+          "enum": [
+            "pending",
+            "acknowledged",
+            "superseded"
+          ],
+          "type": "string"
+        },
+        "supersededAt": {
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "type": "string"
+        },
+        "supersededByMessageId": {
+          "pattern": "^ibx_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "type": {
+          "const": "inbox_message",
+          "type": "string"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "type",
+        "inboxMessageId",
+        "sequence",
+        "status",
+        "disposition",
+        "createdAt",
+        "recipientType",
+        "recipientAgentId",
+        "payload"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "createdAt": {
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "type": "string"
+        },
+        "disposition": {
+          "enum": [
+            "active",
+            "superseded"
+          ],
+          "type": "string"
+        },
+        "expiresAt": {
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "type": "string"
+        },
+        "inboxMessageId": {
+          "pattern": "^ibx_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "payload": {
+          "oneOf": [
+            {
+              "additionalProperties": false,
+              "properties": {
+                "protocolVersion": {
+                  "const": "1.0",
+                  "type": "string"
+                },
+                "request": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "confirmableAction": {
+                      "anyOf": [
+                        {
+                          "oneOf": [
+                            {
+                              "additionalProperties": false,
+                              "properties": {
+                                "kind": {
+                                  "const": "tasks.create",
+                                  "type": "string"
+                                },
+                                "projectId": {
+                                  "pattern": "^prj_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+                                  "type": "string"
+                                },
+                                "proposalDigest": {
+                                  "pattern": "^[a-f0-9]{64}$",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "kind",
+                                "projectId",
+                                "proposalDigest"
+                              ],
+                              "type": "object"
+                            },
+                            {
+                              "additionalProperties": false,
+                              "properties": {
+                                "assigneeAgentId": {
+                                  "pattern": "^agt_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+                                  "type": "string"
+                                },
+                                "fromExecutionId": {
+                                  "pattern": "^exe_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+                                  "type": "string"
+                                },
+                                "kind": {
+                                  "const": "task.retry_reassign",
+                                  "type": "string"
+                                },
+                                "projectId": {
+                                  "pattern": "^prj_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+                                  "type": "string"
+                                },
+                                "taskId": {
+                                  "pattern": "^tsk_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "kind",
+                                "projectId",
+                                "taskId",
+                                "fromExecutionId",
+                                "assigneeAgentId"
+                              ],
+                              "type": "object"
+                            },
+                            {
+                              "additionalProperties": false,
+                              "properties": {
+                                "executionId": {
+                                  "pattern": "^exe_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+                                  "type": "string"
+                                },
+                                "kind": {
+                                  "const": "task.cancel",
+                                  "type": "string"
+                                },
+                                "projectId": {
+                                  "pattern": "^prj_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+                                  "type": "string"
+                                },
+                                "taskId": {
+                                  "pattern": "^tsk_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "kind",
+                                "projectId",
+                                "taskId",
+                                "executionId"
+                              ],
+                              "type": "object"
+                            },
+                            {
+                              "additionalProperties": false,
+                              "properties": {
+                                "finalRecordDigest": {
+                                  "pattern": "^[a-f0-9]{64}$",
+                                  "type": "string"
+                                },
+                                "kind": {
+                                  "const": "project.complete",
+                                  "type": "string"
+                                },
+                                "projectId": {
+                                  "pattern": "^prj_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "kind",
+                                "projectId",
+                                "finalRecordDigest"
+                              ],
+                              "type": "object"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "createdAt": {
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                      "type": "string"
+                    },
+                    "executionId": {
+                      "anyOf": [
+                        {
+                          "pattern": "^exe_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "expiresAt": {
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                      "type": "string"
+                    },
+                    "humanRequestId": {
+                      "pattern": "^hrq_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+                      "type": "string"
+                    },
+                    "projectId": {
+                      "pattern": "^prj_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+                      "type": "string"
+                    },
+                    "prompt": {
+                      "maxLength": 32000,
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "requestedByAgentId": {
+                      "pattern": "^agt_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+                      "type": "string"
+                    },
+                    "requiredAssurance": {
+                      "enum": [
+                        "basic",
+                        "verified",
+                        "strong"
+                      ],
+                      "type": "string"
+                    },
+                    "revision": {
+                      "maximum": 9007199254740991,
+                      "minimum": 1,
+                      "type": "integer"
+                    },
+                    "schemaVersion": {
+                      "const": 1,
+                      "type": "number"
+                    },
+                    "sourceInboxMessageId": {
+                      "anyOf": [
+                        {
+                          "pattern": "^ibx_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "sourceKind": {
+                      "enum": [
+                        "worker",
+                        "coordinator"
+                      ],
+                      "type": "string"
+                    },
+                    "status": {
+                      "enum": [
+                        "pending",
+                        "answered",
+                        "expired",
+                        "cancelled"
+                      ],
+                      "type": "string"
+                    },
+                    "targetUserId": {
+                      "pattern": "^usr_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+                      "type": "string"
+                    },
+                    "taskId": {
+                      "anyOf": [
+                        {
+                          "pattern": "^tsk_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "type": {
+                      "const": "human_needed",
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "schemaVersion",
+                    "revision",
+                    "createdAt",
+                    "updatedAt",
+                    "type",
+                    "humanRequestId",
+                    "projectId",
+                    "sourceKind",
+                    "taskId",
+                    "executionId",
+                    "sourceInboxMessageId",
+                    "targetUserId",
+                    "requestedByAgentId",
+                    "requiredAssurance",
+                    "prompt",
+                    "confirmableAction",
+                    "status",
+                    "expiresAt"
+                  ],
+                  "type": "object"
+                },
+                "reroutedFromMessageId": {
+                  "pattern": "^ibx_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+                  "type": "string"
+                },
+                "type": {
+                  "const": "human.needed",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "protocolVersion",
+                "type",
+                "request"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "completedAt": {
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                  "type": "string"
+                },
+                "projectionId": {
+                  "pattern": "^rsp_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+                  "type": "string"
+                },
+                "protocolVersion": {
+                  "const": "1.0",
+                  "type": "string"
+                },
+                "reroutedFromMessageId": {
+                  "pattern": "^ibx_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+                  "type": "string"
+                },
+                "text": {
+                  "maxLength": 32000,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "turnId": {
+                  "maxLength": 512,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "type": {
+                  "const": "personal.message.final",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "protocolVersion",
+                "type",
+                "projectionId",
+                "text",
+                "turnId",
+                "completedAt"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "projectId": {
+                  "pattern": "^prj_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+                  "type": "string"
+                },
+                "protocolVersion": {
+                  "const": "1.0",
+                  "type": "string"
+                },
+                "reroutedFromMessageId": {
+                  "pattern": "^ibx_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+                  "type": "string"
+                },
+                "safeMessage": {
+                  "maxLength": 500,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "taskId": {
+                  "pattern": "^tsk_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+                  "type": "string"
+                },
+                "type": {
+                  "const": "collaboration.important_failure",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "protocolVersion",
+                "type",
+                "safeMessage"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "projectId": {
+                  "pattern": "^prj_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+                  "type": "string"
+                },
+                "projectRecordId": {
+                  "pattern": "^rec_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+                  "type": "string"
+                },
+                "protocolVersion": {
+                  "const": "1.0",
+                  "type": "string"
+                },
+                "reroutedFromMessageId": {
+                  "pattern": "^ibx_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+                  "type": "string"
+                },
+                "text": {
+                  "maxLength": 32000,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "type": {
+                  "const": "project.summary",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "protocolVersion",
+                "type",
+                "projectId",
+                "projectRecordId",
+                "text"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "approvalId": {
+                  "maxLength": 512,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "projectionId": {
+                  "pattern": "^rsp_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+                  "type": "string"
+                },
+                "protocolVersion": {
+                  "const": "1.0",
+                  "type": "string"
+                },
+                "requiresDesktop": {
+                  "const": true,
+                  "type": "boolean"
+                },
+                "reroutedFromMessageId": {
+                  "pattern": "^ibx_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+                  "type": "string"
+                },
+                "safeSummary": {
+                  "maxLength": 500,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "taskId": {
+                  "pattern": "^tsk_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+                  "type": "string"
+                },
+                "type": {
+                  "const": "capability.approval.pending",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "protocolVersion",
+                "type",
+                "approvalId",
+                "requiresDesktop",
+                "safeSummary"
+              ],
+              "type": "object"
+            }
+          ]
+        },
+        "recipientType": {
+          "const": "user",
+          "type": "string"
+        },
+        "recipientUserId": {
+          "pattern": "^usr_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "schemaVersion": {
+          "const": 1,
+          "type": "number"
+        },
+        "sequence": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "status": {
+          "enum": [
+            "pending",
+            "acknowledged",
+            "superseded"
+          ],
+          "type": "string"
+        },
+        "supersededAt": {
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "type": "string"
+        },
+        "supersededByMessageId": {
+          "pattern": "^ibx_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "type": {
+          "const": "inbox_message",
+          "type": "string"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "type",
+        "inboxMessageId",
+        "sequence",
+        "status",
+        "disposition",
+        "createdAt",
+        "recipientType",
+        "recipientUserId",
+        "payload"
+      ],
+      "type": "object"
+    }
+  ],
+  "title": "SciForge Collaboration inbox",
+  "x-sciforge-contract": {
+    "contractCommit": "__SCIFORGE_COLLABORATION_COMMIT__",
+    "protocolVersion": "1.0"
+  }
+}

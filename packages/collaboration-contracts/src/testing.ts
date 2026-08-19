@@ -1,14 +1,19 @@
 import type { z } from 'zod'
 import { redactCredentials } from './core.js'
 import {
+  actionConfirmationSchema,
   agentNodeSchema,
+  agentCapabilityProfileSchema,
   endpointChallengeSchema,
   humanAnswerSchema,
   humanEndpointBindingSchema,
   humanNeededSchema,
   participantProfileSchema,
   projectInputSchema,
+  projectCapabilityDirectorySchema,
+  projectCoordinationViewSchema,
   projectRecordSchema,
+  resourceRefSchema,
   projectSchema,
   remoteSessionProjectionSchema,
   taskSchema,
@@ -42,16 +47,24 @@ export const TEST_IDS = Object.freeze({
   projectInputId: 'pin_Input0000001',
   projectId: 'prj_Proj00000001',
   taskId: 'tsk_Task00000001',
+  executionId: 'exe_Exec00000001',
+  secondExecutionId: 'exe_Exec00000002',
+  firstCriterionId: 'cri_Criterion0001',
+  secondCriterionId: 'cri_Criterion0002',
   projectRecordId: 'rec_Rec000000001',
+  resourceRefId: 'rrf_ResRef000001',
   inboxMessageId: 'ibx_Inbox0000001',
   receiptId: 'rcp_Receip000001',
   humanRequestId: 'hrq_Human0000001',
   humanAnswerId: 'han_Answer000001',
+  confirmationId: 'cnf_Confirm000001',
   challengeId: 'chl_Chall0000001',
   requestId: 'req_Reque0000001',
+  traceId: 'trc_Trace0000001',
   localItemId: 'lit_Local0000001',
   turnId: 'trn_Turn00000001',
-  installationId: 'ins_Insta0000001'
+  installationId: 'ins_Insta0000001',
+  deviceId: 'dev_Device0000001'
 })
 
 export const providerIdentityFixture = providerIdentitySchema.parse({
@@ -116,8 +129,8 @@ export const agentNodeFixture = agentNodeSchema.parse({
   schemaVersion: 1,
   type: 'agent_node',
   agentId: TEST_IDS.agentId,
+  deviceId: TEST_IDS.deviceId,
   ownerUserId: TEST_IDS.userId,
-  installationId: TEST_IDS.installationId,
   displayName: '实验室桌面机',
   nodeType: 'desktop',
   capabilities: ['agent.execute', 'workspace.read'],
@@ -198,19 +211,79 @@ export const projectFixture = projectSchema.parse({
   updatedAt: TEST_TIMESTAMP
 })
 
+export const agentCapabilityProfileFixture = agentCapabilityProfileSchema.parse({
+  schemaVersion: 1,
+  type: 'agent_capability_profile',
+  agentId: TEST_IDS.agentId,
+  ownerUserId: TEST_IDS.userId,
+  nodeType: 'personal_computer',
+  os: { family: 'macos', architecture: 'arm64', version: '15.6' },
+  runtimeIds: ['runtime.default'],
+  capabilities: [{
+    capabilityId: 'research.coordinate',
+    version: '1',
+    evidence: { level: 'verified', checkedAt: TEST_TIMESTAMP, summary: 'Local runtime probe passed.' }
+  }],
+  gpu: [],
+  vpnAccessIds: [],
+  slurmClusterIds: [],
+  accessibleResourceRefIds: [],
+  resultReturnPolicy: {
+    summary: true,
+    evidenceRefs: true,
+    resourceRefs: true,
+    logSummary: true,
+    fullFileRequiresConfirmation: true,
+    fullLogRequiresConfirmation: true
+  },
+  reportedAt: TEST_TIMESTAMP,
+  expiresAt: TEST_LATER_TIMESTAMP,
+  revision: 1,
+  createdAt: TEST_TIMESTAMP,
+  updatedAt: TEST_TIMESTAMP
+})
+
+export const projectCapabilityDirectoryFixture = projectCapabilityDirectorySchema.parse({
+  schemaVersion: 1,
+  type: 'project_capability_directory',
+  projectId: TEST_IDS.projectId,
+  projectRevision: 1,
+  agents: [{
+    agentId: TEST_IDS.agentId,
+    ownerUserId: TEST_IDS.userId,
+    displayName: '协调节点',
+    nodeType: 'desktop',
+    capabilities: ['research.coordinate'],
+    status: 'online',
+    lastSeenAt: TEST_LATER_TIMESTAMP,
+    profile: agentCapabilityProfileFixture,
+    revision: 1
+  }]
+})
+
 export const taskFixture = taskSchema.parse({
   schemaVersion: 1,
   type: 'task',
   taskId: TEST_IDS.taskId,
   projectId: TEST_IDS.projectId,
+  executionId: TEST_IDS.executionId,
   createdByCoordinatorAgentId: TEST_IDS.agentId,
   assigneeAgentId: TEST_IDS.secondAgentId,
+  assigneeUserId: TEST_IDS.secondUserId,
   title: '分析样本',
   objective: '验证样本质量并总结异常。',
-  completionCriteria: ['提交结果摘要', '标记异常样本'],
+  completionCriteria: [
+    { criterionId: TEST_IDS.firstCriterionId, text: '提交结果摘要' },
+    { criterionId: TEST_IDS.secondCriterionId, text: '标记异常样本' }
+  ],
   dependencyTaskIds: [],
+  requiredCapabilities: {
+    capabilityIds: [], vpnAccessIds: [], slurmClusterIds: [], requiredResourceRefIds: []
+  },
+  resourceRefIds: [],
+  authorizationRequirements: [],
   status: 'offered',
-  attempt: 0,
+  attempt: 1,
   maxRetries: 2,
   revision: 1,
   createdAt: TEST_TIMESTAMP,
@@ -228,10 +301,41 @@ export const projectRecordFixture = projectRecordSchema.parse({
   authorUserId: TEST_IDS.userId,
   authorAgentId: TEST_IDS.agentId,
   sourceTaskId: TEST_IDS.taskId,
+  sourceExecutionId: TEST_IDS.executionId,
   sourceRevision: 1,
+  criterionEvidence: [],
+  resourceRefIds: [],
+  logSummary: null,
   acceptedByUserId: null,
   acceptedByAgentId: null,
   acceptedAt: null,
+  revision: 1,
+  createdAt: TEST_TIMESTAMP,
+  updatedAt: TEST_TIMESTAMP
+})
+
+export const resourceRefFixture = resourceRefSchema.parse({
+  schemaVersion: 1,
+  type: 'resource_ref',
+  resourceRefId: TEST_IDS.resourceRefId,
+  projectId: TEST_IDS.projectId,
+  taskId: TEST_IDS.taskId,
+  executionId: TEST_IDS.executionId,
+  taskRevision: 1,
+  createdByUserId: TEST_IDS.userId,
+  createdByAgentId: TEST_IDS.agentId,
+  provider: 'example-content',
+  externalId: 'document-42',
+  kind: 'shared_document',
+  name: '模型分析记录',
+  openUrl: 'https://content.example.invalid/resources/document-42',
+  portableReference: null,
+  version: '1',
+  status: 'available',
+  statusReasonCode: null,
+  unavailableAt: null,
+  revokedAt: null,
+  invalidatedAt: null,
   revision: 1,
   createdAt: TEST_TIMESTAMP,
   updatedAt: TEST_TIMESTAMP
@@ -242,11 +346,15 @@ export const humanNeededFixture = humanNeededSchema.parse({
   type: 'human_needed',
   humanRequestId: TEST_IDS.humanRequestId,
   projectId: TEST_IDS.projectId,
+  sourceKind: 'worker',
   taskId: TEST_IDS.taskId,
+  executionId: TEST_IDS.executionId,
+  sourceInboxMessageId: null,
   targetUserId: TEST_IDS.userId,
   requestedByAgentId: TEST_IDS.agentId,
   requiredAssurance: 'verified',
   prompt: '是否继续处理异常样本？',
+  confirmableAction: null,
   status: 'pending',
   expiresAt: TEST_LATER_TIMESTAMP,
   revision: 1,
@@ -261,15 +369,53 @@ export const humanAnswerFixture = humanAnswerSchema.parse({
   humanRequestId: TEST_IDS.humanRequestId,
   projectId: TEST_IDS.projectId,
   taskId: TEST_IDS.taskId,
+  executionId: TEST_IDS.executionId,
   requestRevision: 1,
   answeredByUserId: TEST_IDS.userId,
   answeredFromHumanEndpointId: TEST_IDS.humanEndpointId,
   assurance: 'verified',
   answer: '继续，但请保留原始结果。',
+  decision: null,
+  confirmationId: null,
   answeredAt: TEST_LATER_TIMESTAMP,
   revision: 1,
   createdAt: TEST_TIMESTAMP,
   updatedAt: TEST_LATER_TIMESTAMP
+})
+
+export const actionConfirmationFixture = actionConfirmationSchema.parse({
+  schemaVersion: 1,
+  type: 'action_confirmation',
+  confirmationId: TEST_IDS.confirmationId,
+  humanRequestId: TEST_IDS.humanRequestId,
+  projectId: TEST_IDS.projectId,
+  targetUserId: TEST_IDS.userId,
+  coordinatorAgentId: TEST_IDS.agentId,
+  action: { kind: 'tasks.create', projectId: TEST_IDS.projectId, proposalDigest: TEST_HASH },
+  actionDigest: TEST_HASH,
+  status: 'approved',
+  approvedAt: TEST_TIMESTAMP,
+  expiresAt: TEST_LATER_TIMESTAMP,
+  consumedAt: null,
+  createdAt: TEST_TIMESTAMP,
+  updatedAt: TEST_TIMESTAMP
+})
+
+export const projectCoordinationViewFixture = projectCoordinationViewSchema.parse({
+  schemaVersion: 1,
+  type: 'project_coordination_view',
+  projectId: TEST_IDS.projectId,
+  projectRevision: projectFixture.revision,
+  project: projectFixture,
+  members: [
+    { userId: TEST_IDS.userId, displayName: '项目负责人', role: 'owner', active: true },
+    { userId: TEST_IDS.secondUserId, displayName: '项目成员', role: 'member', active: true }
+  ],
+  tasks: [taskFixture],
+  records: [projectRecordFixture],
+  humanRequests: [humanNeededFixture],
+  humanAnswers: [humanAnswerFixture],
+  readAt: TEST_LATER_TIMESTAMP
 })
 
 export const providerEventFixture = providerEventSchema.parse({
@@ -316,6 +462,7 @@ export const agentInboxMessageFixture = agentInboxMessageSchema.parse({
   recipientAgentId: TEST_IDS.agentId,
   sequence: 1,
   status: 'pending',
+  disposition: 'active',
   createdAt: TEST_TIMESTAMP,
   payload: {
     protocolVersion: '1.0',
@@ -404,10 +551,15 @@ export const collaborationFixtures = Object.freeze({
   remoteSessionProjection: remoteSessionProjectionFixture,
   projectInput: projectInputFixture,
   project: projectFixture,
+  agentCapabilityProfile: agentCapabilityProfileFixture,
+  projectCapabilityDirectory: projectCapabilityDirectoryFixture,
+  projectCoordinationView: projectCoordinationViewFixture,
   task: taskFixture,
   projectRecord: projectRecordFixture,
+  resourceRef: resourceRefFixture,
   humanNeeded: humanNeededFixture,
   humanAnswer: humanAnswerFixture,
+  actionConfirmation: actionConfirmationFixture,
   providerEvent: providerEventFixture,
   providerHumanAnswerEvent: providerHumanAnswerEventFixture,
   projectionUpdatedPayload: projectionUpdatedPayloadFixture,

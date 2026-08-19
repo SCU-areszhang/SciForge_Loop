@@ -17,6 +17,7 @@
   },
   "files": [
     "dist",
+    "artifacts",
     "package.json"
   ],
   "scripts": {
@@ -25,6 +26,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@sciforge/domain-sdk": "^0.2.1",
     "zod": "^4.4.3"
   },
   "devDependencies": {

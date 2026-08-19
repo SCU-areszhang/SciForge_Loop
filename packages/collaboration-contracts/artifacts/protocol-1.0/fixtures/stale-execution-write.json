@@ -1,0 +1,59 @@
+{
+  "category": "execution-conflict",
+  "contractCommit": "__SCIFORGE_COLLABORATION_COMMIT__",
+  "contractStatus": "current",
+  "documents": [
+    {
+      "role": "stale-request",
+      "schema": "command",
+      "value": {
+        "executionId": "exe_Execution0000",
+        "expectedRevision": 3,
+        "idempotencyKey": "idem_contract_fixture_stale-execution",
+        "percent": 50,
+        "protocolVersion": "1.0",
+        "requestId": "req_execution010",
+        "summary": "Half of the bounded work is complete.",
+        "taskId": "tsk_Task00000001",
+        "type": "task.progress.report"
+      }
+    },
+    {
+      "role": "response",
+      "schema": "response",
+      "value": {
+        "error": {
+          "category": "conflict",
+          "code": "execution_conflict",
+          "currentExecutionId": "exe_Execution0001",
+          "currentRevision": 4,
+          "httpStatus": 409,
+          "message": "The Task execution is no longer current.",
+          "protocolVersion": "1.0",
+          "requestId": "req_execution010",
+          "retryable": false,
+          "traceId": "trc_Trace00000001",
+          "type": "error"
+        },
+        "protocolVersion": "1.0",
+        "requestId": "req_execution010",
+        "type": "rest.error"
+      }
+    }
+  ],
+  "expectations": {
+    "accepted": false,
+    "attemptedOperations": [
+      "task.progress.report",
+      "resource.create",
+      "task.transition"
+    ],
+    "currentExecutionId": "exe_Execution0001",
+    "expectedErrorCode": "execution_conflict",
+    "priorExecutionId": "exe_Execution0000",
+    "taskId": "tsk_Task00000001"
+  },
+  "fixtureVersion": 1,
+  "id": "stale-execution-write",
+  "protocolVersion": "1.0"
+}

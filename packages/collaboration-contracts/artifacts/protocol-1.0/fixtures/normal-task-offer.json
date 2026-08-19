@@ -1,0 +1,112 @@
+{
+  "category": "normal",
+  "contractCommit": "__SCIFORGE_COLLABORATION_COMMIT__",
+  "contractStatus": "current",
+  "documents": [
+    {
+      "role": "request",
+      "schema": "command",
+      "value": {
+        "assigneeAgentId": "agt_Agent0000002",
+        "authorizationRequirements": [],
+        "completionCriteria": [
+          {
+            "criterionId": "cri_Criterion0001",
+            "text": "Return a safe summary."
+          }
+        ],
+        "dependencyTaskIds": [],
+        "expectedRevision": 1,
+        "idempotencyKey": "idem_contract_fixture_normal-task-create",
+        "objective": "Return a safe result through the public A contract.",
+        "projectId": "prj_Proj00000001",
+        "protocolVersion": "1.0",
+        "requestId": "req_normal010000",
+        "requiredCapabilities": {
+          "capabilityIds": [],
+          "requiredResourceRefIds": [],
+          "slurmClusterIds": [],
+          "vpnAccessIds": []
+        },
+        "resourceRefIds": [],
+        "title": "Validate one bounded result",
+        "type": "task.create"
+      }
+    },
+    {
+      "role": "response",
+      "schema": "response",
+      "value": {
+        "entity": {
+          "assigneeAgentId": "agt_Agent0000002",
+          "assigneeUserId": "usr_User00000002",
+          "attempt": 1,
+          "authorizationRequirements": [],
+          "completionCriteria": [
+            {
+              "criterionId": "cri_Criterion0001",
+              "text": "Return a safe summary."
+            }
+          ],
+          "createdAt": "2026-08-15T08:00:00.000Z",
+          "createdByCoordinatorAgentId": "agt_Agent0000001",
+          "dependencyTaskIds": [],
+          "executionId": "exe_Execution0001",
+          "maxRetries": 2,
+          "objective": "Return a safe result through the public A contract.",
+          "projectId": "prj_Proj00000001",
+          "requiredCapabilities": {
+            "capabilityIds": [],
+            "requiredResourceRefIds": [],
+            "slurmClusterIds": [],
+            "vpnAccessIds": []
+          },
+          "resourceRefIds": [],
+          "revision": 1,
+          "schemaVersion": 1,
+          "status": "offered",
+          "taskId": "tsk_Task00000001",
+          "title": "Validate one bounded result",
+          "type": "task",
+          "updatedAt": "2026-08-15T08:00:00.000Z"
+        },
+        "protocolVersion": "1.0",
+        "requestId": "req_normal010000",
+        "type": "rest.entity"
+      }
+    },
+    {
+      "role": "delivery",
+      "schema": "inbox",
+      "value": {
+        "createdAt": "2026-08-15T08:00:00.000Z",
+        "disposition": "active",
+        "inboxMessageId": "ibx_Inbox0000001",
+        "payload": {
+          "executionId": "exe_Execution0001",
+          "projectId": "prj_Proj00000001",
+          "protocolVersion": "1.0",
+          "revision": 1,
+          "taskId": "tsk_Task00000001",
+          "type": "task.offered"
+        },
+        "recipientAgentId": "agt_Agent0000002",
+        "recipientType": "agent",
+        "schemaVersion": 1,
+        "sequence": 1,
+        "status": "pending",
+        "type": "inbox_message"
+      }
+    }
+  ],
+  "expectations": {
+    "accepted": true,
+    "durableEffects": [
+      "task-created",
+      "single-task-offered-message"
+    ]
+  },
+  "fixtureVersion": 1,
+  "id": "normal-task-offer",
+  "protocolVersion": "1.0"
+}

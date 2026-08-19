@@ -18,11 +18,33 @@ describe('frozen state machines', () => {
     expect(canTransition('projection', 'closed', 'active')).toBe(false)
   })
 
-  it('supports needs-human resume but never terminal Task overwrite', () => {
+  it('supports needs-human resume, reviewed-result retry, and active reassignment', () => {
     expect(canTransition('task', 'running', 'needs_human')).toBe(true)
     expect(canTransition('task', 'needs_human', 'running')).toBe(true)
+    expect(canTransition('task', 'succeeded', 'offered')).toBe(true)
+    expect(canTransition('task', 'failed', 'offered')).toBe(true)
+    expect(canTransition('task', 'rejected', 'offered')).toBe(true)
+    expect(canTransition('task', 'running', 'offered')).toBe(true)
+    expect(canTransition('task', 'offered', 'offered')).toBe(true)
     expect(canTransition('task', 'succeeded', 'running')).toBe(false)
     expect(canTransition('task', 'cancelled', 'succeeded')).toBe(false)
+    expect(canTransition('task', 'cancelled', 'offered')).toBe(false)
+  })
+
+  it('supersedes a rejected candidate ProjectRecord when its Task execution is retried', () => {
+    expect(canTransition('project_record', 'rejected', 'superseded')).toBe(true)
+    expect(canTransition('project_record', 'accepted', 'superseded')).toBe(false)
+    expect(canTransition('project_record', 'superseded', 'rejected')).toBe(false)
+  })
+
+  it('keeps the legacy invalidated ResourceRef terminal and models current availability transitions', () => {
+    expect(canTransition('resource_ref', 'available', 'invalidated')).toBe(true)
+    expect(canTransition('resource_ref', 'unavailable', 'invalidated')).toBe(false)
+    expect(canTransition('resource_ref', 'revoked', 'invalidated')).toBe(false)
+    expect(canTransition('resource_ref', 'unavailable', 'available')).toBe(true)
+    expect(canTransition('resource_ref', 'revoked', 'available')).toBe(true)
+    expect(canTransition('resource_ref', 'revoked', 'unavailable')).toBe(true)
+    expect(STATE_TRANSITIONS.resource_ref.invalidated).toEqual([])
   })
 
   it('makes revoked identities and acknowledged inbox entries terminal', () => {
@@ -30,6 +52,7 @@ describe('frozen state machines', () => {
     expect(STATE_TRANSITIONS.endpoint.revoked).toEqual([])
     expect(STATE_TRANSITIONS.agent.revoked).toEqual([])
     expect(STATE_TRANSITIONS.inbox.acknowledged).toEqual([])
+    expect(Object.keys(STATE_TRANSITIONS.inbox).sort()).toEqual(['acknowledged', 'pending', 'superseded'])
   })
 
   it('validates transition values as a strict contract', () => {

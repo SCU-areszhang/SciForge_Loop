@@ -1,0 +1,43 @@
+{
+  "contractVersion": 1,
+  "kind": "trusted-compile-time",
+  "packageName": "@sciforge/domain-project-coordinator",
+  "publisher": {
+    "id": "sciforge",
+    "displayName": "SciForge"
+  },
+  "module": {
+    "id": "sciforge.project-coordinator",
+    "displayName": "Project Coordinator and Worker Runner",
+    "version": "1.0.0",
+    "hostApi": {
+      "minimum": "1.3.0",
+      "maximumExclusive": "2.0.0"
+    },
+    "priority": 320
+  },
+  "contributionContracts": {
+    "project-coordinator.service": {
+      "location": "main.internal-service-descriptor",
+      "serviceId": "collaboration.bc",
+      "contractVersion": "1.0.0",
+      "allowedConsumerModuleIds": [
+        "sciforge.collaboration-integration"
+      ]
+    }
+  },
+  "entrypoints": [
+    {
+      "process": "main",
+      "export": "./main",
+      "contributions": [
+        {
+          "id": "project-coordinator.service",
+          "kind": "main.extension",
+          "version": "1.0.0",
+          "priority": 320
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,144 @@
+{
+  "category": "portable-round-trip",
+  "contractCommit": "__SCIFORGE_COLLABORATION_COMMIT__",
+  "contractStatus": "current",
+  "documents": [
+    {
+      "role": "create-request",
+      "schema": "command",
+      "value": {
+        "executionId": "exe_Execution0001",
+        "expectedTaskRevision": 3,
+        "externalId": "fbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "idempotencyKey": "idem_contract_fixture_portable-reference-maximum-length",
+        "kind": "content-space.file-reference",
+        "name": "R0 maximum reference boundary",
+        "portableReference": {
+          "authority": "paaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "contractVersion": 1,
+          "identity": {
+            "fileId": "fbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+          },
+          "kind": "content-space.file-reference"
+        },
+        "projectId": "prj_Proj00000001",
+        "protocolVersion": "1.0",
+        "provider": "opencontent",
+        "requestId": "req_portable6000",
+        "taskId": "tsk_Task00000001",
+        "type": "resource.create",
+        "version": "1"
+      }
+    },
+    {
+      "role": "create-response",
+      "schema": "response",
+      "value": {
+        "entity": {
+          "createdAt": "2026-08-15T08:00:00.000Z",
+          "createdByAgentId": "agt_Agent0000002",
+          "createdByUserId": "usr_User00000002",
+          "executionId": "exe_Execution0001",
+          "externalId": "fbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "invalidatedAt": null,
+          "kind": "content-space.file-reference",
+          "name": "R0 maximum reference boundary",
+          "openUrl": null,
+          "portableReference": {
+            "authority": "paaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "contractVersion": 1,
+            "identity": {
+              "fileId": "fbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+            },
+            "kind": "content-space.file-reference"
+          },
+          "projectId": "prj_Proj00000001",
+          "provider": "opencontent",
+          "resourceRefId": "rrf_PortableR006",
+          "revision": 1,
+          "revokedAt": null,
+          "schemaVersion": 1,
+          "status": "available",
+          "statusReasonCode": null,
+          "taskId": "tsk_Task00000001",
+          "taskRevision": 3,
+          "type": "resource_ref",
+          "unavailableAt": null,
+          "updatedAt": "2026-08-15T08:00:00.000Z",
+          "version": "1"
+        },
+        "protocolVersion": "1.0",
+        "requestId": "req_portable6000",
+        "type": "rest.entity"
+      }
+    },
+    {
+      "role": "get-request",
+      "schema": "command",
+      "value": {
+        "protocolVersion": "1.0",
+        "requestId": "req_portableget6",
+        "resourceRefId": "rrf_PortableR006",
+        "type": "resource.get"
+      }
+    },
+    {
+      "role": "get-response",
+      "schema": "response",
+      "value": {
+        "entity": {
+          "createdAt": "2026-08-15T08:00:00.000Z",
+          "createdByAgentId": "agt_Agent0000002",
+          "createdByUserId": "usr_User00000002",
+          "executionId": "exe_Execution0001",
+          "externalId": "fbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "invalidatedAt": null,
+          "kind": "content-space.file-reference",
+          "name": "R0 maximum reference boundary",
+          "openUrl": null,
+          "portableReference": {
+            "authority": "paaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "contractVersion": 1,
+            "identity": {
+              "fileId": "fbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+            },
+            "kind": "content-space.file-reference"
+          },
+          "projectId": "prj_Proj00000001",
+          "provider": "opencontent",
+          "resourceRefId": "rrf_PortableR006",
+          "revision": 1,
+          "revokedAt": null,
+          "schemaVersion": 1,
+          "status": "available",
+          "statusReasonCode": null,
+          "taskId": "tsk_Task00000001",
+          "taskRevision": 3,
+          "type": "resource_ref",
+          "unavailableAt": null,
+          "updatedAt": "2026-08-15T08:00:00.000Z",
+          "version": "1"
+        },
+        "protocolVersion": "1.0",
+        "requestId": "req_portableget6",
+        "type": "rest.entity"
+      }
+    }
+  ],
+  "expectations": {
+    "accepted": true,
+    "canonicalPortableReference": {
+      "authority": "paaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "contractVersion": 1,
+      "identity": {
+        "fileId": "fbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      },
+      "kind": "content-space.file-reference"
+    },
+    "losslessAfterCreateGet": true,
+    "openUrl": null
+  },
+  "fixtureVersion": 1,
+  "id": "portable-reference-maximum-length",
+  "protocolVersion": "1.0"
+}

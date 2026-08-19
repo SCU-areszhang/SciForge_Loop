@@ -1,0 +1,82 @@
+{
+  "category": "portable-rejection",
+  "contractCommit": "__SCIFORGE_COLLABORATION_COMMIT__",
+  "contractStatus": "current",
+  "documents": [
+    {
+      "role": "response",
+      "schema": "response",
+      "value": {
+        "error": {
+          "category": "validation",
+          "code": "validation_error",
+          "httpStatus": 400,
+          "message": "The portable resource reference is invalid.",
+          "protocolVersion": "1.0",
+          "requestId": "req_portablebad0",
+          "retryable": false,
+          "traceId": "trc_Trace00000001",
+          "type": "error"
+        },
+        "protocolVersion": "1.0",
+        "requestId": "req_portablebad0",
+        "type": "rest.error"
+      }
+    }
+  ],
+  "expectations": {
+    "accepted": false,
+    "expectedErrorCode": "validation_error",
+    "rejectedRequests": [
+      {
+        "executionId": "exe_Execution0001",
+        "expectedTaskRevision": 3,
+        "externalId": "invalid-portable-reference",
+        "idempotencyKey": "idem_contract_fixture_portable-invalid",
+        "kind": "content-space.file-reference",
+        "name": "Rejected portable reference",
+        "portableReference": {
+          "authority": "opencontent.owner-input",
+          "contractVersion": 2,
+          "identity": {
+            "fileId": "opencontent_input_file_001"
+          },
+          "kind": "content-space.file-reference"
+        },
+        "projectId": "prj_Proj00000001",
+        "protocolVersion": "1.0",
+        "provider": "opencontent",
+        "requestId": "req_portablebad0",
+        "taskId": "tsk_Task00000001",
+        "type": "resource.create",
+        "version": "1"
+      },
+      {
+        "executionId": "exe_Execution0001",
+        "expectedTaskRevision": 3,
+        "externalId": "invalid-portable-reference",
+        "idempotencyKey": "idem_contract_fixture_portable-invalid",
+        "kind": "content-space.file-reference",
+        "name": "Rejected portable reference",
+        "portableReference": {
+          "authority": "opencontent.owner-input",
+          "contractVersion": 1,
+          "identity": {
+            "fileId": "opencontent_input_file_001"
+          },
+          "kind": "content-space.unknown-reference"
+        },
+        "projectId": "prj_Proj00000001",
+        "protocolVersion": "1.0",
+        "provider": "opencontent",
+        "requestId": "req_portablebad0",
+        "taskId": "tsk_Task00000001",
+        "type": "resource.create",
+        "version": "1"
+      }
+    ]
+  },
+  "fixtureVersion": 1,
+  "id": "portable-invalid-version-kind",
+  "protocolVersion": "1.0"
+}

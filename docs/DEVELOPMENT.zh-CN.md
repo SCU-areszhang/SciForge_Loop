@@ -76,24 +76,22 @@ npm run dev
 
 并手动验证受影响流程后再发起 PR。
 
-### 协作服务开发
+### 协作能力开发
 
-涉及手机 Zulip、云端协作服务、Session 投影或双向消息时，按
-[协作服务开发启动、香港 ECS 部署与运维手册](./operations/zulip-aliyun-deployment.zh-CN.md)
-使用独立开发数据库启动，并运行 collaboration 类型检查与测试。真实手机/桌面验收方法见
-[手机与多人协作使用手册](./collaboration-user-guide.zh-CN.md)。开发环境不得连接生产数据库、复用生产
-Bot 或把 provider credential 写入仓库。
+涉及 A/B/C/E 协作时，运行 collaboration 类型检查与测试。B 代码位于
+`packages/domains/project-coordinator/`，只接收 A Cloud、C Principal、E Content Space 和
+AgentRuntime 端口，不实现云端 Server、认证或 UI。开发环境不得连接生产数据库、复用生产 Bot
+或把 provider credential 写入仓库。
 
 ### 多端目录与发布边界
 
-所有端都在 `gui` 的同一 commit 上协同：`src/` 与 `packages/domains/collaboration/` 属于桌面端，
-`packages/collaboration-server/` 与 `packages/collaboration-provider-zulip/` 属于云端部署，
-`packages/collaboration-contracts/` 是两端共同协议。当前手机端使用官方 Zulip App；未来如增加原生应用，
-应在独立目录中实现，但仍从 `gui` 集成，而不是建立永久 mobile 分支。
+所有端从明确提交集成：`packages/domains/project-coordinator/` 是 B 桌面后端，
+`packages/collaboration-contracts/` 是 A 合同，`packages/collaboration-provider-zulip/` 是独立 Provider。
+当前手机端使用官方 Zulip App；未来如增加原生应用，应在独立目录中实现。
 
-部署目标必须按产物隔离：Electron release 不打入云端 secret；ECS 只安装版本匹配的 contracts、provider
-和 server tarball；手机应用只使用公开 API。每次发布记录目标端版本、Git commit 和合同版本。修改共享
-合同后必须运行 `npm run collaboration:test`，并同时验证桌面和 packed server 路径。
+部署目标必须按产物隔离：Electron release 不打入云端 secret；B 只消费 SHA 固定的 A 合同产物；
+手机应用只使用公开 API。每次发布记录目标端版本、Git commit 和合同版本。修改共享合同后必须运行
+`npm run collaboration:test`。
 
 ## PR 质量标准
 

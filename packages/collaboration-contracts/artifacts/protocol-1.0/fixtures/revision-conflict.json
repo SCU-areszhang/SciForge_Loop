@@ -1,0 +1,52 @@
+{
+  "category": "revision-conflict",
+  "contractCommit": "__SCIFORGE_COLLABORATION_COMMIT__",
+  "contractStatus": "current",
+  "documents": [
+    {
+      "role": "request",
+      "schema": "command",
+      "value": {
+        "executionId": "exe_Execution0001",
+        "expectedRevision": 2,
+        "idempotencyKey": "idem_contract_fixture_revision-conflict",
+        "percent": 50,
+        "protocolVersion": "1.0",
+        "requestId": "req_revision0100",
+        "summary": "Half of the bounded work is complete.",
+        "taskId": "tsk_Task00000001",
+        "type": "task.progress.report"
+      }
+    },
+    {
+      "role": "response",
+      "schema": "response",
+      "value": {
+        "error": {
+          "category": "conflict",
+          "code": "revision_conflict",
+          "currentRevision": 4,
+          "expectedRevision": 2,
+          "httpStatus": 409,
+          "message": "The Task revision is no longer current.",
+          "protocolVersion": "1.0",
+          "requestId": "req_revision0100",
+          "retryable": true,
+          "traceId": "trc_Trace00000001",
+          "type": "error"
+        },
+        "protocolVersion": "1.0",
+        "requestId": "req_revision0100",
+        "type": "rest.error"
+      }
+    }
+  ],
+  "expectations": {
+    "accepted": false,
+    "rereadRequired": true,
+    "retryWithSameIdempotencyKey": false
+  },
+  "fixtureVersion": 1,
+  "id": "revision-conflict",
+  "protocolVersion": "1.0"
+}

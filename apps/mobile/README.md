@@ -12,8 +12,8 @@ App，通过云端协作服务连接桌面 SciForge。
 - Agent 在线状态、顺序队列、离线恢复与明确错误；
 - 与本地权限边界一致的审批和安全提示。
 
-手机端直接使用版本化的 SciForge Collaboration API。身份、Session 映射、Project 状态、权限、去重
-和 receipt 仍以 `@sciforge/collaboration-server` 为事实源，不在手机端复制第二套状态机。
+手机端直接使用 A 发布的版本化 SciForge Collaboration API。身份、Project、Task、execution、
+ResourceRef、confirmation 和 receipt 均以 A 为事实源，不在手机端复制第二套状态机。
 
 ## 开源复用方向
 
@@ -32,10 +32,10 @@ Channel/Topic 数据模型固化成 SciForge 的核心合同。
 
 ## 仓库与发布边界
 
-- `gui` 是桌面、云端、手机端和共享合同的唯一长期主分支；
+- 各端从明确的共同基线和版本化合同集成；
 - 手机端代码放在本目录，不建立永久 mobile 分支；
-- 共享协议来自 `packages/collaboration-contracts/`；
-- 云端实现位于 `packages/collaboration-server/`；
+- 共享协议来自 A 发布的 `packages/collaboration-contracts/` 产物；
+- A Cloud 独立部署，不由 Desktop 或 B 包实现；
 - Zulip 接入位于 `packages/collaboration-provider-zulip/`；
 - 手机安装包独立构建、签名和发布，但必须记录兼容的合同版本与来源 commit。
 

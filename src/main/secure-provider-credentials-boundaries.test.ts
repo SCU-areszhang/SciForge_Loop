@@ -73,13 +73,12 @@ describe('secure provider credential architecture', () => {
     ])
   })
 
-  it('keeps existing package-secret consumers on the canonical non-provider lifecycle', () => {
+  it('keeps B independent from credential and secret storage', () => {
     const collaboration = productionSources()
-      .filter(({ path }) => path.startsWith('packages/domains/collaboration/src/'))
+      .filter(({ path }) => path.startsWith('packages/domains/project-coordinator/src/'))
       .map(({ source }) => source)
       .join('\n')
-    expect(collaboration).toContain('packageSecrets.read')
-    expect(collaboration).toContain('packageSecrets.write')
+    expect(collaboration).not.toContain('packageSecrets')
     expect(collaboration).not.toContain('providerCredentials')
     expect(collaboration).not.toContain('safeStorage')
   })

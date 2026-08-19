@@ -1,0 +1,53 @@
+{
+  "category": "confirmation-conflict",
+  "contractCommit": "__SCIFORGE_COLLABORATION_COMMIT__",
+  "contractStatus": "current",
+  "documents": [
+    {
+      "role": "mismatched-action-request",
+      "schema": "command",
+      "value": {
+        "assigneeAgentId": "agt_Agent0000001",
+        "confirmationId": "cnf_Confirm000001",
+        "executionId": "exe_Execution0001",
+        "expectedRevision": 4,
+        "idempotencyKey": "idem_contract_fixture_confirmation-mismatch",
+        "protocolVersion": "1.0",
+        "requestId": "req_confirmation",
+        "taskId": "tsk_Task00000001",
+        "type": "task.retry"
+      }
+    },
+    {
+      "role": "response",
+      "schema": "response",
+      "value": {
+        "error": {
+          "category": "conflict",
+          "code": "confirmation_mismatch",
+          "confirmationId": "cnf_Confirm000001",
+          "httpStatus": 409,
+          "message": "The confirmation does not match this immutable action.",
+          "protocolVersion": "1.0",
+          "requestId": "req_confirmation",
+          "retryable": false,
+          "traceId": "trc_Trace00000001",
+          "type": "error"
+        },
+        "protocolVersion": "1.0",
+        "requestId": "req_confirmation",
+        "type": "rest.error"
+      }
+    }
+  ],
+  "expectations": {
+    "accepted": false,
+    "approvedActionDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "attemptedActionDigest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "confirmationId": "cnf_Confirm000001",
+    "expectedErrorCode": "confirmation_mismatch"
+  },
+  "fixtureVersion": 1,
+  "id": "superseded-confirmation",
+  "protocolVersion": "1.0"
+}

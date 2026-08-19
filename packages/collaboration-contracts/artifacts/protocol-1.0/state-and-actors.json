@@ -1,0 +1,763 @@
+{
+  "actors": {
+    "agent": "A registered SciForge node resolved from its Agent credential and linked ACTIVE Device.",
+    "anonymous": "No credential; limited to public Provider catalog discovery.",
+    "human_endpoint": "A verified Provider gateway identity; not a caller-supplied Bearer actor.",
+    "system": "A service-internal actor that is not available through the public command endpoint.",
+    "user": "A stable human principal resolved from a strictly verified OIDC access token."
+  },
+  "artifactVersion": 1,
+  "contractCommit": "__SCIFORGE_COLLABORATION_COMMIT__",
+  "permissions": [
+    {
+      "actors": [
+        "agent"
+      ],
+      "availability": "current",
+      "command": "agent.capability_profile.report",
+      "condition": "The credential agentId and owner must match the target Agent; capability evidence remains bounded metadata."
+    },
+    {
+      "actors": [
+        "agent"
+      ],
+      "availability": "current",
+      "command": "agent.heartbeat",
+      "condition": "The credential agentId and owner must match the target Agent; capability evidence remains bounded metadata."
+    },
+    {
+      "actors": [
+        "user"
+      ],
+      "availability": "current",
+      "command": "agent.owner.transfer",
+      "condition": "The user must own the Agent; transfer and revocation assurance rules apply."
+    },
+    {
+      "actors": [
+        "user"
+      ],
+      "availability": "current",
+      "command": "agent.register",
+      "condition": "deviceId must reference an ACTIVE Device owned by the OIDC User; ownerUserId, if present, is non-authoritative and must match."
+    },
+    {
+      "actors": [
+        "user"
+      ],
+      "availability": "current",
+      "command": "agent.revoke",
+      "condition": "The user must own the Agent; transfer and revocation assurance rules apply."
+    },
+    {
+      "actors": [
+        "user"
+      ],
+      "availability": "current",
+      "command": "agent.rotate_credential",
+      "condition": "The user must own the Agent; transfer and revocation assurance rules apply."
+    },
+    {
+      "actors": [
+        "user",
+        "agent"
+      ],
+      "availability": "current",
+      "command": "confirmation.get",
+      "condition": "The actor must be authorized for the confirmation Project and action context."
+    },
+    {
+      "actors": [
+        "agent"
+      ],
+      "availability": "current",
+      "command": "credential.revoke_current",
+      "condition": "Only the opaque Agent credential used for this request is revoked; OIDC User token logout and revocation remain issuer-managed."
+    },
+    {
+      "actors": [],
+      "availability": "reserved",
+      "command": "endpoint.bind",
+      "condition": "The legacy strict command shape is reserved, but the public HTTP boundary permanently rejects direct use."
+    },
+    {
+      "actors": [
+        "anonymous"
+      ],
+      "availability": "current",
+      "command": "endpoint.catalog.get",
+      "condition": "Only the non-sensitive Provider catalog is public."
+    },
+    {
+      "actors": [],
+      "availability": "reserved",
+      "command": "endpoint.challenge.create",
+      "condition": "The legacy strict command shape is reserved, but the public HTTP boundary permanently rejects direct use."
+    },
+    {
+      "actors": [
+        "user"
+      ],
+      "availability": "provider-dependent",
+      "command": "endpoint.locator.list",
+      "condition": "The user must own the active Human Endpoint."
+    },
+    {
+      "actors": [
+        "user"
+      ],
+      "availability": "current",
+      "command": "endpoint.transfer",
+      "condition": "The user must own the Human Endpoint; lifecycle and assurance rules apply."
+    },
+    {
+      "actors": [
+        "user"
+      ],
+      "availability": "current",
+      "command": "endpoint.transition",
+      "condition": "The user must own the Human Endpoint; lifecycle and assurance rules apply."
+    },
+    {
+      "actors": [
+        "human_endpoint"
+      ],
+      "availability": "provider-dependent",
+      "command": "human.answer",
+      "condition": "Only the verified Provider gateway may create this actor context."
+    },
+    {
+      "actors": [
+        "agent"
+      ],
+      "availability": "current",
+      "command": "human.needed.create",
+      "condition": "The current Worker or current Coordinator creates a bounded request with matching source provenance."
+    },
+    {
+      "actors": [
+        "user",
+        "agent"
+      ],
+      "availability": "current",
+      "command": "inbox.ack",
+      "condition": "The credential selects the Inbox; recipient IDs cannot be self-reported."
+    },
+    {
+      "actors": [
+        "user",
+        "agent"
+      ],
+      "availability": "current",
+      "command": "inbox.pull",
+      "condition": "The credential selects the Inbox; recipient IDs cannot be self-reported."
+    },
+    {
+      "actors": [
+        "user"
+      ],
+      "availability": "current",
+      "command": "pairing.begin",
+      "condition": "The OIDC User adapter uses the authoritative Zulip binding state and never creates a User or issues a User credential."
+    },
+    {
+      "actors": [
+        "user"
+      ],
+      "availability": "current",
+      "command": "pairing.redeem",
+      "condition": "The OIDC User adapter uses the authoritative Zulip binding state and never creates a User or issues a User credential."
+    },
+    {
+      "actors": [
+        "user"
+      ],
+      "availability": "current",
+      "command": "participant.get",
+      "condition": "The credential userId must equal the Participant userId."
+    },
+    {
+      "actors": [
+        "user"
+      ],
+      "availability": "current",
+      "command": "participant.update_primary",
+      "condition": "The credential userId must equal the Participant userId."
+    },
+    {
+      "actors": [
+        "user",
+        "agent"
+      ],
+      "availability": "current",
+      "command": "project_record.accept",
+      "condition": "The owner may decide all record kinds; the current Coordinator Agent is limited to worker-result record kinds."
+    },
+    {
+      "actors": [
+        "user",
+        "agent"
+      ],
+      "availability": "current",
+      "command": "project_record.get",
+      "condition": "The actor must belong to an active Project member."
+    },
+    {
+      "actors": [
+        "user",
+        "agent"
+      ],
+      "availability": "current",
+      "command": "project_record.submit",
+      "condition": "The actor must be an active member; a Worker Agent must cite its assigned Task."
+    },
+    {
+      "actors": [
+        "user",
+        "agent"
+      ],
+      "availability": "current",
+      "command": "project.capability_directory.get",
+      "condition": "The actor must belong to an active Project member."
+    },
+    {
+      "actors": [
+        "user",
+        "agent"
+      ],
+      "availability": "current",
+      "command": "project.coordination_view.get",
+      "condition": "Only the Project owner User or current Coordinator Agent may read the consolidated coordination view."
+    },
+    {
+      "actors": [
+        "user"
+      ],
+      "availability": "current",
+      "command": "project.create",
+      "condition": "The authenticated user becomes Project owner."
+    },
+    {
+      "actors": [
+        "user"
+      ],
+      "availability": "current",
+      "command": "project.endpoint.bind",
+      "condition": "Only the Project owner may perform this administrative write."
+    },
+    {
+      "actors": [
+        "user",
+        "agent"
+      ],
+      "availability": "current",
+      "command": "project.endpoint.get",
+      "condition": "The actor must belong to an active Project member."
+    },
+    {
+      "actors": [
+        "user"
+      ],
+      "availability": "current",
+      "command": "project.endpoint.update",
+      "condition": "Only the Project owner may perform this administrative write."
+    },
+    {
+      "actors": [
+        "user",
+        "agent"
+      ],
+      "availability": "current",
+      "command": "project.get",
+      "condition": "The actor must belong to an active Project member."
+    },
+    {
+      "actors": [
+        "human_endpoint"
+      ],
+      "availability": "provider-dependent",
+      "command": "project.input.create",
+      "condition": "Only the verified Provider gateway may create this actor context."
+    },
+    {
+      "actors": [
+        "user"
+      ],
+      "availability": "current",
+      "command": "project.transfer_coordinator",
+      "condition": "Only the Project owner may perform this administrative write."
+    },
+    {
+      "actors": [
+        "user",
+        "agent"
+      ],
+      "authorizationModes": [
+        {
+          "actor": "user",
+          "authority": "project_owner",
+          "confirmation": "owner_direct",
+          "decisionAuthority": "project_owner",
+          "scope": "permitted_project_transition"
+        },
+        {
+          "actor": "agent",
+          "authority": "current_coordinator",
+          "confirmableActionKind": "project.complete",
+          "confirmation": "required",
+          "decisionAuthority": "project_owner",
+          "scope": "completed_only"
+        }
+      ],
+      "availability": "current",
+      "command": "project.transition",
+      "condition": "The Project owner User may directly perform a permitted transition. The current Coordinator Agent may only complete the Project with a matching one-time project.complete confirmation; the Owner remains the business decision authority."
+    },
+    {
+      "actors": [
+        "user"
+      ],
+      "availability": "current",
+      "command": "projection.create",
+      "condition": "The user must own the projection and all referenced endpoints/agents."
+    },
+    {
+      "actors": [
+        "user"
+      ],
+      "availability": "current",
+      "command": "projection.get",
+      "condition": "The user must own the projection and all referenced endpoints/agents."
+    },
+    {
+      "actors": [
+        "user"
+      ],
+      "availability": "current",
+      "command": "projection.list",
+      "condition": "The user must own the projection and all referenced endpoints/agents."
+    },
+    {
+      "actors": [
+        "agent"
+      ],
+      "availability": "current",
+      "command": "projection.message.publish",
+      "condition": "The Agent must own the active projection."
+    },
+    {
+      "actors": [
+        "user"
+      ],
+      "availability": "current",
+      "command": "projection.update",
+      "condition": "The user must own the projection and all referenced endpoints/agents."
+    },
+    {
+      "actors": [
+        "user",
+        "agent"
+      ],
+      "availability": "current",
+      "command": "receipt.get",
+      "condition": "The receipt must belong to the authenticated actor."
+    },
+    {
+      "actors": [
+        "user",
+        "agent"
+      ],
+      "availability": "current",
+      "command": "resource.create",
+      "condition": "The actor must be an active member; Worker writes require the current active Task assignment."
+    },
+    {
+      "actors": [
+        "user",
+        "agent"
+      ],
+      "availability": "current",
+      "command": "resource.get",
+      "condition": "The actor must belong to an active Project member."
+    },
+    {
+      "actors": [
+        "user",
+        "agent"
+      ],
+      "availability": "current",
+      "command": "resource.invalidate",
+      "condition": "The actor must be an active member; Worker writes require the current active Task assignment."
+    },
+    {
+      "actors": [
+        "user",
+        "agent"
+      ],
+      "availability": "current",
+      "command": "resource.transition",
+      "condition": "The actor must be an active member; Worker writes require the current active Task assignment."
+    },
+    {
+      "actors": [
+        "user",
+        "agent"
+      ],
+      "authorizationModes": [
+        {
+          "actor": "user",
+          "authority": "project_owner",
+          "confirmation": "owner_direct",
+          "decisionAuthority": "project_owner",
+          "scope": "initial_assignment"
+        },
+        {
+          "actor": "agent",
+          "authority": "current_coordinator",
+          "confirmableActionKind": "tasks.create",
+          "confirmation": "required",
+          "decisionAuthority": "project_owner",
+          "scope": "initial_assignment"
+        }
+      ],
+      "availability": "current",
+      "command": "task.create",
+      "condition": "The Project owner User may directly authorize the initial assignment. The current Coordinator Agent is only the delegated technical caller and requires a matching one-time tasks.create confirmation from the Owner."
+    },
+    {
+      "actors": [
+        "user",
+        "agent"
+      ],
+      "availability": "current",
+      "command": "task.get",
+      "condition": "The actor must belong to an active Project member."
+    },
+    {
+      "actors": [
+        "agent"
+      ],
+      "availability": "current",
+      "command": "task.progress.report",
+      "condition": "Only the current assignee of a running Task may report progress."
+    },
+    {
+      "actors": [
+        "user",
+        "agent"
+      ],
+      "authorizationModes": [
+        {
+          "actor": "user",
+          "authority": "project_owner",
+          "confirmation": "owner_direct",
+          "decisionAuthority": "project_owner",
+          "scope": "same_assignee_retry_or_reassign"
+        },
+        {
+          "actor": "agent",
+          "authority": "current_coordinator",
+          "confirmation": "not_required",
+          "decisionAuthority": "current_coordinator",
+          "scope": "same_assignee_terminal_retry"
+        },
+        {
+          "actor": "agent",
+          "authority": "current_coordinator",
+          "confirmableActionKind": "task.retry_reassign",
+          "confirmation": "required",
+          "decisionAuthority": "project_owner",
+          "scope": "different_assignee_reassign"
+        }
+      ],
+      "availability": "current",
+      "command": "task.retry",
+      "condition": "The Project owner User may directly retry or reassign. The current Coordinator Agent may directly retry the same assignee from succeeded, failed, or rejected; changing assignee requires a matching one-time task.retry_reassign confirmation from the Owner."
+    },
+    {
+      "actors": [
+        "user",
+        "agent"
+      ],
+      "authorizationModes": [
+        {
+          "actor": "agent",
+          "authority": "current_assignee",
+          "confirmation": "not_applicable",
+          "decisionAuthority": "current_assignee",
+          "scope": "execution_transition"
+        },
+        {
+          "actor": "user",
+          "authority": "project_owner",
+          "confirmation": "owner_direct",
+          "decisionAuthority": "project_owner",
+          "scope": "cancel_only"
+        },
+        {
+          "actor": "agent",
+          "authority": "current_coordinator",
+          "confirmableActionKind": "task.cancel",
+          "confirmation": "required",
+          "decisionAuthority": "project_owner",
+          "scope": "cancel_only"
+        }
+      ],
+      "availability": "current",
+      "command": "task.transition",
+      "condition": "Execution facts require the current assignee Agent. Cancellation may be called directly by the Project owner User, or delegated to the current Coordinator Agent only with a matching one-time task.cancel confirmation; the Owner remains the business decision authority."
+    },
+    {
+      "actors": [],
+      "availability": "reserved",
+      "command": "user.create",
+      "condition": "The legacy strict command shape is reserved, but the public HTTP boundary permanently rejects direct use."
+    },
+    {
+      "actors": [
+        "user"
+      ],
+      "availability": "current",
+      "command": "user.get",
+      "condition": "The credential userId must equal the target userId."
+    },
+    {
+      "actors": [
+        "user"
+      ],
+      "availability": "current",
+      "command": "user.update",
+      "condition": "The credential userId must equal the target userId."
+    }
+  ],
+  "protocolVersion": "1.0",
+  "stateTransitions": {
+    "action_confirmation": {
+      "approved": [
+        "consumed",
+        "superseded"
+      ],
+      "consumed": [],
+      "superseded": []
+    },
+    "agent": {
+      "active": [
+        "revoked"
+      ],
+      "revoked": []
+    },
+    "device": {
+      "active": [
+        "revoked"
+      ],
+      "revoked": []
+    },
+    "device_enrollment": {
+      "consumed": [],
+      "expired": [],
+      "pending": [
+        "consumed",
+        "expired"
+      ]
+    },
+    "endpoint": {
+      "active": [
+        "suspended",
+        "revoked"
+      ],
+      "revoked": [],
+      "suspended": [
+        "active",
+        "revoked"
+      ]
+    },
+    "external_identity": {
+      "active": [
+        "revoked"
+      ],
+      "revoked": []
+    },
+    "human_needed": {
+      "answered": [],
+      "cancelled": [],
+      "expired": [],
+      "pending": [
+        "answered",
+        "expired",
+        "cancelled"
+      ]
+    },
+    "inbox": {
+      "acknowledged": [],
+      "pending": [
+        "acknowledged",
+        "superseded"
+      ],
+      "superseded": []
+    },
+    "oidc_identity": {
+      "active": [
+        "revoked"
+      ],
+      "revoked": []
+    },
+    "participant": {
+      "active": [
+        "incomplete",
+        "suspended",
+        "revoked"
+      ],
+      "incomplete": [
+        "active",
+        "suspended",
+        "revoked"
+      ],
+      "revoked": [],
+      "suspended": [
+        "incomplete",
+        "active",
+        "revoked"
+      ]
+    },
+    "project": {
+      "active": [
+        "paused",
+        "completed",
+        "cancelled"
+      ],
+      "cancelled": [],
+      "completed": [],
+      "draft": [
+        "active",
+        "cancelled"
+      ],
+      "paused": [
+        "active",
+        "cancelled"
+      ]
+    },
+    "project_endpoint_binding": {
+      "active": [
+        "error",
+        "closed"
+      ],
+      "closed": [],
+      "error": [
+        "active",
+        "closed"
+      ]
+    },
+    "project_input": {
+      "expired": [],
+      "processed": [],
+      "queued": [
+        "processed",
+        "rejected",
+        "expired"
+      ],
+      "rejected": []
+    },
+    "project_record": {
+      "accepted": [],
+      "proposed": [
+        "accepted",
+        "rejected",
+        "superseded"
+      ],
+      "rejected": [
+        "superseded"
+      ],
+      "superseded": []
+    },
+    "projection": {
+      "active": [
+        "paused",
+        "error",
+        "closed"
+      ],
+      "closed": [],
+      "error": [
+        "active",
+        "paused",
+        "closed"
+      ],
+      "paused": [
+        "active",
+        "error",
+        "closed"
+      ]
+    },
+    "resource_ref": {
+      "available": [
+        "unavailable",
+        "revoked",
+        "invalidated"
+      ],
+      "invalidated": [],
+      "revoked": [
+        "available",
+        "unavailable"
+      ],
+      "unavailable": [
+        "available",
+        "revoked"
+      ]
+    },
+    "task": {
+      "accepted": [
+        "offered",
+        "running",
+        "rejected",
+        "cancelled"
+      ],
+      "cancelled": [],
+      "failed": [
+        "offered"
+      ],
+      "needs_human": [
+        "offered",
+        "running",
+        "failed",
+        "cancelled"
+      ],
+      "offered": [
+        "offered",
+        "accepted",
+        "rejected",
+        "cancelled"
+      ],
+      "rejected": [
+        "offered"
+      ],
+      "running": [
+        "offered",
+        "needs_human",
+        "succeeded",
+        "failed",
+        "cancelled"
+      ],
+      "succeeded": [
+        "offered"
+      ]
+    },
+    "user": {
+      "active": [
+        "suspended",
+        "revoked"
+      ],
+      "revoked": [],
+      "suspended": [
+        "active",
+        "revoked"
+      ]
+    },
+    "zulip_binding_request": {
+      "confirmed": [],
+      "expired": [],
+      "pending": [
+        "confirmed",
+        "expired"
+      ]
+    }
+  }
+}

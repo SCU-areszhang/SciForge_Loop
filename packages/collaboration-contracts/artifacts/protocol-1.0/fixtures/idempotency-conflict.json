@@ -1,0 +1,64 @@
+{
+  "category": "idempotency-conflict",
+  "contractCommit": "__SCIFORGE_COLLABORATION_COMMIT__",
+  "contractStatus": "current",
+  "documents": [
+    {
+      "role": "original-request",
+      "schema": "command",
+      "value": {
+        "executionId": "exe_Execution0001",
+        "expectedRevision": 3,
+        "idempotencyKey": "idem_contract_fixture_conflicting-payload",
+        "percent": 50,
+        "protocolVersion": "1.0",
+        "requestId": "req_idempotency1",
+        "summary": "Half of the bounded work is complete.",
+        "taskId": "tsk_Task00000001",
+        "type": "task.progress.report"
+      }
+    },
+    {
+      "role": "conflicting-request",
+      "schema": "command",
+      "value": {
+        "executionId": "exe_Execution0001",
+        "expectedRevision": 3,
+        "idempotencyKey": "idem_contract_fixture_conflicting-payload",
+        "percent": 60,
+        "protocolVersion": "1.0",
+        "requestId": "req_idempotency2",
+        "summary": "A different payload must not reuse the original key.",
+        "taskId": "tsk_Task00000001",
+        "type": "task.progress.report"
+      }
+    },
+    {
+      "role": "response",
+      "schema": "response",
+      "value": {
+        "error": {
+          "category": "conflict",
+          "code": "idempotency_conflict",
+          "httpStatus": 409,
+          "message": "The idempotency key is already bound to another payload.",
+          "protocolVersion": "1.0",
+          "requestId": "req_idempotency2",
+          "retryable": false,
+          "traceId": "trc_Trace00000001",
+          "type": "error"
+        },
+        "protocolVersion": "1.0",
+        "requestId": "req_idempotency2",
+        "type": "rest.error"
+      }
+    }
+  ],
+  "expectations": {
+    "accepted": false,
+    "originalReceiptUnchanged": true
+  },
+  "fixtureVersion": 1,
+  "id": "idempotency-conflict",
+  "protocolVersion": "1.0"
+}

@@ -1,0 +1,3421 @@
+{
+  "$defs": {
+    "__schema0": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        },
+        {
+          "items": {
+            "$ref": "#/$defs/__schema0"
+          },
+          "type": "array"
+        },
+        {
+          "additionalProperties": {
+            "$ref": "#/$defs/__schema0"
+          },
+          "propertyNames": {
+            "type": "string"
+          },
+          "type": "object"
+        }
+      ]
+    }
+  },
+  "$id": "https://contracts.sciforge.invalid/collaboration/1.0/commands.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "oneOf": [
+    {
+      "additionalProperties": false,
+      "properties": {
+        "idempotencyKey": {
+          "maxLength": 128,
+          "minLength": 16,
+          "pattern": "^idem_[A-Za-z0-9._:-]+$",
+          "type": "string"
+        },
+        "protocolVersion": {
+          "const": "1.0",
+          "type": "string"
+        },
+        "realmUrl": {
+          "maxLength": 2048,
+          "minLength": 1,
+          "type": "string"
+        },
+        "requestId": {
+          "pattern": "^req_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "type": {
+          "const": "pairing.begin",
+          "type": "string"
+        }
+      },
+      "required": [
+        "protocolVersion",
+        "requestId",
+        "idempotencyKey",
+        "type",
+        "realmUrl"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "bindingRequestId": {
+          "pattern": "^zbr_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "idempotencyKey": {
+          "maxLength": 128,
+          "minLength": 16,
+          "pattern": "^idem_[A-Za-z0-9._:-]+$",
+          "type": "string"
+        },
+        "protocolVersion": {
+          "const": "1.0",
+          "type": "string"
+        },
+        "requestId": {
+          "pattern": "^req_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "type": {
+          "const": "pairing.redeem",
+          "type": "string"
+        }
+      },
+      "required": [
+        "protocolVersion",
+        "requestId",
+        "idempotencyKey",
+        "type",
+        "bindingRequestId"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "displayName": {
+          "maxLength": 200,
+          "minLength": 1,
+          "type": "string"
+        },
+        "idempotencyKey": {
+          "maxLength": 128,
+          "minLength": 16,
+          "pattern": "^idem_[A-Za-z0-9._:-]+$",
+          "type": "string"
+        },
+        "protocolVersion": {
+          "const": "1.0",
+          "type": "string"
+        },
+        "requestId": {
+          "pattern": "^req_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "type": {
+          "const": "user.create",
+          "type": "string"
+        }
+      },
+      "required": [
+        "protocolVersion",
+        "requestId",
+        "idempotencyKey",
+        "type",
+        "displayName"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "protocolVersion": {
+          "const": "1.0",
+          "type": "string"
+        },
+        "requestId": {
+          "pattern": "^req_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "type": {
+          "const": "user.get",
+          "type": "string"
+        },
+        "userId": {
+          "pattern": "^usr_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "protocolVersion",
+        "requestId",
+        "type",
+        "userId"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "displayName": {
+          "maxLength": 200,
+          "minLength": 1,
+          "type": "string"
+        },
+        "expectedRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "idempotencyKey": {
+          "maxLength": 128,
+          "minLength": 16,
+          "pattern": "^idem_[A-Za-z0-9._:-]+$",
+          "type": "string"
+        },
+        "protocolVersion": {
+          "const": "1.0",
+          "type": "string"
+        },
+        "requestId": {
+          "pattern": "^req_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "active",
+            "suspended",
+            "revoked"
+          ],
+          "type": "string"
+        },
+        "type": {
+          "const": "user.update",
+          "type": "string"
+        },
+        "userId": {
+          "pattern": "^usr_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "protocolVersion",
+        "requestId",
+        "idempotencyKey",
+        "type",
+        "userId",
+        "expectedRevision"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "expectedIdentity": {
+          "additionalProperties": false,
+          "properties": {
+            "provider": {
+              "maxLength": 64,
+              "minLength": 1,
+              "type": "string"
+            },
+            "providerUserId": {
+              "maxLength": 512,
+              "minLength": 1,
+              "type": "string"
+            },
+            "realmId": {
+              "maxLength": 512,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "provider",
+            "realmId",
+            "providerUserId"
+          ],
+          "type": "object"
+        },
+        "idempotencyKey": {
+          "maxLength": 128,
+          "minLength": 16,
+          "pattern": "^idem_[A-Za-z0-9._:-]+$",
+          "type": "string"
+        },
+        "protocolVersion": {
+          "const": "1.0",
+          "type": "string"
+        },
+        "requestId": {
+          "pattern": "^req_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "type": {
+          "const": "endpoint.challenge.create",
+          "type": "string"
+        },
+        "userId": {
+          "pattern": "^usr_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "protocolVersion",
+        "requestId",
+        "idempotencyKey",
+        "type",
+        "userId",
+        "expectedIdentity"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "challengeId": {
+          "pattern": "^chl_[A-Za-z0-9]{12,64}$",
+          "type": "string"
+        },
+        "challengeResponse": {
+          "maxLength": 512,
+          "minLength": 8,
+          "type": "string"
+        },
+        "idempotencyKey": {
+          "maxLength": 128,
+          "minLength": 16,
+          "pattern": "^idem_[A-Za-z0-9._:-]+$",
+          "type": "string"
+        },
+        "protocolVersion": {
+          "const": "1.0",
+          "type": "string"
+        },
+        "requestId": {
+          "pattern": "^req_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "type": {
+          "const": "endpoint.bind",
+          "type": "string"
+        },
+        "userId": {
+          "pattern": "^usr_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "protocolVersion",
+        "requestId",
+        "idempotencyKey",
+        "type",
+        "userId",
+        "challengeId",
+        "challengeResponse"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "expectedRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "humanEndpointId": {
+          "pattern": "^hep_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "idempotencyKey": {
+          "maxLength": 128,
+          "minLength": 16,
+          "pattern": "^idem_[A-Za-z0-9._:-]+$",
+          "type": "string"
+        },
+        "protocolVersion": {
+          "const": "1.0",
+          "type": "string"
+        },
+        "requestId": {
+          "pattern": "^req_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "active",
+            "suspended",
+            "revoked"
+          ],
+          "type": "string"
+        },
+        "type": {
+          "const": "endpoint.transition",
+          "type": "string"
+        }
+      },
+      "required": [
+        "protocolVersion",
+        "requestId",
+        "idempotencyKey",
+        "type",
+        "humanEndpointId",
+        "expectedRevision",
+        "status"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "expectedRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "humanEndpointId": {
+          "pattern": "^hep_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "idempotencyKey": {
+          "maxLength": 128,
+          "minLength": 16,
+          "pattern": "^idem_[A-Za-z0-9._:-]+$",
+          "type": "string"
+        },
+        "protocolVersion": {
+          "const": "1.0",
+          "type": "string"
+        },
+        "requestId": {
+          "pattern": "^req_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "targetUserId": {
+          "pattern": "^usr_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "type": {
+          "const": "endpoint.transfer",
+          "type": "string"
+        }
+      },
+      "required": [
+        "protocolVersion",
+        "requestId",
+        "idempotencyKey",
+        "type",
+        "humanEndpointId",
+        "targetUserId",
+        "expectedRevision"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "capabilities": {
+          "items": {
+            "pattern": "^[a-z][a-z0-9_.-]{0,127}$",
+            "type": "string"
+          },
+          "maxItems": 256,
+          "type": "array"
+        },
+        "deviceId": {
+          "pattern": "^dev_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "displayName": {
+          "maxLength": 200,
+          "minLength": 1,
+          "type": "string"
+        },
+        "idempotencyKey": {
+          "maxLength": 128,
+          "minLength": 16,
+          "pattern": "^idem_[A-Za-z0-9._:-]+$",
+          "type": "string"
+        },
+        "nodeType": {
+          "enum": [
+            "desktop",
+            "server"
+          ],
+          "type": "string"
+        },
+        "ownerUserId": {
+          "pattern": "^usr_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "protocolVersion": {
+          "const": "1.0",
+          "type": "string"
+        },
+        "requestId": {
+          "pattern": "^req_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "type": {
+          "const": "agent.register",
+          "type": "string"
+        }
+      },
+      "required": [
+        "protocolVersion",
+        "requestId",
+        "idempotencyKey",
+        "type",
+        "deviceId",
+        "displayName",
+        "nodeType",
+        "capabilities"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "agentId": {
+          "pattern": "^agt_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "capabilities": {
+          "items": {
+            "pattern": "^[a-z][a-z0-9_.-]{0,127}$",
+            "type": "string"
+          },
+          "maxItems": 256,
+          "type": "array"
+        },
+        "connectionStatus": {
+          "enum": [
+            "online",
+            "offline"
+          ],
+          "type": "string"
+        },
+        "expectedRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "idempotencyKey": {
+          "maxLength": 128,
+          "minLength": 16,
+          "pattern": "^idem_[A-Za-z0-9._:-]+$",
+          "type": "string"
+        },
+        "protocolVersion": {
+          "const": "1.0",
+          "type": "string"
+        },
+        "requestId": {
+          "pattern": "^req_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "type": {
+          "const": "agent.heartbeat",
+          "type": "string"
+        }
+      },
+      "required": [
+        "protocolVersion",
+        "requestId",
+        "idempotencyKey",
+        "type",
+        "agentId",
+        "expectedRevision",
+        "connectionStatus",
+        "capabilities"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "expectedProfileRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "idempotencyKey": {
+          "maxLength": 128,
+          "minLength": 16,
+          "pattern": "^idem_[A-Za-z0-9._:-]+$",
+          "type": "string"
+        },
+        "profile": {
+          "additionalProperties": false,
+          "properties": {
+            "accessibleResourceRefIds": {
+              "items": {
+                "pattern": "^rrf_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+                "type": "string"
+              },
+              "maxItems": 10000,
+              "type": "array"
+            },
+            "agentId": {
+              "pattern": "^agt_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+              "type": "string"
+            },
+            "capabilities": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "capabilityId": {
+                    "pattern": "^[a-z][a-z0-9_.-]{0,127}$",
+                    "type": "string"
+                  },
+                  "evidence": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "checkedAt": {
+                        "format": "date-time",
+                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                        "type": "string"
+                      },
+                      "level": {
+                        "enum": [
+                          "detected",
+                          "configured",
+                          "verified"
+                        ],
+                        "type": "string"
+                      },
+                      "summary": {
+                        "maxLength": 500,
+                        "minLength": 1,
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "level",
+                      "checkedAt"
+                    ],
+                    "type": "object"
+                  },
+                  "version": {
+                    "maxLength": 200,
+                    "minLength": 1,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "capabilityId",
+                  "evidence"
+                ],
+                "type": "object"
+              },
+              "maxItems": 256,
+              "type": "array"
+            },
+            "expiresAt": {
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "type": "string"
+            },
+            "gpu": {
+              "default": [],
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "evidence": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "checkedAt": {
+                        "format": "date-time",
+                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                        "type": "string"
+                      },
+                      "level": {
+                        "enum": [
+                          "detected",
+                          "configured",
+                          "verified"
+                        ],
+                        "type": "string"
+                      },
+                      "summary": {
+                        "maxLength": 500,
+                        "minLength": 1,
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "level",
+                      "checkedAt"
+                    ],
+                    "type": "object"
+                  },
+                  "memoryGB": {
+                    "maximum": 1000000,
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  "model": {
+                    "maxLength": 200,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "vendor": {
+                    "maxLength": 100,
+                    "minLength": 1,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "evidence"
+                ],
+                "type": "object"
+              },
+              "maxItems": 32,
+              "type": "array"
+            },
+            "nodeType": {
+              "enum": [
+                "personal_computer",
+                "institution_server"
+              ],
+              "type": "string"
+            },
+            "os": {
+              "additionalProperties": false,
+              "properties": {
+                "architecture": {
+                  "enum": [
+                    "x64",
+                    "arm64"
+                  ],
+                  "type": "string"
+                },
+                "family": {
+                  "enum": [
+                    "windows",
+                    "macos",
+                    "linux"
+                  ],
+                  "type": "string"
+                },
+                "version": {
+                  "maxLength": 200,
+                  "minLength": 1,
+                  "type": "string"
+                }
+              },
+              "required": [
+                "family",
+                "architecture"
+              ],
+              "type": "object"
+            },
+            "ownerUserId": {
+              "pattern": "^usr_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+              "type": "string"
+            },
+            "reportedAt": {
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "type": "string"
+            },
+            "resultReturnPolicy": {
+              "additionalProperties": false,
+              "properties": {
+                "evidenceRefs": {
+                  "type": "boolean"
+                },
+                "fullFileRequiresConfirmation": {
+                  "const": true,
+                  "type": "boolean"
+                },
+                "fullLogRequiresConfirmation": {
+                  "const": true,
+                  "type": "boolean"
+                },
+                "logSummary": {
+                  "type": "boolean"
+                },
+                "resourceRefs": {
+                  "type": "boolean"
+                },
+                "summary": {
+                  "const": true,
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "summary",
+                "evidenceRefs",
+                "resourceRefs",
+                "logSummary",
+                "fullFileRequiresConfirmation",
+                "fullLogRequiresConfirmation"
+              ],
+              "type": "object"
+            },
+            "runtimeIds": {
+              "items": {
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+                "type": "string"
+              },
+              "maxItems": 100,
+              "type": "array"
+            },
+            "slurmClusterIds": {
+              "items": {
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$",
+                "type": "string"
+              },
+              "maxItems": 100,
+              "type": "array"
+            },
+            "vpnAccessIds": {
+              "items": {
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$",
+                "type": "string"
+              },
+              "maxItems": 100,
+              "type": "array"
+            }
+          },
+          "required": [
+            "agentId",
+            "ownerUserId",
+            "nodeType",
+            "os",
+            "runtimeIds",
+            "capabilities",
+            "vpnAccessIds",
+            "slurmClusterIds",
+            "accessibleResourceRefIds",
+            "resultReturnPolicy",
+            "reportedAt",
+            "expiresAt"
+          ],
+          "type": "object"
+        },
+        "protocolVersion": {
+          "const": "1.0",
+          "type": "string"
+        },
+        "requestId": {
+          "pattern": "^req_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "type": {
+          "const": "agent.capability_profile.report",
+          "type": "string"
+        }
+      },
+      "required": [
+        "protocolVersion",
+        "requestId",
+        "idempotencyKey",
+        "type",
+        "expectedProfileRevision",
+        "profile"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "agentId": {
+          "pattern": "^agt_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "expectedRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "idempotencyKey": {
+          "maxLength": 128,
+          "minLength": 16,
+          "pattern": "^idem_[A-Za-z0-9._:-]+$",
+          "type": "string"
+        },
+        "protocolVersion": {
+          "const": "1.0",
+          "type": "string"
+        },
+        "requestId": {
+          "pattern": "^req_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "type": {
+          "const": "agent.rotate_credential",
+          "type": "string"
+        }
+      },
+      "required": [
+        "protocolVersion",
+        "requestId",
+        "idempotencyKey",
+        "type",
+        "agentId",
+        "expectedRevision"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "agentId": {
+          "pattern": "^agt_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "expectedRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "idempotencyKey": {
+          "maxLength": 128,
+          "minLength": 16,
+          "pattern": "^idem_[A-Za-z0-9._:-]+$",
+          "type": "string"
+        },
+        "protocolVersion": {
+          "const": "1.0",
+          "type": "string"
+        },
+        "requestId": {
+          "pattern": "^req_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "targetUserId": {
+          "pattern": "^usr_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "type": {
+          "const": "agent.owner.transfer",
+          "type": "string"
+        }
+      },
+      "required": [
+        "protocolVersion",
+        "requestId",
+        "idempotencyKey",
+        "type",
+        "agentId",
+        "targetUserId",
+        "expectedRevision"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "agentId": {
+          "pattern": "^agt_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "expectedRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "idempotencyKey": {
+          "maxLength": 128,
+          "minLength": 16,
+          "pattern": "^idem_[A-Za-z0-9._:-]+$",
+          "type": "string"
+        },
+        "protocolVersion": {
+          "const": "1.0",
+          "type": "string"
+        },
+        "requestId": {
+          "pattern": "^req_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "type": {
+          "const": "agent.revoke",
+          "type": "string"
+        }
+      },
+      "required": [
+        "protocolVersion",
+        "requestId",
+        "idempotencyKey",
+        "type",
+        "agentId",
+        "expectedRevision"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "idempotencyKey": {
+          "maxLength": 128,
+          "minLength": 16,
+          "pattern": "^idem_[A-Za-z0-9._:-]+$",
+          "type": "string"
+        },
+        "protocolVersion": {
+          "const": "1.0",
+          "type": "string"
+        },
+        "requestId": {
+          "pattern": "^req_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "type": {
+          "const": "credential.revoke_current",
+          "type": "string"
+        }
+      },
+      "required": [
+        "protocolVersion",
+        "requestId",
+        "idempotencyKey",
+        "type"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "protocolVersion": {
+          "const": "1.0",
+          "type": "string"
+        },
+        "requestId": {
+          "pattern": "^req_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "type": {
+          "const": "participant.get",
+          "type": "string"
+        },
+        "userId": {
+          "pattern": "^usr_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "protocolVersion",
+        "requestId",
+        "type",
+        "userId"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "protocolVersion": {
+          "const": "1.0",
+          "type": "string"
+        },
+        "provider": {
+          "pattern": "^[a-z][a-z0-9.-]{0,63}$",
+          "type": "string"
+        },
+        "requestId": {
+          "pattern": "^req_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "type": {
+          "const": "endpoint.catalog.get",
+          "type": "string"
+        }
+      },
+      "required": [
+        "protocolVersion",
+        "requestId",
+        "type"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "cursor": {
+          "maxLength": 2048,
+          "minLength": 1,
+          "type": "string"
+        },
+        "humanEndpointId": {
+          "pattern": "^hep_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "limit": {
+          "maximum": 500,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "protocolVersion": {
+          "const": "1.0",
+          "type": "string"
+        },
+        "query": {
+          "maxLength": 200,
+          "type": "string"
+        },
+        "requestId": {
+          "pattern": "^req_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "type": {
+          "const": "endpoint.locator.list",
+          "type": "string"
+        }
+      },
+      "required": [
+        "protocolVersion",
+        "requestId",
+        "type",
+        "humanEndpointId",
+        "limit"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "expectedRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "idempotencyKey": {
+          "maxLength": 128,
+          "minLength": 16,
+          "pattern": "^idem_[A-Za-z0-9._:-]+$",
+          "type": "string"
+        },
+        "primaryAgentId": {
+          "anyOf": [
+            {
+              "pattern": "^agt_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "primaryHumanEndpointId": {
+          "anyOf": [
+            {
+              "pattern": "^hep_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "protocolVersion": {
+          "const": "1.0",
+          "type": "string"
+        },
+        "requestId": {
+          "pattern": "^req_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "type": {
+          "const": "participant.update_primary",
+          "type": "string"
+        },
+        "userId": {
+          "pattern": "^usr_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "protocolVersion",
+        "requestId",
+        "idempotencyKey",
+        "type",
+        "userId",
+        "expectedRevision",
+        "primaryHumanEndpointId",
+        "primaryAgentId"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "agentId": {
+          "pattern": "^agt_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "allowedSenderUserIds": {
+          "items": {
+            "pattern": "^usr_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+            "type": "string"
+          },
+          "maxItems": 100,
+          "minItems": 1,
+          "type": "array"
+        },
+        "displayName": {
+          "maxLength": 200,
+          "minLength": 1,
+          "type": "string"
+        },
+        "humanEndpointId": {
+          "pattern": "^hep_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "idempotencyKey": {
+          "maxLength": 128,
+          "minLength": 16,
+          "pattern": "^idem_[A-Za-z0-9._:-]+$",
+          "type": "string"
+        },
+        "locator": {
+          "additionalProperties": false,
+          "properties": {
+            "containerDisplayName": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "containerId": {
+              "maxLength": 512,
+              "minLength": 1,
+              "type": "string"
+            },
+            "provider": {
+              "pattern": "^[a-z][a-z0-9.-]{0,63}$",
+              "type": "string"
+            },
+            "realmId": {
+              "maxLength": 512,
+              "minLength": 1,
+              "type": "string"
+            },
+            "topicDisplayName": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "topicId": {
+              "maxLength": 512,
+              "minLength": 1,
+              "type": "string"
+            },
+            "type": {
+              "const": "provider_locator",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "provider",
+            "realmId",
+            "containerId",
+            "topicId"
+          ],
+          "type": "object"
+        },
+        "ownerUserId": {
+          "pattern": "^usr_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "protocolVersion": {
+          "const": "1.0",
+          "type": "string"
+        },
+        "requestId": {
+          "pattern": "^req_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "type": {
+          "const": "projection.create",
+          "type": "string"
+        }
+      },
+      "required": [
+        "protocolVersion",
+        "requestId",
+        "idempotencyKey",
+        "type",
+        "ownerUserId",
+        "agentId",
+        "humanEndpointId",
+        "locator",
+        "displayName",
+        "allowedSenderUserIds"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "projectionId": {
+          "pattern": "^rsp_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "protocolVersion": {
+          "const": "1.0",
+          "type": "string"
+        },
+        "requestId": {
+          "pattern": "^req_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "type": {
+          "const": "projection.get",
+          "type": "string"
+        }
+      },
+      "required": [
+        "protocolVersion",
+        "requestId",
+        "type",
+        "projectionId"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "ownerUserId": {
+          "pattern": "^usr_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "protocolVersion": {
+          "const": "1.0",
+          "type": "string"
+        },
+        "requestId": {
+          "pattern": "^req_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "type": {
+          "const": "projection.list",
+          "type": "string"
+        }
+      },
+      "required": [
+        "protocolVersion",
+        "requestId",
+        "type",
+        "ownerUserId"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "allowedSenderUserIds": {
+          "items": {
+            "pattern": "^usr_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+            "type": "string"
+          },
+          "maxItems": 100,
+          "minItems": 1,
+          "type": "array"
+        },
+        "displayName": {
+          "maxLength": 200,
+          "minLength": 1,
+          "type": "string"
+        },
+        "expectedRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "idempotencyKey": {
+          "maxLength": 128,
+          "minLength": 16,
+          "pattern": "^idem_[A-Za-z0-9._:-]+$",
+          "type": "string"
+        },
+        "locator": {
+          "additionalProperties": false,
+          "properties": {
+            "containerDisplayName": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "containerId": {
+              "maxLength": 512,
+              "minLength": 1,
+              "type": "string"
+            },
+            "provider": {
+              "pattern": "^[a-z][a-z0-9.-]{0,63}$",
+              "type": "string"
+            },
+            "realmId": {
+              "maxLength": 512,
+              "minLength": 1,
+              "type": "string"
+            },
+            "topicDisplayName": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "topicId": {
+              "maxLength": 512,
+              "minLength": 1,
+              "type": "string"
+            },
+            "type": {
+              "const": "provider_locator",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "provider",
+            "realmId",
+            "containerId",
+            "topicId"
+          ],
+          "type": "object"
+        },
+        "locatorRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "projectionId": {
+          "pattern": "^rsp_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "protocolVersion": {
+          "const": "1.0",
+          "type": "string"
+        },
+        "requestId": {
+          "pattern": "^req_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "active",
+            "paused",
+            "closed"
+          ],
+          "type": "string"
+        },
+        "type": {
+          "const": "projection.update",
+          "type": "string"
+        }
+      },
+      "required": [
+        "protocolVersion",
+        "requestId",
+        "idempotencyKey",
+        "type",
+        "projectionId",
+        "expectedRevision"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "idempotencyKey": {
+          "maxLength": 128,
+          "minLength": 16,
+          "pattern": "^idem_[A-Za-z0-9._:-]+$",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "user_message",
+            "assistant_final",
+            "system_status"
+          ],
+          "type": "string"
+        },
+        "localItemId": {
+          "pattern": "^lit_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "localTurnId": {
+          "maxLength": 512,
+          "minLength": 1,
+          "type": "string"
+        },
+        "occurredAt": {
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "type": "string"
+        },
+        "projectionId": {
+          "pattern": "^rsp_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "projectionRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "protocolVersion": {
+          "const": "1.0",
+          "type": "string"
+        },
+        "requestId": {
+          "pattern": "^req_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "text": {
+          "maxLength": 32000,
+          "minLength": 1,
+          "type": "string"
+        },
+        "type": {
+          "const": "projection.message.publish",
+          "type": "string"
+        }
+      },
+      "required": [
+        "protocolVersion",
+        "requestId",
+        "idempotencyKey",
+        "type",
+        "projectionId",
+        "projectionRevision",
+        "localItemId",
+        "kind",
+        "text",
+        "occurredAt"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "budget": {
+          "additionalProperties": false,
+          "properties": {
+            "maxCoordinationRounds": {
+              "maximum": 10000,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "maxTaskRetries": {
+              "maximum": 100,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "maxTasks": {
+              "maximum": 10000,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "maxTasksPerRound": {
+              "maximum": 1000,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "maxTasks",
+            "maxTasksPerRound",
+            "maxCoordinationRounds",
+            "maxTaskRetries"
+          ],
+          "type": "object"
+        },
+        "coordinatorAgentId": {
+          "pattern": "^agt_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "displayName": {
+          "maxLength": 200,
+          "minLength": 1,
+          "type": "string"
+        },
+        "goal": {
+          "maxLength": 32000,
+          "minLength": 1,
+          "type": "string"
+        },
+        "idempotencyKey": {
+          "maxLength": 128,
+          "minLength": 16,
+          "pattern": "^idem_[A-Za-z0-9._:-]+$",
+          "type": "string"
+        },
+        "memberUserIds": {
+          "items": {
+            "pattern": "^usr_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+            "type": "string"
+          },
+          "maxItems": 1000,
+          "minItems": 1,
+          "type": "array"
+        },
+        "ownerUserId": {
+          "pattern": "^usr_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "protocolVersion": {
+          "const": "1.0",
+          "type": "string"
+        },
+        "requestId": {
+          "pattern": "^req_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "type": {
+          "const": "project.create",
+          "type": "string"
+        }
+      },
+      "required": [
+        "protocolVersion",
+        "requestId",
+        "idempotencyKey",
+        "type",
+        "ownerUserId",
+        "displayName",
+        "goal",
+        "memberUserIds",
+        "coordinatorAgentId",
+        "budget"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "projectId": {
+          "pattern": "^prj_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "protocolVersion": {
+          "const": "1.0",
+          "type": "string"
+        },
+        "requestId": {
+          "pattern": "^req_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "type": {
+          "const": "project.get",
+          "type": "string"
+        }
+      },
+      "required": [
+        "protocolVersion",
+        "requestId",
+        "type",
+        "projectId"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "projectId": {
+          "pattern": "^prj_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "protocolVersion": {
+          "const": "1.0",
+          "type": "string"
+        },
+        "requestId": {
+          "pattern": "^req_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "type": {
+          "const": "project.coordination_view.get",
+          "type": "string"
+        }
+      },
+      "required": [
+        "protocolVersion",
+        "requestId",
+        "type",
+        "projectId"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "projectId": {
+          "pattern": "^prj_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "protocolVersion": {
+          "const": "1.0",
+          "type": "string"
+        },
+        "requestId": {
+          "pattern": "^req_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "type": {
+          "const": "project.capability_directory.get",
+          "type": "string"
+        }
+      },
+      "required": [
+        "protocolVersion",
+        "requestId",
+        "type",
+        "projectId"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "confirmationId": {
+          "pattern": "^cnf_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "expectedRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "finalRecordDigest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "type": "string"
+        },
+        "idempotencyKey": {
+          "maxLength": 128,
+          "minLength": 16,
+          "pattern": "^idem_[A-Za-z0-9._:-]+$",
+          "type": "string"
+        },
+        "projectId": {
+          "pattern": "^prj_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "protocolVersion": {
+          "const": "1.0",
+          "type": "string"
+        },
+        "requestId": {
+          "pattern": "^req_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "active",
+            "paused",
+            "completed",
+            "cancelled"
+          ],
+          "type": "string"
+        },
+        "type": {
+          "const": "project.transition",
+          "type": "string"
+        }
+      },
+      "required": [
+        "protocolVersion",
+        "requestId",
+        "idempotencyKey",
+        "type",
+        "projectId",
+        "expectedRevision",
+        "status"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "coordinatorAgentId": {
+          "pattern": "^agt_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "expectedRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "idempotencyKey": {
+          "maxLength": 128,
+          "minLength": 16,
+          "pattern": "^idem_[A-Za-z0-9._:-]+$",
+          "type": "string"
+        },
+        "projectId": {
+          "pattern": "^prj_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "protocolVersion": {
+          "const": "1.0",
+          "type": "string"
+        },
+        "requestId": {
+          "pattern": "^req_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "type": {
+          "const": "project.transfer_coordinator",
+          "type": "string"
+        }
+      },
+      "required": [
+        "protocolVersion",
+        "requestId",
+        "idempotencyKey",
+        "type",
+        "projectId",
+        "expectedRevision",
+        "coordinatorAgentId"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "idempotencyKey": {
+          "maxLength": 128,
+          "minLength": 16,
+          "pattern": "^idem_[A-Za-z0-9._:-]+$",
+          "type": "string"
+        },
+        "occurredAt": {
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "type": "string"
+        },
+        "projectId": {
+          "pattern": "^prj_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "protocolVersion": {
+          "const": "1.0",
+          "type": "string"
+        },
+        "providerMessageId": {
+          "maxLength": 512,
+          "minLength": 1,
+          "type": "string"
+        },
+        "requestId": {
+          "pattern": "^req_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "senderUserId": {
+          "pattern": "^usr_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "sourceHumanEndpointId": {
+          "pattern": "^hep_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "text": {
+          "maxLength": 32000,
+          "minLength": 1,
+          "type": "string"
+        },
+        "type": {
+          "const": "project.input.create",
+          "type": "string"
+        }
+      },
+      "required": [
+        "protocolVersion",
+        "requestId",
+        "idempotencyKey",
+        "type",
+        "projectId",
+        "senderUserId",
+        "sourceHumanEndpointId",
+        "providerMessageId",
+        "text",
+        "occurredAt"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "idempotencyKey": {
+          "maxLength": 128,
+          "minLength": 16,
+          "pattern": "^idem_[A-Za-z0-9._:-]+$",
+          "type": "string"
+        },
+        "locator": {
+          "additionalProperties": false,
+          "properties": {
+            "containerDisplayName": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "containerId": {
+              "maxLength": 512,
+              "minLength": 1,
+              "type": "string"
+            },
+            "provider": {
+              "pattern": "^[a-z][a-z0-9.-]{0,63}$",
+              "type": "string"
+            },
+            "realmId": {
+              "maxLength": 512,
+              "minLength": 1,
+              "type": "string"
+            },
+            "topicDisplayName": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "topicId": {
+              "maxLength": 512,
+              "minLength": 1,
+              "type": "string"
+            },
+            "type": {
+              "const": "provider_locator",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "provider",
+            "realmId",
+            "containerId",
+            "topicId"
+          ],
+          "type": "object"
+        },
+        "projectId": {
+          "pattern": "^prj_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "protocolVersion": {
+          "const": "1.0",
+          "type": "string"
+        },
+        "requestId": {
+          "pattern": "^req_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "type": {
+          "const": "project.endpoint.bind",
+          "type": "string"
+        }
+      },
+      "required": [
+        "protocolVersion",
+        "requestId",
+        "idempotencyKey",
+        "type",
+        "projectId",
+        "locator"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "expectedRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "idempotencyKey": {
+          "maxLength": 128,
+          "minLength": 16,
+          "pattern": "^idem_[A-Za-z0-9._:-]+$",
+          "type": "string"
+        },
+        "locator": {
+          "additionalProperties": false,
+          "properties": {
+            "containerDisplayName": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "containerId": {
+              "maxLength": 512,
+              "minLength": 1,
+              "type": "string"
+            },
+            "provider": {
+              "pattern": "^[a-z][a-z0-9.-]{0,63}$",
+              "type": "string"
+            },
+            "realmId": {
+              "maxLength": 512,
+              "minLength": 1,
+              "type": "string"
+            },
+            "topicDisplayName": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "topicId": {
+              "maxLength": 512,
+              "minLength": 1,
+              "type": "string"
+            },
+            "type": {
+              "const": "provider_locator",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "provider",
+            "realmId",
+            "containerId",
+            "topicId"
+          ],
+          "type": "object"
+        },
+        "locatorRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "projectEndpointBindingId": {
+          "pattern": "^peb_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "protocolVersion": {
+          "const": "1.0",
+          "type": "string"
+        },
+        "requestId": {
+          "pattern": "^req_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "active",
+            "closed"
+          ],
+          "type": "string"
+        },
+        "type": {
+          "const": "project.endpoint.update",
+          "type": "string"
+        }
+      },
+      "required": [
+        "protocolVersion",
+        "requestId",
+        "idempotencyKey",
+        "type",
+        "projectEndpointBindingId",
+        "expectedRevision"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "projectId": {
+          "pattern": "^prj_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "protocolVersion": {
+          "const": "1.0",
+          "type": "string"
+        },
+        "requestId": {
+          "pattern": "^req_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "type": {
+          "const": "project.endpoint.get",
+          "type": "string"
+        }
+      },
+      "required": [
+        "protocolVersion",
+        "requestId",
+        "type",
+        "projectId"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "assigneeAgentId": {
+          "pattern": "^agt_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "authorizationRequirements": {
+          "default": [],
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "description": {
+                "maxLength": 500,
+                "minLength": 1,
+                "type": "string"
+              },
+              "id": {
+                "pattern": "^auth_[A-Za-z0-9]{12,64}$",
+                "type": "string"
+              },
+              "kind": {
+                "enum": [
+                  "resource_access",
+                  "data_egress",
+                  "file_upload",
+                  "local_action"
+                ],
+                "type": "string"
+              },
+              "targetRefId": {
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "kind",
+              "description"
+            ],
+            "type": "object"
+          },
+          "maxItems": 100,
+          "type": "array"
+        },
+        "completionCriteria": {
+          "items": {
+            "anyOf": [
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "criterionId": {
+                    "pattern": "^cri_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+                    "type": "string"
+                  },
+                  "text": {
+                    "maxLength": 2000,
+                    "minLength": 1,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "criterionId",
+                  "text"
+                ],
+                "type": "object"
+              },
+              {
+                "maxLength": 2000,
+                "minLength": 1,
+                "type": "string"
+              }
+            ]
+          },
+          "maxItems": 100,
+          "minItems": 1,
+          "type": "array"
+        },
+        "confirmationId": {
+          "pattern": "^cnf_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "dependencyTaskIds": {
+          "items": {
+            "pattern": "^tsk_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+            "type": "string"
+          },
+          "maxItems": 1000,
+          "type": "array"
+        },
+        "expectedRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "idempotencyKey": {
+          "maxLength": 128,
+          "minLength": 16,
+          "pattern": "^idem_[A-Za-z0-9._:-]+$",
+          "type": "string"
+        },
+        "objective": {
+          "maxLength": 32000,
+          "minLength": 1,
+          "type": "string"
+        },
+        "projectId": {
+          "pattern": "^prj_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "protocolVersion": {
+          "const": "1.0",
+          "type": "string"
+        },
+        "requestId": {
+          "pattern": "^req_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "requiredCapabilities": {
+          "additionalProperties": false,
+          "default": {
+            "capabilityIds": [],
+            "requiredResourceRefIds": [],
+            "slurmClusterIds": [],
+            "vpnAccessIds": []
+          },
+          "properties": {
+            "capabilityIds": {
+              "items": {
+                "pattern": "^[a-z][a-z0-9_.-]{0,127}$",
+                "type": "string"
+              },
+              "maxItems": 256,
+              "type": "array"
+            },
+            "minGpuMemoryGB": {
+              "maximum": 1000000,
+              "minimum": 0,
+              "type": "number"
+            },
+            "minimumEvidenceLevel": {
+              "enum": [
+                "detected",
+                "configured",
+                "verified"
+              ],
+              "type": "string"
+            },
+            "osFamilies": {
+              "items": {
+                "enum": [
+                  "windows",
+                  "macos",
+                  "linux"
+                ],
+                "type": "string"
+              },
+              "maxItems": 3,
+              "type": "array"
+            },
+            "requiredResourceRefIds": {
+              "items": {
+                "pattern": "^rrf_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+                "type": "string"
+              },
+              "maxItems": 1000,
+              "type": "array"
+            },
+            "requireLogSummary": {
+              "type": "boolean"
+            },
+            "slurmClusterIds": {
+              "items": {
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$",
+                "type": "string"
+              },
+              "maxItems": 100,
+              "type": "array"
+            },
+            "vpnAccessIds": {
+              "items": {
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$",
+                "type": "string"
+              },
+              "maxItems": 100,
+              "type": "array"
+            }
+          },
+          "required": [
+            "capabilityIds",
+            "vpnAccessIds",
+            "slurmClusterIds",
+            "requiredResourceRefIds"
+          ],
+          "type": "object"
+        },
+        "resourceRefIds": {
+          "default": [],
+          "items": {
+            "pattern": "^rrf_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+            "type": "string"
+          },
+          "maxItems": 1000,
+          "type": "array"
+        },
+        "title": {
+          "maxLength": 200,
+          "minLength": 1,
+          "type": "string"
+        },
+        "type": {
+          "const": "task.create",
+          "type": "string"
+        }
+      },
+      "required": [
+        "protocolVersion",
+        "requestId",
+        "idempotencyKey",
+        "type",
+        "projectId",
+        "expectedRevision",
+        "assigneeAgentId",
+        "title",
+        "objective",
+        "completionCriteria",
+        "dependencyTaskIds"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "protocolVersion": {
+          "const": "1.0",
+          "type": "string"
+        },
+        "requestId": {
+          "pattern": "^req_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "taskId": {
+          "pattern": "^tsk_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "type": {
+          "const": "task.get",
+          "type": "string"
+        }
+      },
+      "required": [
+        "protocolVersion",
+        "requestId",
+        "type",
+        "taskId"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "assigneeAgentId": {
+          "pattern": "^agt_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "confirmationId": {
+          "pattern": "^cnf_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "executionId": {
+          "pattern": "^exe_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "expectedRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "idempotencyKey": {
+          "maxLength": 128,
+          "minLength": 16,
+          "pattern": "^idem_[A-Za-z0-9._:-]+$",
+          "type": "string"
+        },
+        "protocolVersion": {
+          "const": "1.0",
+          "type": "string"
+        },
+        "requestId": {
+          "pattern": "^req_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "taskId": {
+          "pattern": "^tsk_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "type": {
+          "const": "task.retry",
+          "type": "string"
+        }
+      },
+      "required": [
+        "protocolVersion",
+        "requestId",
+        "idempotencyKey",
+        "type",
+        "taskId",
+        "executionId",
+        "assigneeAgentId",
+        "expectedRevision"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "confirmationId": {
+          "pattern": "^cnf_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "executionId": {
+          "pattern": "^exe_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "expectedRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "idempotencyKey": {
+          "maxLength": 128,
+          "minLength": 16,
+          "pattern": "^idem_[A-Za-z0-9._:-]+$",
+          "type": "string"
+        },
+        "protocolVersion": {
+          "const": "1.0",
+          "type": "string"
+        },
+        "requestId": {
+          "pattern": "^req_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "result": {
+          "additionalProperties": false,
+          "properties": {
+            "criterionEvidence": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "criterionId": {
+                    "pattern": "^cri_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+                    "type": "string"
+                  },
+                  "resourceRefIds": {
+                    "items": {
+                      "pattern": "^rrf_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+                      "type": "string"
+                    },
+                    "maxItems": 1000,
+                    "type": "array"
+                  },
+                  "summary": {
+                    "maxLength": 2000,
+                    "minLength": 1,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "criterionId",
+                  "summary",
+                  "resourceRefIds"
+                ],
+                "type": "object"
+              },
+              "maxItems": 100,
+              "type": "array"
+            },
+            "logSummary": {
+              "maxLength": 2000,
+              "minLength": 1,
+              "type": "string"
+            },
+            "resourceRefIds": {
+              "items": {
+                "pattern": "^rrf_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+                "type": "string"
+              },
+              "maxItems": 1000,
+              "type": "array"
+            },
+            "summary": {
+              "maxLength": 32000,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "summary",
+            "criterionEvidence",
+            "resourceRefIds"
+          ],
+          "type": "object"
+        },
+        "resultSummary": {
+          "maxLength": 32000,
+          "minLength": 1,
+          "type": "string"
+        },
+        "safeFailureCode": {
+          "pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+          "type": "string"
+        },
+        "safeFailureSummary": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "offered",
+            "accepted",
+            "rejected",
+            "running",
+            "needs_human",
+            "succeeded",
+            "failed",
+            "cancelled"
+          ],
+          "type": "string"
+        },
+        "taskId": {
+          "pattern": "^tsk_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "type": {
+          "const": "task.transition",
+          "type": "string"
+        }
+      },
+      "required": [
+        "protocolVersion",
+        "requestId",
+        "idempotencyKey",
+        "type",
+        "taskId",
+        "executionId",
+        "expectedRevision",
+        "status"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "executionId": {
+          "pattern": "^exe_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "expectedRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "idempotencyKey": {
+          "maxLength": 128,
+          "minLength": 16,
+          "pattern": "^idem_[A-Za-z0-9._:-]+$",
+          "type": "string"
+        },
+        "percent": {
+          "maximum": 100,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "protocolVersion": {
+          "const": "1.0",
+          "type": "string"
+        },
+        "requestId": {
+          "pattern": "^req_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "summary": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "type": "string"
+        },
+        "taskId": {
+          "pattern": "^tsk_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "type": {
+          "const": "task.progress.report",
+          "type": "string"
+        }
+      },
+      "required": [
+        "protocolVersion",
+        "requestId",
+        "idempotencyKey",
+        "type",
+        "taskId",
+        "executionId",
+        "expectedRevision",
+        "percent",
+        "summary"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "body": {
+          "maxLength": 32000,
+          "minLength": 1,
+          "type": "string"
+        },
+        "criterionEvidence": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "criterionId": {
+                "pattern": "^cri_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+                "type": "string"
+              },
+              "resourceRefIds": {
+                "items": {
+                  "pattern": "^rrf_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+                  "type": "string"
+                },
+                "maxItems": 1000,
+                "type": "array"
+              },
+              "summary": {
+                "maxLength": 2000,
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "criterionId",
+              "summary",
+              "resourceRefIds"
+            ],
+            "type": "object"
+          },
+          "maxItems": 100,
+          "type": "array"
+        },
+        "idempotencyKey": {
+          "maxLength": 128,
+          "minLength": 16,
+          "pattern": "^idem_[A-Za-z0-9._:-]+$",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "observation",
+            "proposal",
+            "decision",
+            "summary",
+            "task_result"
+          ],
+          "type": "string"
+        },
+        "logSummary": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "type": "string"
+        },
+        "projectId": {
+          "pattern": "^prj_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "protocolVersion": {
+          "const": "1.0",
+          "type": "string"
+        },
+        "requestId": {
+          "pattern": "^req_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "resourceRefIds": {
+          "items": {
+            "pattern": "^rrf_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+            "type": "string"
+          },
+          "maxItems": 1000,
+          "type": "array"
+        },
+        "sourceExecutionId": {
+          "anyOf": [
+            {
+              "pattern": "^exe_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "sourceRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "sourceTaskId": {
+          "anyOf": [
+            {
+              "pattern": "^tsk_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "type": {
+          "const": "project_record.submit",
+          "type": "string"
+        }
+      },
+      "required": [
+        "protocolVersion",
+        "requestId",
+        "idempotencyKey",
+        "type",
+        "projectId",
+        "sourceTaskId",
+        "sourceExecutionId",
+        "sourceRevision",
+        "kind",
+        "body"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "projectRecordId": {
+          "pattern": "^rec_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "protocolVersion": {
+          "const": "1.0",
+          "type": "string"
+        },
+        "requestId": {
+          "pattern": "^req_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "type": {
+          "const": "project_record.get",
+          "type": "string"
+        }
+      },
+      "required": [
+        "protocolVersion",
+        "requestId",
+        "type",
+        "projectRecordId"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "decision": {
+          "enum": [
+            "accepted",
+            "rejected"
+          ],
+          "type": "string"
+        },
+        "expectedRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "idempotencyKey": {
+          "maxLength": 128,
+          "minLength": 16,
+          "pattern": "^idem_[A-Za-z0-9._:-]+$",
+          "type": "string"
+        },
+        "projectRecordId": {
+          "pattern": "^rec_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "protocolVersion": {
+          "const": "1.0",
+          "type": "string"
+        },
+        "requestId": {
+          "pattern": "^req_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "type": {
+          "const": "project_record.accept",
+          "type": "string"
+        }
+      },
+      "required": [
+        "protocolVersion",
+        "requestId",
+        "idempotencyKey",
+        "type",
+        "projectRecordId",
+        "expectedRevision",
+        "decision"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "executionId": {
+          "pattern": "^exe_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "expectedTaskRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "externalId": {
+          "maxLength": 512,
+          "minLength": 1,
+          "type": "string"
+        },
+        "idempotencyKey": {
+          "maxLength": 128,
+          "minLength": 16,
+          "pattern": "^idem_[A-Za-z0-9._:-]+$",
+          "type": "string"
+        },
+        "kind": {
+          "pattern": "^[a-z][a-z0-9._-]{0,127}$",
+          "type": "string"
+        },
+        "name": {
+          "maxLength": 200,
+          "minLength": 1,
+          "type": "string"
+        },
+        "openUrl": {
+          "maxLength": 2048,
+          "minLength": 1,
+          "type": "string"
+        },
+        "portableReference": {
+          "additionalProperties": false,
+          "properties": {
+            "authority": {
+              "maxLength": 256,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{2,255}$",
+              "type": "string"
+            },
+            "contractVersion": {
+              "const": 1,
+              "type": "number"
+            },
+            "identity": {
+              "additionalProperties": {
+                "$ref": "#/$defs/__schema0"
+              },
+              "propertyNames": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "kind": {
+              "enum": [
+                "content-space.file-reference",
+                "content-space.container-reference",
+                "content-space.artifact-reference"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "contractVersion",
+            "kind",
+            "authority",
+            "identity"
+          ],
+          "type": "object"
+        },
+        "projectId": {
+          "pattern": "^prj_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "protocolVersion": {
+          "const": "1.0",
+          "type": "string"
+        },
+        "provider": {
+          "pattern": "^[a-z][a-z0-9.-]{0,63}$",
+          "type": "string"
+        },
+        "requestId": {
+          "pattern": "^req_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "taskId": {
+          "pattern": "^tsk_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "type": {
+          "const": "resource.create",
+          "type": "string"
+        },
+        "version": {
+          "maxLength": 200,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "protocolVersion",
+        "requestId",
+        "idempotencyKey",
+        "provider",
+        "externalId",
+        "kind",
+        "name",
+        "type",
+        "projectId"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "protocolVersion": {
+          "const": "1.0",
+          "type": "string"
+        },
+        "requestId": {
+          "pattern": "^req_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "resourceRefId": {
+          "pattern": "^rrf_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "type": {
+          "const": "resource.get",
+          "type": "string"
+        }
+      },
+      "required": [
+        "protocolVersion",
+        "requestId",
+        "type",
+        "resourceRefId"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "expectedRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "idempotencyKey": {
+          "maxLength": 128,
+          "minLength": 16,
+          "pattern": "^idem_[A-Za-z0-9._:-]+$",
+          "type": "string"
+        },
+        "protocolVersion": {
+          "const": "1.0",
+          "type": "string"
+        },
+        "requestId": {
+          "pattern": "^req_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "resourceRefId": {
+          "pattern": "^rrf_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "type": {
+          "const": "resource.invalidate",
+          "type": "string"
+        }
+      },
+      "required": [
+        "protocolVersion",
+        "requestId",
+        "idempotencyKey",
+        "type",
+        "resourceRefId",
+        "expectedRevision"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "expectedRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "idempotencyKey": {
+          "maxLength": 128,
+          "minLength": 16,
+          "pattern": "^idem_[A-Za-z0-9._:-]+$",
+          "type": "string"
+        },
+        "protocolVersion": {
+          "const": "1.0",
+          "type": "string"
+        },
+        "requestId": {
+          "pattern": "^req_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "resourceRefId": {
+          "pattern": "^rrf_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "safeReasonCode": {
+          "pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "available",
+            "unavailable",
+            "revoked"
+          ],
+          "type": "string"
+        },
+        "type": {
+          "const": "resource.transition",
+          "type": "string"
+        }
+      },
+      "required": [
+        "protocolVersion",
+        "requestId",
+        "idempotencyKey",
+        "type",
+        "resourceRefId",
+        "expectedRevision",
+        "status"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "afterSequence": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "limit": {
+          "maximum": 1000,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "protocolVersion": {
+          "const": "1.0",
+          "type": "string"
+        },
+        "recipientType": {
+          "enum": [
+            "user",
+            "agent"
+          ],
+          "type": "string"
+        },
+        "requestId": {
+          "pattern": "^req_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "type": {
+          "const": "inbox.pull",
+          "type": "string"
+        }
+      },
+      "required": [
+        "protocolVersion",
+        "requestId",
+        "type",
+        "recipientType",
+        "afterSequence",
+        "limit"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "idempotencyKey": {
+          "maxLength": 128,
+          "minLength": 16,
+          "pattern": "^idem_[A-Za-z0-9._:-]+$",
+          "type": "string"
+        },
+        "inboxMessageId": {
+          "pattern": "^ibx_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "protocolVersion": {
+          "const": "1.0",
+          "type": "string"
+        },
+        "requestId": {
+          "pattern": "^req_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "sequence": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "throughSequence": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "type": {
+          "const": "inbox.ack",
+          "type": "string"
+        }
+      },
+      "required": [
+        "protocolVersion",
+        "requestId",
+        "idempotencyKey",
+        "type"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "answer": {
+          "maxLength": 32000,
+          "minLength": 1,
+          "type": "string"
+        },
+        "decision": {
+          "enum": [
+            "approve",
+            "reject"
+          ],
+          "type": "string"
+        },
+        "humanRequestId": {
+          "pattern": "^hrq_[A-Za-z0-9]{12,64}$",
+          "type": "string"
+        },
+        "idempotencyKey": {
+          "maxLength": 128,
+          "minLength": 16,
+          "pattern": "^idem_[A-Za-z0-9._:-]+$",
+          "type": "string"
+        },
+        "protocolVersion": {
+          "const": "1.0",
+          "type": "string"
+        },
+        "requestId": {
+          "pattern": "^req_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "requestRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "type": {
+          "const": "human.answer",
+          "type": "string"
+        }
+      },
+      "required": [
+        "protocolVersion",
+        "requestId",
+        "idempotencyKey",
+        "type",
+        "humanRequestId",
+        "requestRevision",
+        "answer"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "confirmableAction": {
+          "oneOf": [
+            {
+              "additionalProperties": false,
+              "properties": {
+                "kind": {
+                  "const": "tasks.create",
+                  "type": "string"
+                },
+                "projectId": {
+                  "pattern": "^prj_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+                  "type": "string"
+                },
+                "proposalDigest": {
+                  "pattern": "^[a-f0-9]{64}$",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "projectId",
+                "proposalDigest"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "assigneeAgentId": {
+                  "pattern": "^agt_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+                  "type": "string"
+                },
+                "fromExecutionId": {
+                  "pattern": "^exe_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+                  "type": "string"
+                },
+                "kind": {
+                  "const": "task.retry_reassign",
+                  "type": "string"
+                },
+                "projectId": {
+                  "pattern": "^prj_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+                  "type": "string"
+                },
+                "taskId": {
+                  "pattern": "^tsk_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "projectId",
+                "taskId",
+                "fromExecutionId",
+                "assigneeAgentId"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "executionId": {
+                  "pattern": "^exe_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+                  "type": "string"
+                },
+                "kind": {
+                  "const": "task.cancel",
+                  "type": "string"
+                },
+                "projectId": {
+                  "pattern": "^prj_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+                  "type": "string"
+                },
+                "taskId": {
+                  "pattern": "^tsk_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "projectId",
+                "taskId",
+                "executionId"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "finalRecordDigest": {
+                  "pattern": "^[a-f0-9]{64}$",
+                  "type": "string"
+                },
+                "kind": {
+                  "const": "project.complete",
+                  "type": "string"
+                },
+                "projectId": {
+                  "pattern": "^prj_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "projectId",
+                "finalRecordDigest"
+              ],
+              "type": "object"
+            }
+          ]
+        },
+        "executionId": {
+          "pattern": "^exe_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "expectedTaskRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "expiresAt": {
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "type": "string"
+        },
+        "idempotencyKey": {
+          "maxLength": 128,
+          "minLength": 16,
+          "pattern": "^idem_[A-Za-z0-9._:-]+$",
+          "type": "string"
+        },
+        "projectId": {
+          "pattern": "^prj_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "prompt": {
+          "maxLength": 32000,
+          "minLength": 1,
+          "type": "string"
+        },
+        "protocolVersion": {
+          "const": "1.0",
+          "type": "string"
+        },
+        "requestId": {
+          "pattern": "^req_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "requiredAssurance": {
+          "enum": [
+            "basic",
+            "verified",
+            "strong"
+          ],
+          "type": "string"
+        },
+        "sourceInboxMessageId": {
+          "pattern": "^ibx_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "sourceKind": {
+          "enum": [
+            "worker",
+            "coordinator"
+          ],
+          "type": "string"
+        },
+        "targetUserId": {
+          "pattern": "^usr_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "taskId": {
+          "pattern": "^tsk_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "type": {
+          "const": "human.needed.create",
+          "type": "string"
+        }
+      },
+      "required": [
+        "protocolVersion",
+        "requestId",
+        "idempotencyKey",
+        "type",
+        "projectId",
+        "sourceKind",
+        "targetUserId",
+        "requiredAssurance",
+        "prompt",
+        "expiresAt"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "confirmationId": {
+          "pattern": "^cnf_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "protocolVersion": {
+          "const": "1.0",
+          "type": "string"
+        },
+        "requestId": {
+          "pattern": "^req_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "type": {
+          "const": "confirmation.get",
+          "type": "string"
+        }
+      },
+      "required": [
+        "protocolVersion",
+        "requestId",
+        "type",
+        "confirmationId"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "protocolVersion": {
+          "const": "1.0",
+          "type": "string"
+        },
+        "receiptId": {
+          "pattern": "^rcp_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "requestId": {
+          "pattern": "^req_[A-Za-z0-9](?:[A-Za-z0-9_]{10,62}[A-Za-z0-9])$",
+          "type": "string"
+        },
+        "type": {
+          "const": "receipt.get",
+          "type": "string"
+        }
+      },
+      "required": [
+        "protocolVersion",
+        "requestId",
+        "type",
+        "receiptId"
+      ],
+      "type": "object"
+    }
+  ],
+  "title": "SciForge Collaboration commands",
+  "x-sciforge-contract": {
+    "contractCommit": "__SCIFORGE_COLLABORATION_COMMIT__",
+    "protocolVersion": "1.0"
+  }
+}

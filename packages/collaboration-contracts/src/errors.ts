@@ -1,10 +1,12 @@
 import { z } from 'zod'
 import {
-  entityMetadataShape,
+  confirmationIdSchema,
+  executionIdSchema,
   protocolVersionSchema,
   redactedJsonSchema,
   requestIdSchema,
-  revisionSchema
+  revisionSchema,
+  traceIdSchema
 } from './core.js'
 
 export const collaborationErrorCodeSchema = z.enum([
@@ -15,10 +17,21 @@ export const collaborationErrorCodeSchema = z.enum([
   'assurance_insufficient',
   'not_found',
   'identity_conflict',
+  'IDENTITY_ALREADY_BOUND',
+  'BINDING_CODE_USED',
+  'BINDING_CODE_EXPIRED',
   'ownership_conflict',
   'revision_conflict',
+  'execution_conflict',
   'idempotency_conflict',
   'invalid_state_transition',
+  'assignee_mismatch',
+  'coordinator_mismatch',
+  'confirmation_required',
+  'confirmation_mismatch',
+  'resource_unavailable',
+  'capability_profile_expired',
+  'inbox_ack_gap',
   'routing_ambiguous',
   'routing_not_found',
   'provider_unavailable',
@@ -59,10 +72,21 @@ export const COLLABORATION_ERROR_RULES = {
   assurance_insufficient: { category: 'authorization', httpStatus: 403, retryable: false },
   not_found: { category: 'validation', httpStatus: 404, retryable: false },
   identity_conflict: { category: 'conflict', httpStatus: 409, retryable: false },
+  IDENTITY_ALREADY_BOUND: { category: 'conflict', httpStatus: 409, retryable: false },
+  BINDING_CODE_USED: { category: 'conflict', httpStatus: 409, retryable: false },
+  BINDING_CODE_EXPIRED: { category: 'conflict', httpStatus: 410, retryable: false },
   ownership_conflict: { category: 'conflict', httpStatus: 409, retryable: false },
   revision_conflict: { category: 'conflict', httpStatus: 409, retryable: true },
+  execution_conflict: { category: 'conflict', httpStatus: 409, retryable: false },
   idempotency_conflict: { category: 'conflict', httpStatus: 409, retryable: false },
   invalid_state_transition: { category: 'conflict', httpStatus: 409, retryable: false },
+  assignee_mismatch: { category: 'authorization', httpStatus: 403, retryable: false },
+  coordinator_mismatch: { category: 'authorization', httpStatus: 403, retryable: false },
+  confirmation_required: { category: 'authorization', httpStatus: 403, retryable: false },
+  confirmation_mismatch: { category: 'conflict', httpStatus: 409, retryable: false },
+  resource_unavailable: { category: 'conflict', httpStatus: 409, retryable: false },
+  capability_profile_expired: { category: 'conflict', httpStatus: 409, retryable: false },
+  inbox_ack_gap: { category: 'conflict', httpStatus: 409, retryable: false },
   routing_ambiguous: { category: 'routing', httpStatus: 409, retryable: false },
   routing_not_found: { category: 'routing', httpStatus: 404, retryable: false },
   provider_unavailable: { category: 'provider', httpStatus: 503, retryable: true },
@@ -78,6 +102,7 @@ export const collaborationErrorSchema = z.object({
   protocolVersion: protocolVersionSchema,
   type: z.literal('error'),
   requestId: requestIdSchema.optional(),
+  traceId: traceIdSchema,
   code: collaborationErrorCodeSchema,
   category: collaborationErrorCategorySchema,
   httpStatus: z.number().int().min(400).max(599),
@@ -87,6 +112,10 @@ export const collaborationErrorSchema = z.object({
   resourceId: z.string().min(1).max(128).optional(),
   expectedRevision: revisionSchema.optional(),
   currentRevision: revisionSchema.optional(),
+  currentExecutionId: executionIdSchema.optional(),
+  confirmationId: confirmationIdSchema.optional(),
+  ackedSequence: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER).optional(),
+  nextSequence: z.number().int().min(1).max(Number.MAX_SAFE_INTEGER).optional(),
   details: redactedJsonSchema.optional()
 }).strict().superRefine((error, context) => {
   const rule = COLLABORATION_ERROR_RULES[error.code]
@@ -106,8 +135,9 @@ export type CollaborationError = z.infer<typeof collaborationErrorSchema>
 export function createCollaborationError(
   code: CollaborationErrorCode,
   message: string,
-  fields: Partial<Pick<CollaborationError,
-    'requestId' | 'resourceType' | 'resourceId' | 'expectedRevision' | 'currentRevision' | 'details'>> = {}
+  fields: Pick<CollaborationError, 'traceId'> & Partial<Pick<CollaborationError,
+    'requestId' | 'resourceType' | 'resourceId' | 'expectedRevision' | 'currentRevision' |
+    'currentExecutionId' | 'confirmationId' | 'ackedSequence' | 'nextSequence' | 'details'>>
 ): CollaborationError {
   const rule = COLLABORATION_ERROR_RULES[code]
   return collaborationErrorSchema.parse({

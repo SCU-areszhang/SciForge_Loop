@@ -129,15 +129,13 @@ Update documentation when changes affect:
 
 ## Multi-target source and release boundaries
 
-Every target integrates at one `gui` commit: `src/` and `packages/domains/collaboration/` are desktop code;
-`packages/collaboration-server/` and `packages/collaboration-provider-zulip/` are cloud deployment code;
-`packages/collaboration-contracts/` is shared protocol. Phones currently use the official Zulip app. A future native
-app should live in its own directory while continuing to integrate through `gui`, not a permanent mobile branch.
+Collaboration integrates through explicit package boundaries: `packages/domains/project-coordinator/` is the B desktop
+backend, `packages/collaboration-contracts/` is the A-owned protocol, and
+`packages/collaboration-provider-zulip/` remains a separate endpoint provider. Phones currently use the official Zulip app.
 
-Keep artifacts isolated: Electron releases never contain cloud secrets; ECS installs only version-matched contracts,
-provider, and server tarballs; mobile clients use public APIs. Record the target version, Git commit, and contract
-version for every release. Shared-contract changes require `npm run collaboration:test` plus desktop and packed-server
-validation.
+Keep artifacts isolated: Electron releases never contain cloud secrets, B consumes a SHA-pinned A contract artifact,
+and mobile clients use public APIs. Record the target version, Git commit, and contract version for every release.
+Shared-contract changes require `npm run collaboration:test`.
 
 ## Merge Guidance
 

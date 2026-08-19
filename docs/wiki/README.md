@@ -14,8 +14,6 @@ Zulip 手机 App，在桌面“协作”面板填写管理员提供的云端地�
 | --- | --- |
 | 安装并跑通第一个任务 | [快速开始](./Getting-Started.zh-CN.md) |
 | 选择 Codex / Claude Code，接入模型 | [运行时与模型](./Runtimes-and-Models.zh-CN.md) |
-| 普通用户：用官方 Zulip App 绑定个人 Session、参与多人 Project | [手机与多人协作最短入口](../collaboration-user-guide.zh-CN.md) |
-| 管理员：部署、升级或维护独立发布的云端协作服务 | [协作服务开发与香港 ECS 部署](../operations/zulip-aliyun-deployment.zh-CN.md) |
 | 论文、实验、科学对象、图表和写作 | [科研工作流](./Scientific-Workflows.zh-CN.md) |
 | 审批、批注、trace、`.sciforge` 和 Evidence DAG | [干预与数据](./Intervention-and-Data.zh-CN.md) |
 | 连接失败、模型无响应、worker 异常 | [故障排查](./Troubleshooting.zh-CN.md) |
