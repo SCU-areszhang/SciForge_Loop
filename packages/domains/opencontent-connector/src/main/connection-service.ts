@@ -2,11 +2,7 @@ import { createHash, randomUUID } from 'node:crypto'
 
 import { z } from 'zod'
 
-import {
-  DomainMainProviderCredentialError,
-  type DomainMainPackageSettingsHost,
-  type DomainMainProviderCredentialStoreHost
-} from '@sciforge/domain-sdk/package-storage'
+import type { DomainMainPackageSettingsHost } from '@sciforge/domain-sdk/package-storage'
 import {
   principalAssuranceSchema,
   principalAuthoritySchema,
@@ -23,8 +19,11 @@ import {
 } from '../contract.js'
 import type { OpenContentClient } from './opencontent-client.js'
 import {
-  requireOpenContentDeploymentRuntime,
-  requireOpenContentProviderInstance
+  OpenContentPrivateAccountError,
+  type OpenContentPrivateAccountRuntime
+} from './private-account-runtime.js'
+import {
+  requireOpenContentDeploymentRuntime
 } from './runtime.js'
 
 const storedPrincipalSchema = z.object({
@@ -81,11 +80,9 @@ type ConnectionSettingsSnapshot = Readonly<{
 }>
 
 export type OpenContentConnectionService = Readonly<{
-  bindExistingAccount(input: Readonly<{
+  enroll(input: Readonly<{
     principal: PrincipalSnapshot
     providerInstanceRef: string
-    username: string
-    password: string
     signal?: AbortSignal
     assertPrincipalCurrent(): void | Promise<void>
   }>): Promise<OpenContentConnectionStatus>
@@ -128,7 +125,7 @@ export type OpenContentConnectionService = Readonly<{
 export function createOpenContentConnectionService(options: Readonly<{
   providerInstanceRef: string
   settings: DomainMainPackageSettingsHost
-  credentials: DomainMainProviderCredentialStoreHost
+  accounts: OpenContentPrivateAccountRuntime
   getRuntime(): Readonly<{ client: OpenContentClient }> | undefined
   createConnectionId?: () => string
   now?: () => Date
@@ -137,9 +134,14 @@ export function createOpenContentConnectionService(options: Readonly<{
     .parse(options.providerInstanceRef)
   const createConnectionId = options.createConnectionId ?? randomUUID
   const now = options.now ?? (() => new Date())
-  const credentialAccess = (targetProviderInstanceRef: string, connectionId: string) => Object.freeze({
-    binding: Object.freeze({ providerInstanceRef: targetProviderInstanceRef, connectionId }),
-    acceptedPrincipalAssurances: ['local-selection'] as const
+  const accountBinding = (
+    principal: PrincipalSnapshot,
+    targetProviderInstanceRef: string,
+    connectionId: string
+  ) => Object.freeze({
+    principal,
+    providerInstanceRef: targetProviderInstanceRef,
+    connectionId
   })
   let operationTail = Promise.resolve()
   const serialize = async <T>(operation: () => Promise<T>): Promise<T> => {
@@ -155,6 +157,7 @@ export function createOpenContentConnectionService(options: Readonly<{
   }
 
   const removeRetiredCredentials = async (
+    principal: PrincipalSnapshot,
     targetProviderInstanceRef: string,
     credentialIds: readonly string[],
     assertPrincipalCurrent: () => void | Promise<void>
@@ -163,16 +166,16 @@ export function createOpenContentConnectionService(options: Readonly<{
     for (const connectionId of credentialIds) {
       await assertOpenContentPrincipalCurrent(assertPrincipalCurrent)
       try {
-        await options.credentials.remove(credentialAccess(
+        await options.accounts.remove(accountBinding(
+          principal,
           targetProviderInstanceRef,
           connectionId
         ))
       } catch {
         remaining.push(connectionId)
       }
-      // The credential Host derives its namespace from the current Principal.
-      // A switch during an idempotent remove can otherwise look like success in
-      // the wrong namespace and make the original Token permanently untracked.
+      // The private vault binding includes the exact current Principal. A
+      // switch during an idempotent remove must not target another namespace.
       await assertOpenContentPrincipalCurrent(assertPrincipalCurrent)
     }
     return Object.freeze(remaining)
@@ -192,6 +195,7 @@ export function createOpenContentConnectionService(options: Readonly<{
 
     if (connection?.retiredCredentialIds?.length) {
       const remaining = await removeRetiredCredentials(
+        principal,
         providerInstanceRef,
         connection.retiredCredentialIds,
         assertPrincipalCurrent
@@ -211,6 +215,7 @@ export function createOpenContentConnectionService(options: Readonly<{
         continue
       }
       const remaining = await removeRetiredCredentials(
+        principal,
         retired.providerInstanceRef,
         retired.credentialIds,
         assertPrincipalCurrent
@@ -249,7 +254,7 @@ export function createOpenContentConnectionService(options: Readonly<{
     signal?: AbortSignal
     assertPrincipalCurrent(): void | Promise<void>
   }>): Promise<OpenContentConnectionStatus> => {
-    requireOpenContentProviderInstance(input.providerInstanceRef)
+    requireConfiguredProviderInstance(input.providerInstanceRef, providerInstanceRef)
     const { client } = requireOpenContentDeploymentRuntime(options.getRuntime)
     await assertOpenContentPrincipalCurrent(input.assertPrincipalCurrent)
     await retryPendingCredentialCleanup(input.principal, input.assertPrincipalCurrent)
@@ -258,7 +263,8 @@ export function createOpenContentConnectionService(options: Readonly<{
     await assertOpenContentPrincipalCurrent(input.assertPrincipalCurrent)
     const connection = findConnection(snapshot.connections, input.principal, providerInstanceRef)
     if (!connection) return Object.freeze({ state: 'disconnected' })
-    const credential = await options.credentials.status(credentialAccess(
+    const credential = await options.accounts.status(accountBinding(
+      input.principal,
       providerInstanceRef,
       connection.connectionId
     ))
@@ -274,9 +280,9 @@ export function createOpenContentConnectionService(options: Readonly<{
       return connectionStatus(connection, 'reauthentication_required')
     }
     try {
-      const valid = await options.credentials.use(
-        credentialAccess(providerInstanceRef, connection.connectionId),
-        async (token) => {
+      const valid = await options.accounts.withSession(
+        accountBinding(input.principal, providerInstanceRef, connection.connectionId),
+        async ({ token }) => {
           await assertOpenContentPrincipalCurrent(input.assertPrincipalCurrent)
           const result = await client.isTokenValid({
             token,
@@ -289,9 +295,9 @@ export function createOpenContentConnectionService(options: Readonly<{
       )
       if (valid) return connectionStatus(connection, 'connected')
     } catch (error) {
-      const missingCredential = error instanceof DomainMainProviderCredentialError && (
-        error.code === 'credential_unavailable' ||
-        error.code === 'credential_binding_mismatch'
+      const missingCredential = error instanceof OpenContentPrivateAccountError && (
+        error.code === 'session_unavailable' ||
+        error.code === 'binding_mismatch'
       )
       const invalidProviderSession = error instanceof OpenContentConnectorError &&
         error.code === 'reauthentication_required'
@@ -331,7 +337,7 @@ export function createOpenContentConnectionService(options: Readonly<{
     input,
     operation
   ) => {
-    requireOpenContentProviderInstance(input.providerInstanceRef)
+    requireConfiguredProviderInstance(input.providerInstanceRef, providerInstanceRef)
     const { client } = requireOpenContentDeploymentRuntime(options.getRuntime)
     let connectionId: string | undefined
     try {
@@ -342,10 +348,11 @@ export function createOpenContentConnectionService(options: Readonly<{
         const connection = findConnection(snapshot.connections, input.principal, providerInstanceRef)
         if (!connection || connection.state !== 'connected') throw reauthenticationRequired()
         connectionId = connection.connectionId
-        return options.credentials.use(credentialAccess(
+        return options.accounts.withSession(accountBinding(
+          input.principal,
           providerInstanceRef,
           connection.connectionId
-        ), async (token) => {
+        ), async ({ token }) => {
           await assertOpenContentPrincipalCurrent(input.assertPrincipalCurrent)
           const valid = await client.isTokenValid({
             token,
@@ -384,9 +391,9 @@ export function createOpenContentConnectionService(options: Readonly<{
         })
       })
     } catch (error) {
-      const missingCredential = error instanceof DomainMainProviderCredentialError && (
-        error.code === 'credential_unavailable' ||
-        error.code === 'credential_binding_mismatch'
+      const missingCredential = error instanceof OpenContentPrivateAccountError && (
+        error.code === 'session_unavailable' ||
+        error.code === 'binding_mismatch'
       )
       const invalidProviderSession = error instanceof OpenContentConnectorError &&
         error.code === 'reauthentication_required'
@@ -411,7 +418,7 @@ export function createOpenContentConnectionService(options: Readonly<{
     attestExternalBinding,
     useCurrentSession,
     unbind: async (input) => {
-      requireOpenContentProviderInstance(input.providerInstanceRef)
+      requireConfiguredProviderInstance(input.providerInstanceRef, providerInstanceRef)
       return serialize(async () => {
         await assertOpenContentPrincipalCurrent(input.assertPrincipalCurrent)
         await retryPendingCredentialCleanup(input.principal, input.assertPrincipalCurrent)
@@ -435,7 +442,8 @@ export function createOpenContentConnectionService(options: Readonly<{
         if (connection.retiredCredentialIds?.length || retiredConnectionPending) {
           throw retiredCredentialCleanupFailed()
         }
-        await options.credentials.remove(credentialAccess(
+        await options.accounts.remove(accountBinding(
+          input.principal,
           providerInstanceRef,
           connection.connectionId
         ))
@@ -453,51 +461,53 @@ export function createOpenContentConnectionService(options: Readonly<{
         })
       })
     },
-    bindExistingAccount: async (input) => {
-      requireOpenContentProviderInstance(input.providerInstanceRef)
-      const { client } = requireOpenContentDeploymentRuntime(options.getRuntime)
+    enroll: async (input) => {
+      requireConfiguredProviderInstance(input.providerInstanceRef, providerInstanceRef)
+      requireOpenContentDeploymentRuntime(options.getRuntime)
       return serialize(async () => {
         await assertOpenContentPrincipalCurrent(input.assertPrincipalCurrent)
         await retryPendingCredentialCleanup(input.principal, input.assertPrincipalCurrent)
-        const session = await client.authenticateExistingAccount({
-          username: input.username,
-          password: input.password,
-          signal: input.signal,
-          assertPrincipalCurrent: input.assertPrincipalCurrent
-        })
         await assertOpenContentPrincipalCurrent(input.assertPrincipalCurrent)
-        const connectionId = z.string().trim().min(1).max(256).parse(createConnectionId())
         const snapshot = await readSettings(options.settings, providerInstanceRef)
         await assertOpenContentPrincipalCurrent(input.assertPrincipalCurrent)
         const prior = findConnection(snapshot.connections, input.principal, providerInstanceRef)
+        const connectionId = connectionIdSchema.parse(createConnectionId())
         assertConnectionIdAvailable(
           connectionId,
           input.principal,
           providerInstanceRef,
           snapshot.connections
         )
-        const access = credentialAccess(providerInstanceRef, connectionId)
-        const nextConnection = connectionRecordSchema.parse({
-          principal: stablePrincipal(input.principal),
-          providerInstanceRef,
+        const enrollment = await options.accounts.enroll({
+          principal: input.principal,
+          providerInstanceRef: input.providerInstanceRef,
           connectionId,
-          ...(prior ? {
-            retiredCredentialIds: appendRetiredCredentialId(
-              prior.retiredCredentialIds ?? [],
-              prior.connectionId
-            )
-          } : {}),
-          externalAccount: {
-            id: session.account.id,
-            identityId: session.account.identityId,
-            account: session.account.account,
-            name: session.account.name
-          },
-          state: 'connected',
-          updatedAt: now().toISOString()
+          signal: input.signal,
+          assertPrincipalCurrent: input.assertPrincipalCurrent
         })
-        await options.credentials.replace(access, session.token)
+        const binding = accountBinding(input.principal, providerInstanceRef, connectionId)
+        let nextConnection: ConnectionRecord
         try {
+          await assertOpenContentPrincipalCurrent(input.assertPrincipalCurrent)
+          nextConnection = connectionRecordSchema.parse({
+            principal: stablePrincipal(input.principal),
+            providerInstanceRef,
+            connectionId,
+            ...(prior ? {
+              retiredCredentialIds: appendRetiredCredentialId(
+                prior.retiredCredentialIds ?? [],
+                prior.connectionId
+              )
+            } : {}),
+            externalAccount: {
+              id: enrollment.externalAccount.id,
+              identityId: enrollment.externalAccount.identityId,
+              account: enrollment.externalAccount.account,
+              name: enrollment.externalAccount.name
+            },
+            state: 'connected',
+            updatedAt: now().toISOString()
+          })
           await assertOpenContentPrincipalCurrent(input.assertPrincipalCurrent)
           const next = connectionSettingsSchema.parse({
             version: 2,
@@ -514,7 +524,7 @@ export function createOpenContentConnectionService(options: Readonly<{
           await assertOpenContentPrincipalCurrent(input.assertPrincipalCurrent)
           await options.settings.write(next, snapshot.revision)
         } catch (error) {
-          await options.credentials.remove(access).catch(() => undefined)
+          await options.accounts.remove(binding).catch(() => undefined)
           throw error
         }
         await retryPendingCredentialCleanup(input.principal, input.assertPrincipalCurrent)
@@ -782,8 +792,8 @@ function bindingAttestationMismatch(): OpenContentConnectorError {
   )
 }
 
-function retiredCredentialCleanupFailed(): DomainMainProviderCredentialError {
-  return new DomainMainProviderCredentialError(
+function retiredCredentialCleanupFailed(): OpenContentPrivateAccountError {
+  return new OpenContentPrivateAccountError(
     'secure_storage_unavailable',
     'Retired OpenContent credentials could not be removed from secure storage.'
   )
@@ -794,4 +804,16 @@ function invalidStoredProviderInstance(): OpenContentConnectorError {
     'provider_contract_violation',
     'Stored OpenContent connection metadata names an unsupported Provider Instance.'
   )
+}
+
+function requireConfiguredProviderInstance(
+  selectedProviderInstanceRef: string,
+  installedProviderInstanceRef: string
+): void {
+  if (selectedProviderInstanceRef !== installedProviderInstanceRef) {
+    throw new OpenContentConnectorError(
+      'invalid_input',
+      'The selected OpenContent Provider Instance is not installed.'
+    )
+  }
 }

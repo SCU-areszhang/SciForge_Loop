@@ -28,9 +28,11 @@ import {
   OPENCONTENT_CLI_MAX_STDERR_BYTES,
   OPENCONTENT_CLI_MAX_STDOUT_BYTES,
   OPENCONTENT_CLI_RUNNER_PROTOCOL,
+  openContentCliSessionBindingSchema,
   type OpenContentCliCommand,
   type OpenContentCliProcessPort,
-  type OpenContentCliProcessRequest
+  type OpenContentCliProcessRequest,
+  type OpenContentCliSessionBinding
 } from './cli-runner.js'
 import {
   DOCFLOW_COMMAND_RESULT_PROTOCOL,
@@ -59,9 +61,9 @@ import {
   verifiedOpenContentRuntimeFile
 } from './verified-runtime-snapshot.internal.js'
 
-const MANAGED_TOKEN_TTL_MS = 10 * 60 * 1_000
-const MAX_MANAGED_TOKEN_ENTRIES = 2_048
-const MAX_MANAGED_TOKEN_BYTES = 64 * 1024 * 1024
+const MANAGED_LOCATOR_TTL_MS = 10 * 60 * 1_000
+const MAX_MANAGED_LOCATOR_ENTRIES = 2_048
+const MAX_MANAGED_LOCATOR_BYTES = 64 * 1024 * 1024
 const MAX_MANAGED_JSON_BYTES = 16 * 1024 * 1024
 const MAX_TRANSFER_BYTES = 1024 * 1024 * 1024
 const TRANSFER_CHUNK_BYTES = 1024 * 1024
@@ -157,6 +159,11 @@ type ManagedEntry = Readonly<{
   name: string
   mediaType: 'application/json'
   bytes: Uint8Array
+  contentDigest: string
+  authorityBinding: string
+  sourceInvocationId: string
+  fileId: string
+  documentHash: string
   expiresAt: number
 }>
 
@@ -177,6 +184,11 @@ type SourceFile = Extract<
   { role: 'source'; encoding: 'managed-stream' }
 >
 
+type ManagedInputFile = Extract<
+  DocflowDataFile,
+  { role: 'probe-template'; encoding: 'managed' }
+>
+
 type NodeOpenContentCliProcessPortInternalOptions = Readonly<{
   /** Fixed, trusted snapshot entrypoint. Packaged apps must inject their resolved resource path. */
   trustedEntrypoint: string
@@ -193,7 +205,7 @@ type NodeOpenContentCliProcessPortInternalOptions = Readonly<{
   /** Package-private race seam invoked after verified reads and before private writes. */
   afterSnapshotRead?: () => void | Promise<void>
   /** Package-private test seam. Values may only tighten the fixed production ceilings. */
-  managedTokenLimits?: Readonly<{
+  managedLocatorLimits?: Readonly<{
     maxEntries: number
     maxBytes: number
   }>
@@ -263,17 +275,17 @@ export function createNodeOpenContentCliProcessPortInternal(
     await rm(path, { recursive: true, force: true, maxRetries: 2, retryDelay: 20 })
   })
   const now = options.now ?? Date.now
-  const maxManagedEntries = options.managedTokenLimits?.maxEntries ?? MAX_MANAGED_TOKEN_ENTRIES
-  const maxManagedBytes = options.managedTokenLimits?.maxBytes ?? MAX_MANAGED_TOKEN_BYTES
+  const maxManagedEntries = options.managedLocatorLimits?.maxEntries ?? MAX_MANAGED_LOCATOR_ENTRIES
+  const maxManagedBytes = options.managedLocatorLimits?.maxBytes ?? MAX_MANAGED_LOCATOR_BYTES
   if (!Number.isInteger(maxManagedEntries) ||
       maxManagedEntries < 1 ||
-      maxManagedEntries > MAX_MANAGED_TOKEN_ENTRIES ||
+      maxManagedEntries > MAX_MANAGED_LOCATOR_ENTRIES ||
       !Number.isSafeInteger(maxManagedBytes) ||
       maxManagedBytes < 1 ||
-      maxManagedBytes > MAX_MANAGED_TOKEN_BYTES) {
+      maxManagedBytes > MAX_MANAGED_LOCATOR_BYTES) {
     throw new OpenContentCliProcessError({
       code: 'blocked-by-contract',
-      message: 'The managed DocFlow token limits are invalid.',
+      message: 'The managed DocFlow locator limits are invalid.',
       dispatched: false
     })
   }
@@ -288,7 +300,7 @@ export function createNodeOpenContentCliProcessPortInternal(
     async run(rawRequest: OpenContentCliProcessRequest): Promise<unknown> {
       purgeExpired(managed, now())
       const invocation = openContentCliInvocationSchema.parse(rawRequest.invocation)
-      assertRequest(rawRequest, invocation, trustedEntrypoint)
+      const sessionBinding = assertRequest(rawRequest, invocation, trustedEntrypoint)
       assertActive(rawRequest.signal, rawRequest.deadlineAt, now())
 
       let invocationRoot: string | undefined
@@ -305,6 +317,7 @@ export function createNodeOpenContentCliProcessPortInternal(
           invocation,
           invocationRoot,
           managed,
+          sessionBinding,
           now,
           signal: rawRequest.signal,
           deadlineAt: rawRequest.deadlineAt
@@ -350,6 +363,7 @@ export function createNodeOpenContentCliProcessPortInternal(
           invocationRoot,
           materialized,
           managed,
+          sessionBinding,
           now,
           signal: rawRequest.signal,
           deadlineAt: rawRequest.deadlineAt,
@@ -393,7 +407,7 @@ function assertRequest(
   request: OpenContentCliProcessRequest,
   invocation: OpenContentSupplierInvocation,
   trustedEntrypoint: string
-): void {
+): OpenContentCliSessionBinding {
   if (request.protocol !== OPENCONTENT_CLI_RUNNER_PROTOCOL ||
       request.limits.stdoutBytes !== OPENCONTENT_CLI_MAX_STDOUT_BYTES ||
       request.limits.stderrBytes !== OPENCONTENT_CLI_MAX_STDERR_BYTES ||
@@ -405,6 +419,14 @@ function assertRequest(
     })
   }
   openContentCliConnectionMaterialSchema.parse(request.connectionMaterial)
+  const sessionBinding = openContentCliSessionBindingSchema.safeParse(request.sessionBinding)
+  if (!sessionBinding.success || sessionBinding.data.invocationId !== invocation.invocationId) {
+    throw new OpenContentCliProcessError({
+      code: 'blocked-by-contract',
+      message: 'The OpenContent CLI session binding is invalid for this invocation.',
+      dispatched: false
+    })
+  }
   if (!admittedCommands.has(invocation.command)) {
     throw new OpenContentCliProcessError({
       code: 'blocked-by-contract',
@@ -430,6 +452,7 @@ function assertRequest(
     })
   }
   assertSupplierArgumentsAreUnprivileged(invocation.args)
+  return sessionBinding.data
 }
 
 function assertSupplierArgumentsAreUnprivileged(args: Record<string, unknown>): void {
@@ -642,6 +665,7 @@ async function materializeInvocation(input: Readonly<{
   invocation: OpenContentSupplierInvocation
   invocationRoot: string
   managed: ManagedStore
+  sessionBinding: OpenContentCliSessionBinding
   now: () => number
   signal: AbortSignal
   deadlineAt: string
@@ -669,7 +693,13 @@ async function materializeInvocation(input: Readonly<{
     const name = 'name' in file ? file.name : `${file.role}.json`
     const path = join(inputsRoot, `${index}-${name}`)
     if (file.encoding === 'managed') {
-      const entry = consumeManaged(input.managed, file.token, file.role, input.now())
+      const entry = consumeManaged(
+        input.managed,
+        file,
+        input.invocation,
+        input.sessionBinding,
+        input.now()
+      )
       await writeFile(path, entry.bytes, { flag: 'wx', mode: 0o600 })
     } else if (file.encoding === 'managed-stream' && file.role === 'source') {
       await materializeSource(file as SourceFile, path, input)
@@ -985,7 +1015,9 @@ type CapturedOutputs = Readonly<{
   json: unknown
   managedDataFiles: readonly Readonly<{
     role: ManagedRole
-    token: string
+    locator: string
+    sourceInvocationId: string
+    contentDigest: string
     name: string
     mediaType: 'application/json'
   }>[]
@@ -997,6 +1029,7 @@ async function captureOutputs(input: Readonly<{
   invocationRoot: string
   materialized: MaterializedInvocation
   managed: ManagedStore
+  sessionBinding: OpenContentCliSessionBinding
   now: () => number
   signal: AbortSignal
   deadlineAt: string
@@ -1006,7 +1039,9 @@ async function captureOutputs(input: Readonly<{
   let json = input.parsed
   const managedDataFiles: Array<{
     role: ManagedRole
-    token: string
+    locator: string
+    sourceInvocationId: string
+    contentDigest: string
     name: string
     mediaType: 'application/json'
   }> = []
@@ -1020,9 +1055,15 @@ async function captureOutputs(input: Readonly<{
     const descriptor = await captureManagedPath(
       input.managed,
       input.invocationRoot,
-      probeTemplateFile,
+      probeTemplateFile.path,
       'probe-template',
       'probe-template.json',
+      Object.freeze({
+        sessionBinding: input.sessionBinding,
+        sourceInvocationId: input.invocation.invocationId,
+        fileId: probeTemplateFile.fileId,
+        documentHash: probeTemplateFile.documentHash
+      }),
       input.now()
     )
     managedDataFiles.push(descriptor)
@@ -1076,7 +1117,7 @@ async function captureOutputs(input: Readonly<{
 function pinnedProbeTemplateFile(
   invocation: OpenContentSupplierInvocation,
   output: Record<string, unknown>
-): string | undefined {
+): Readonly<{ path: string; fileId: string; documentHash: string }> | undefined {
   const args = asRecord(invocation.args)
   const probe = asRecord(output.probe)
   const capabilities = asRecord(probe?.capabilities)
@@ -1119,7 +1160,11 @@ function pinnedProbeTemplateFile(
       'DocFlow did not return one unambiguous managed probe template.'
     )
   }
-  return probe.editPlanTemplateFile
+  return Object.freeze({
+    path: probe.editPlanTemplateFile,
+    fileId: args.fileId as string,
+    documentHash: probe.documentHash as string
+  })
 }
 
 function isPinnedPlanResult(
@@ -1159,8 +1204,21 @@ async function captureManagedPath(
   candidate: string,
   role: ManagedRole,
   name: string,
+  binding: Readonly<{
+    sessionBinding: OpenContentCliSessionBinding
+    sourceInvocationId: string
+    fileId: string
+    documentHash: string
+  }>,
   now: number
-): Promise<Readonly<{ role: ManagedRole; token: string; name: string; mediaType: 'application/json' }>> {
+): Promise<Readonly<{
+  role: ManagedRole
+  locator: string
+  sourceInvocationId: string
+  contentDigest: string
+  name: string
+  mediaType: 'application/json'
+}>> {
   purgeExpired(managed, now)
   const path = await confinedFile(invocationRoot, candidate)
   const info = await stat(path)
@@ -1181,26 +1239,39 @@ async function captureManagedPath(
       dispatched: true
     })
   }
+  const contentDigest = createHash('sha256').update(bytes).digest('hex')
   const entry = Object.freeze({
     role,
     name,
     mediaType: 'application/json' as const,
     bytes,
-    expiresAt: now + MANAGED_TOKEN_TTL_MS
+    contentDigest,
+    authorityBinding: sessionAuthorityBinding(binding.sessionBinding),
+    sourceInvocationId: binding.sourceInvocationId,
+    fileId: binding.fileId,
+    documentHash: binding.documentHash,
+    expiresAt: now + MANAGED_LOCATOR_TTL_MS
   })
   const retainedBytes = managedEntryBytes(entry)
   if (managed.entries.size >= managed.maxEntries ||
       retainedBytes > managed.maxBytes - managed.retainedBytes) {
     throw new OpenContentCliProcessError({
       code: 'provider-contract-violation',
-      message: 'The managed DocFlow token capacity is exhausted.',
+      message: 'The managed DocFlow locator capacity is exhausted.',
       dispatched: true
     })
   }
-  const token = `ocdf_${randomBytes(32).toString('base64url')}`
-  managed.entries.set(token, entry)
+  const locator = `mdloc_${randomBytes(32).toString('base64url')}`
+  managed.entries.set(locator, entry)
   managed.retainedBytes += retainedBytes
-  return Object.freeze({ role, token, name, mediaType: 'application/json' })
+  return Object.freeze({
+    role,
+    locator,
+    sourceInvocationId: binding.sourceInvocationId,
+    contentDigest,
+    name,
+    mediaType: 'application/json'
+  })
 }
 
 async function validateDisposablePlan(
@@ -1587,30 +1658,69 @@ function containsSensitiveCacheMarker(value: string): boolean {
 
 function consumeManaged(
   managed: ManagedStore,
-  token: string,
-  role: ManagedRole,
+  file: ManagedInputFile,
+  invocation: OpenContentSupplierInvocation,
+  sessionBinding: OpenContentCliSessionBinding,
   now: number
 ): ManagedEntry {
-  const entry = deleteManagedEntry(managed, token)
-  if (entry === undefined || entry.expiresAt <= now || entry.role !== role) {
+  const entry = managed.entries.get(file.locator)
+  if (entry !== undefined && entry.expiresAt <= now) {
+    deleteManagedEntry(managed, file.locator)
+  }
+  const args = invocation.command === 'docflow-plan'
+    ? invocation.args
+    : undefined
+  const valid = entry !== undefined &&
+    entry.expiresAt > now &&
+    entry.role === file.role &&
+    entry.authorityBinding === sessionAuthorityBinding(sessionBinding) &&
+    entry.sourceInvocationId === file.sourceInvocationId &&
+    entry.contentDigest === file.contentDigest &&
+    args !== undefined &&
+    entry.fileId === args.fileId &&
+    entry.documentHash === args.baseHash
+  if (!valid) {
     throw new OpenContentCliProcessError({
       code: 'invalid-input',
-      message: 'The managed DocFlow token is invalid, expired, or already consumed.',
+      message: 'The managed DocFlow locator is invalid, expired, mismatched, or already consumed.',
       dispatched: false
     })
   }
-  return entry
+  const consumed = deleteManagedEntry(managed, file.locator)
+  if (consumed === undefined) {
+    throw new OpenContentCliProcessError({
+      code: 'invalid-input',
+      message: 'The managed DocFlow locator is unavailable.',
+      dispatched: false
+    })
+  }
+  return consumed
+}
+
+function sessionAuthorityBinding(binding: OpenContentCliSessionBinding): string {
+  const principal = binding.principal
+  return createHash('sha256').update(JSON.stringify([
+    'sciforge.opencontent.docflow-managed-authority.v1',
+    binding.providerInstanceRef,
+    principal.authority,
+    principal.subject,
+    principal.assurance,
+    principal.deviceId,
+    principal.identityVersion,
+    binding.bindingAttestation.externalSubject,
+    binding.bindingAttestation.bindingRevision
+  ]), 'utf8').digest('hex')
 }
 
 function purgeExpired(managed: ManagedStore, now: number): void {
-  for (const [token, entry] of managed.entries) {
-    if (entry.expiresAt <= now) deleteManagedEntry(managed, token)
+  for (const [locator, entry] of managed.entries) {
+    if (entry.expiresAt <= now) deleteManagedEntry(managed, locator)
   }
 }
 
-function deleteManagedEntry(managed: ManagedStore, token: string): ManagedEntry | undefined {
-  const entry = managed.entries.get(token)
-  if (entry === undefined || !managed.entries.delete(token)) return undefined
+function deleteManagedEntry(managed: ManagedStore, locator: string): ManagedEntry | undefined {
+  const entry = managed.entries.get(locator)
+  if (entry === undefined || !managed.entries.delete(locator)) return undefined
   managed.retainedBytes -= managedEntryBytes(entry)
   return entry
 }

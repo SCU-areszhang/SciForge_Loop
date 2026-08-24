@@ -121,49 +121,11 @@
   width: 6px;
 }
 
-.opencontent-enrollment__form {
+.opencontent-enrollment__enrollment-action {
   display: grid;
   gap: 12px;
   margin-left: 38px;
   max-width: 520px;
-}
-
-.opencontent-enrollment__form label {
-  color: var(--oc-text);
-  display: grid;
-  font-size: 12px;
-  font-weight: 600;
-  gap: 5px;
-}
-
-.opencontent-enrollment__form input {
-  appearance: none;
-  background: var(--oc-raised);
-  border: 1px solid var(--oc-border);
-  border-radius: 7px;
-  color: var(--oc-text);
-  font: inherit;
-  font-size: 13px;
-  height: 36px;
-  min-width: 0;
-  outline: none;
-  padding: 0 10px;
-  transition: border-color 120ms ease, box-shadow 120ms ease, background-color 120ms ease;
-  width: 100%;
-}
-
-.opencontent-enrollment__form input:hover:not(:disabled) {
-  border-color: color-mix(in srgb, var(--oc-accent) 48%, var(--oc-border));
-}
-
-.opencontent-enrollment__form input:focus-visible {
-  border-color: var(--oc-accent);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--oc-accent) 18%, transparent);
-}
-
-.opencontent-enrollment__form input:disabled {
-  cursor: wait;
-  opacity: 0.62;
 }
 
 .opencontent-enrollment__privacy {
@@ -183,7 +145,7 @@
   padding: 3px 0 3px 9px;
 }
 
-.opencontent-enrollment__form .opencontent-enrollment__error {
+.opencontent-enrollment__enrollment-action .opencontent-enrollment__error {
   margin: 0 !important;
 }
 
@@ -346,7 +308,7 @@
 }
 
 @container (max-width: 420px) {
-  .opencontent-enrollment__form,
+  .opencontent-enrollment__enrollment-action,
   .opencontent-enrollment__reauth,
   .opencontent-enrollment__state--ready {
     margin-left: 0 !important;

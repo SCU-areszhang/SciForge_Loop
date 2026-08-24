@@ -22,7 +22,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 
 import {
   OPENCONTENT_DEPLOYMENT_CONFIGURATION_DESCRIPTOR,
-  resolveOpenContentDeploymentConfiguration
+  resolveOpenContentDeploymentConfiguration as resolveInstalledDeploymentConfiguration
 } from './deployment-config.js'
 
 const sidecar = Object.freeze({
@@ -30,6 +30,17 @@ const sidecar = Object.freeze({
   providerInstanceRef: 'opencontent-edoc2-demo' as const,
   origin: 'https://tenant.example'
 })
+
+function resolveOpenContentDeploymentConfiguration(
+  host: Parameters<typeof resolveInstalledDeploymentConfiguration>[0],
+  fileOperations?: Parameters<typeof resolveInstalledDeploymentConfiguration>[2]
+) {
+  return resolveInstalledDeploymentConfiguration(
+    host,
+    sidecar.providerInstanceRef,
+    fileOperations
+  )
+}
 
 const tempRoots: string[] = []
 
@@ -50,6 +61,8 @@ describe('OpenContent package-owned deployment configuration', () => {
 
     expect(production).not.toMatch(/test1\.edoc2\.com/u)
     expect(production).not.toMatch(/SCIFORGE_OPENCONTENT(?:_BASE_URL)?/u)
+    expect(production).not.toContain('OPENCONTENT_PROVIDER_INSTANCE_REF')
+    expect(production).not.toContain(sidecar.providerInstanceRef)
   })
 
   it('resolves only the fixed source sidecar from an absolute synthetic repository root', () => {
@@ -81,6 +94,19 @@ describe('OpenContent package-owned deployment configuration', () => {
       getAppRoot: () => appRoot,
       isPackaged: () => true
     })).toEqual(sidecar)
+  })
+
+  it('rejects a sidecar for a Provider Instance other than the installed contribution', () => {
+    const root = tempRoot()
+    writeJson(
+      join(root, OPENCONTENT_DEPLOYMENT_CONFIGURATION_DESCRIPTOR.sourceRelativePath),
+      sidecar
+    )
+
+    expect(resolveInstalledDeploymentConfiguration({
+      getAppRoot: () => root,
+      isPackaged: () => false
+    }, 'another-opencontent-instance')).toBeUndefined()
   })
 
   it('does not fall back between source and packaged locations', () => {

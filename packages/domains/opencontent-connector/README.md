@@ -2,26 +2,40 @@
 
 Owns existing-account enrollment, Principal-bound connection state, secure Token use, pinned OpenContent schemas, and main-process transport. It exposes no Content Space or Shared Documents business semantics.
 
+Public enrollment is intentionally a non-secret action. The renderer and
+capability input carry only the selected `providerInstanceRef`. On supported
+packaged macOS builds, the Connector-owned in-process native adapter collects
+the account and password with AppKit, authenticates through the canonical
+package-private client, and stores the resulting Provider session directly in
+the macOS Keychain. The Host, Domain SDK, Electron IPC, renderer, logs, and
+capability receipts never receive the account secret or Provider Token. The
+private runtime admits one enrollment at a time, honours Human cancellation,
+bounds the network exchange, and drops credential references immediately after
+authentication. Missing native support, an unsupported platform, or an
+unavailable Keychain fails closed as a bounded public status; there is no
+environment, file, subprocess, renderer, or Host credential fallback.
+
 The package manifest declares one private deployment-configuration contract:
 contract version `1`, source path
 `.sciforge/private/deployments/opencontent-connector.json`, packaged Resources
 path `domain-deployments/opencontent-connector.json`, a `4096`-byte ceiling,
 and `publicRelease: forbidden`. The sidecar is strict JSON containing only
-`contractVersion`, the fixed `opencontent-edoc2-demo` Provider Instance, and an
-absolute HTTPS `origin`. Activation requests no-follow semantics where the
+`contractVersion`, the exact Provider Instance declared by the installed
+manifest contribution, and an absolute HTTPS `origin`. Activation requests
+no-follow semantics where the
 platform exposes them and always binds the opened descriptor to the pre-open
 regular-file identity. It checks that descriptor before and after a
 `4097`-byte-bounded read, rejects identity, size, modification-time,
 change-time, or birth-time drift, closes it, and freezes the parsed value.
 Missing, oversized, malformed, non-canonical, non-HTTPS, or
 symlinked configuration makes Provider-backed calls unavailable before package
-settings, credentials, network, or supplier-process access; local unbind and
-credential retirement remain available. The integration-owned unavailable view
+settings, native vault, network, or supplier-process access; local unbind and
+session retirement remain available. The integration-owned unavailable view
 exposes that same local cleanup only after explicit Human confirmation; it does
 not contact the Provider or delete remote files. Provider discovery, capability
 definitions, and the internal service descriptor remain registered.
 There is no environment, argv, caller, renderer, package-setting,
-alternate-path, or fallback endpoint channel.
+alternate-path, default Provider Instance, or fallback endpoint channel.
 
 Local and packaged-private builds use one generic domain-package deployment
 composition that preserves every manifest declaration and activates a copy only
@@ -49,6 +63,14 @@ packaged mode resolves them only from
 invalid, changed, extra, unreceipted, or wrong-version assets fail closed before
 supplier dispatch.
 
+Probe templates cross the Connector/Provider contract only as a non-authorizing
+locator, source invocation ID, and SHA-256 content digest. The Connector keeps
+the bytes in a bounded ten-minute in-memory store and separately binds them to
+the live Principal, Provider Instance, external binding attestation, document,
+and document hash. A plan can consume the locator once only after all of those
+facts are revalidated through the current supplier session; possession alone
+does not authorize access or dispatch.
+
 The pinned CLI characterization freezes 86 inventory commands and the exact
 50-command admitted adapter union. Inventory is not an execution allowlist or
 packaged-live claim. The supplier `download`, `file-list`, `kbox-list`,
@@ -60,10 +82,10 @@ exposes no public member-role/ownership operation and no revision/CAS field; the
 supplier Team surface provides no atomic expected-state input for SciForge to
 promote into an Administration concurrency promise.
 
-Connection records and credentials are bound to their exact Provider Instance.
+Connection records and native-vault sessions are bound to their exact Provider Instance.
 The Connector never reuses a Token across Provider Instance identities and
 retains bounded cleanup metadata until the owning current Principal can delete
-an obsolete credential from secure storage.
+an obsolete session from secure storage.
 
 ## Provider binding attestation
 

@@ -31,6 +31,10 @@ const safeDataFileNameSchema = z.string()
     return codePoint >= 32 && codePoint !== 127
   }))
 
+const managedLocatorSchema = z.string()
+  .regex(/^mdloc_[A-Za-z0-9_-]{32,128}$/u)
+const documentHashSchema = z.string().regex(/^[a-f0-9]{64}$/u)
+
 const docflowDataFileRoleSchema = z.enum([
   'content',
   'operations',
@@ -76,7 +80,9 @@ const docflowDataFileSchema = z.discriminatedUnion('encoding', [
   z.object({
     role: z.literal('probe-template'),
     encoding: z.literal('managed'),
-    token: z.string().regex(/^ocdf_[A-Za-z0-9_-]{32,128}$/u)
+    locator: managedLocatorSchema,
+    sourceInvocationId: invocationIdSchema,
+    contentDigest: documentHashSchema
   }).strict().readonly(),
   z.object({
     role: z.literal('destination'),
@@ -91,7 +97,6 @@ const resourceIdSchema = z.string()
   .max(4_096)
   .refine((value) => value === value.trim(), 'Resource identifiers must be canonical.')
 
-const documentHashSchema = z.string().regex(/^[a-f0-9]{64}$/u)
 const referenceSchema = z.object({
   fileId: resourceIdSchema,
   fileName: z.string().trim().min(1).max(256).optional(),
@@ -246,7 +251,7 @@ export const docflowCommandInvocationSchema = z.union(commandInvocationSchemas)
         context.addIssue({ code: 'custom', path: ['dataFiles', index, 'encoding'], message: 'Edit operations must be JSON data.' })
       }
       if (file.role === 'probe-template' && file.encoding !== 'managed') {
-        context.addIssue({ code: 'custom', path: ['dataFiles', index, 'encoding'], message: 'Plans and templates require a runner-managed token.' })
+        context.addIssue({ code: 'custom', path: ['dataFiles', index, 'encoding'], message: 'Plans and templates require a runner-managed locator.' })
       }
       if (file.role === 'image' && (file.encoding !== 'base64' || !file.mediaType.startsWith('image/'))) {
         context.addIssue({ code: 'custom', path: ['dataFiles', index], message: 'Images require base64 image data.' })
@@ -315,7 +320,9 @@ const docflowStructuredDeliverySchema = z.object({
 
 const docflowManagedDataFileSchema = z.object({
   role: z.literal('probe-template'),
-  token: z.string().regex(/^ocdf_[A-Za-z0-9_-]{32,128}$/u),
+  locator: managedLocatorSchema,
+  sourceInvocationId: invocationIdSchema,
+  contentDigest: documentHashSchema,
   name: safeDataFileNameSchema,
   mediaType: z.literal('application/json')
 }).strict().readonly()

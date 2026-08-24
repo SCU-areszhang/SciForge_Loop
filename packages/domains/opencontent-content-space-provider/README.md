@@ -9,6 +9,9 @@ Content Space.
   provider-neutral `content-space.provider-enrollment-view` slot.
 - The Provider package owns every supplier-receipt-to-Content-Space semantic adapter. It selects by Provider Kind and forwards the exact Provider Instance Ref chosen by
   Content Space. It never receives a token, password, endpoint, or connection ID.
+- Probe/plan continuation state retains only the Connector's non-authorizing
+  locator plus source/digest metadata; every plan still requires a fresh
+  Principal-bound Connector supplier session before the locator can be used.
 - The Connector's strict package-owned deployment sidecar is the only origin
   channel. This adapter never constructs a fallback or parallel client. When
   configuration is missing or invalid, discovery remains composed and its

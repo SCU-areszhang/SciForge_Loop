@@ -2,8 +2,8 @@ import type { DomainMainHost } from '@sciforge/domain-sdk/host'
 import { defineDomainMainInternalServiceDescriptor } from '@sciforge/domain-sdk/host'
 import type { TrustedDomainProcessEntryInput } from '@sciforge/domain-sdk/main'
 import {
-  PROVIDER_FACTORY_CONTRACT_VERSION,
-  defineProviderInstanceDirectoryEntry
+  defineProviderInstanceDirectoryEntry,
+  providerInstanceDirectoryEntryContributionContractSchema
 } from '@sciforge/domain-sdk/provider-composition'
 import {
   assertOpenContentSkillBundledAssetsPresent,
@@ -15,9 +15,7 @@ import {
 
 import {
   OPENCONTENT_CONTENT_SPACE_SERVICE_ID,
-  OPENCONTENT_CONTENT_SPACE_SERVICE_VERSION,
-  OPENCONTENT_PROVIDER_INSTANCE_REF,
-  OPENCONTENT_PROVIDER_KIND
+  OPENCONTENT_CONTENT_SPACE_SERVICE_VERSION
 } from '../contract.js'
 import {
   OPENCONTENT_CAPABILITY_FACTORY_CONTRIBUTION,
@@ -27,9 +25,13 @@ import {
   OPENCONTENT_PROVIDER_INSTANCE_CONTRIBUTION,
   domainPackageDefinition
 } from '../definition.js'
-import { createOpenContentCapabilityFactory } from './connection-capabilities.js'
+import {
+  createOpenContentCapabilityFactory,
+  type OpenContentCapabilityFactoryContribution
+} from './connection-capabilities.js'
 import { createOpenContentConnectionService } from './connection-service.js'
 import { createOpenContentClient } from './opencontent-client.js'
+import { createNativeOpenContentPrivateAccountRuntime } from './native-enrollment/index.js'
 import { createOpenContentTeamAdministration } from './team-administration.js'
 import {
   createOpenContentSkillRuntimeSession,
@@ -51,36 +53,48 @@ const internalServiceDescriptor = defineDomainMainInternalServiceDescriptor({
   allowedConsumerModuleIds: [OPENCONTENT_ADAPTER_MODULE_ID]
 })
 
+const installedProviderContract =
+  providerInstanceDirectoryEntryContributionContractSchema.parse(
+    OPENCONTENT_PROVIDER_INSTANCE_CONTRACT
+  )
+
 const instance = defineProviderInstanceDirectoryEntry({
-  contractVersion: PROVIDER_FACTORY_CONTRACT_VERSION,
-  providerInstanceRef: OPENCONTENT_PROVIDER_INSTANCE_REF,
-  providerKind: OPENCONTENT_PROVIDER_KIND,
-  displayName: 'OpenContent'
+  contractVersion: installedProviderContract.contractVersion,
+  providerInstanceRef: installedProviderContract.providerInstanceRef,
+  providerKind: installedProviderContract.providerKind,
+  displayName: installedProviderContract.displayName
 })
 
 type OpenContentMainContribution =
   | typeof instance
   | typeof internalServiceDescriptor
-  | ReturnType<typeof createOpenContentCapabilityFactory>
+  | OpenContentCapabilityFactoryContribution
 
 export function createDomainMainEntry(
   host: DomainMainHost
 ): TrustedDomainProcessEntryInput<OpenContentMainContribution> {
-  if (!host.packageSettings || !host.packageSecrets?.providerCredentials) {
-    throw new Error('OpenContent Connector requires secure owner-scoped package storage.')
+  if (!host.packageSettings) {
+    throw new Error('OpenContent Connector requires owner-scoped package settings.')
   }
   if (!host.internalServices) {
     throw new Error('OpenContent Connector requires Host internal-service mediation.')
   }
   let runtime: OpenContentDeploymentRuntime | undefined
   const getRuntime: OpenContentDeploymentRuntimeGetter = () => runtime
-  const connections = createOpenContentConnectionService({
-    providerInstanceRef: OPENCONTENT_PROVIDER_INSTANCE_REF,
-    settings: host.packageSettings,
-    credentials: host.packageSecrets.providerCredentials,
+  const accounts = createNativeOpenContentPrivateAccountRuntime({
+    providerInstanceRef: instance.providerInstanceRef,
     getRuntime
   })
-  const deployment = resolveOpenContentDeploymentConfiguration(host)
+  const connections = createOpenContentConnectionService({
+    providerInstanceRef: instance.providerInstanceRef,
+    settings: host.packageSettings,
+    accounts,
+    getRuntime
+  })
+  const deployment = resolveOpenContentDeploymentConfiguration(
+    host,
+    instance.providerInstanceRef
+  )
   if (deployment) {
     const client = createOpenContentClient({ baseUrl: deployment.origin })
     const teamAdministration = createOpenContentTeamAdministration({
@@ -109,6 +123,7 @@ export function createDomainMainEntry(
       executablePath === undefined
       ? undefined
       : createOpenContentSkillRuntimeSession({
+          providerInstanceRef: instance.providerInstanceRef,
           connections,
           processPort: createNodeOpenContentCliProcessPort({
             trustedEntrypoint: skillAssetPaths.cliEntrypoint,
@@ -126,6 +141,7 @@ export function createDomainMainEntry(
     })
   }
   const facade = createOpenContentContentSpaceFacade({
+    providerInstanceRef: instance.providerInstanceRef,
     connections,
     getRuntime
   })
@@ -142,6 +158,7 @@ export function createDomainMainEntry(
         ...OPENCONTENT_CAPABILITY_FACTORY_CONTRIBUTION,
         value: createOpenContentCapabilityFactory({
           defineCapability: (options) => host.defineCapability(options),
+          providerInstanceRef: instance.providerInstanceRef,
           connections
         })
       },

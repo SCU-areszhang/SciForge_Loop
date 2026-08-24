@@ -104,12 +104,10 @@ function successReceipt(
   input: Readonly<{
     json: Extract<DocflowNativeDocumentReceipt, { outcome: 'succeeded' }>['json']
     delivery?: readonly [ReturnType<typeof delivery>]
-    managed?: readonly {
-      role: 'probe-template'
-      token: string
-      name: string
-      mediaType: 'application/json'
-    }[]
+    managed?: Extract<
+      DocflowNativeDocumentReceipt,
+      { outcome: 'succeeded' }
+    >['managedDataFiles']
   }>
 ): DocflowNativeDocumentReceipt {
   return {
@@ -153,7 +151,7 @@ function source(name: string, bytes: Uint8Array) {
 
 function canonicalPlanningReceipt(
   invocation: DocflowCommandInvocation,
-  probeToken: string
+  probeLocator: string
 ): DocflowNativeDocumentReceipt | undefined {
   if (invocation.command === 'docflow-probe') {
     return successReceipt(invocation, {
@@ -175,12 +173,7 @@ function canonicalPlanningReceipt(
         },
         truncation: { total: 1, returned: 1, truncated: false }
       },
-      managed: [{
-        role: 'probe-template',
-        token: probeToken,
-        name: 'probe-template.json',
-        mediaType: 'application/json'
-      }]
+      managed: [managedProbeDescriptor(probeLocator, invocation.invocationId)]
     })
   }
   if (invocation.command === 'docflow-plan') {
@@ -201,6 +194,27 @@ function canonicalPlanningReceipt(
     })
   }
   return undefined
+}
+
+function managedProbeDescriptor(locator: string, sourceInvocationId: string) {
+  return Object.freeze({
+    role: 'probe-template' as const,
+    locator,
+    sourceInvocationId,
+    contentDigest: 'c'.repeat(64),
+    name: 'probe-template.json',
+    mediaType: 'application/json' as const
+  })
+}
+
+function managedProbeInput(locator: string, sourceInvocationId: string) {
+  return Object.freeze({
+    role: 'probe-template' as const,
+    encoding: 'managed' as const,
+    locator,
+    sourceInvocationId,
+    contentDigest: 'c'.repeat(64)
+  })
 }
 
 describe('native-document Content Space provider adapter', () => {
@@ -563,7 +577,7 @@ describe('native-document Content Space provider adapter', () => {
   })
 
   it('binds one pinned nested probe match to its supplier hash and managed template', async () => {
-    const probeToken = `ocdf_${'n'.repeat(32)}`
+    const probeLocator = `mdloc_${'n'.repeat(32)}`
     const selection = {
       editTarget: { nodeId: 'node-a' },
       range: { start: 0, end: 4, unit: 'utf16' },
@@ -589,12 +603,7 @@ describe('native-document Content Space provider adapter', () => {
           },
           truncation: { total: 1, returned: 1, truncated: false }
         },
-        managed: [{
-          role: 'probe-template',
-          token: probeToken,
-          name: 'probe-template.json',
-          mediaType: 'application/json'
-        }]
+        managed: [managedProbeDescriptor(probeLocator, invocation.invocationId)]
       })
     })
     const adapter = createNativeDocumentProviderAdapter({ docflow: { execute } })
@@ -627,7 +636,7 @@ describe('native-document Content Space provider adapter', () => {
     ['legacy alias', { documentHash: BASE_HASH }],
     ['truncation', { truncation: { total: 2, returned: 1, truncated: true } }]
   ] as const)('fails closed when pinned probe %s proof drifts', async (_field, drift) => {
-    const probeToken = `ocdf_${'s'.repeat(32)}`
+    const probeLocator = `mdloc_${'s'.repeat(32)}`
     const baseProbe = {
       success: true,
       operation: 'probe',
@@ -656,12 +665,7 @@ describe('native-document Content Space provider adapter', () => {
       const invocation = docflowCommandInvocationSchema.parse(raw)
       return successReceipt(invocation, {
         json: driftedProbe,
-        managed: [{
-          role: 'probe-template',
-          token: probeToken,
-          name: 'probe-template.json',
-          mediaType: 'application/json'
-        }]
+        managed: [managedProbeDescriptor(probeLocator, invocation.invocationId)]
       })
     })
     const adapter = createNativeDocumentProviderAdapter({ docflow: { execute } })
@@ -1005,11 +1009,11 @@ describe('native-document Content Space provider adapter', () => {
   })
 
   it('keeps probe and plan as a read-only analysis chain while edit fails closed', async () => {
-    const probeToken = `ocdf_${'p'.repeat(32)}`
+    const probeLocator = `mdloc_${'p'.repeat(32)}`
     const selector = { kind: 'text' as const, text: 'Old text', occurrence: 1 }
     const execute = vi.fn(async (raw: unknown) => {
       const invocation = docflowCommandInvocationSchema.parse(raw)
-      return canonicalPlanningReceipt(invocation, probeToken) ?? failureReceipt(invocation)
+      return canonicalPlanningReceipt(invocation, probeLocator) ?? failureReceipt(invocation)
     })
     const adapter = createNativeDocumentProviderAdapter({ docflow: { execute } })
 
@@ -1063,7 +1067,7 @@ describe('native-document Content Space provider adapter', () => {
       command: 'docflow-plan',
       args: { fileId: FILE.fileId, baseHash: BASE_HASH },
       dataFiles: [
-        { role: 'probe-template', encoding: 'managed', token: probeToken },
+        managedProbeInput(probeLocator, 'invocation_native_probe_0001'),
         {
           role: 'operations',
           encoding: 'json',
@@ -1104,11 +1108,11 @@ describe('native-document Content Space provider adapter', () => {
     ['operationCount', { operationCount: 2 }],
     ['legacy alias', { canApply: true }]
   ] as const)('fails closed when pinned plan %s proof drifts', async (_field, drift) => {
-    const probeToken = `ocdf_${'t'.repeat(32)}`
+    const probeLocator = `mdloc_${'t'.repeat(32)}`
     const execute = vi.fn(async (raw: unknown) => {
       const invocation = docflowCommandInvocationSchema.parse(raw)
       if (invocation.command === 'docflow-probe') {
-        return canonicalPlanningReceipt(invocation, probeToken) ?? failureReceipt(invocation)
+        return canonicalPlanningReceipt(invocation, probeLocator) ?? failureReceipt(invocation)
       }
       if (invocation.command === 'docflow-plan') {
         return successReceipt(invocation, {
@@ -1189,10 +1193,10 @@ describe('native-document Content Space provider adapter', () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-08-20T00:00:00.000Z'))
     try {
-      const probeToken = `ocdf_${'p'.repeat(32)}`
+      const probeLocator = `mdloc_${'p'.repeat(32)}`
       const execute = vi.fn(async (raw: unknown) => {
         const invocation = docflowCommandInvocationSchema.parse(raw)
-        return canonicalPlanningReceipt(invocation, probeToken) ?? failureReceipt(invocation)
+        return canonicalPlanningReceipt(invocation, probeLocator) ?? failureReceipt(invocation)
       })
       const adapter = createNativeDocumentProviderAdapter({ docflow: { execute } })
       const selector = { kind: 'text' as const, text: 'Old text', occurrence: 1 }
@@ -1225,10 +1229,10 @@ describe('native-document Content Space provider adapter', () => {
   })
 
   it('binds managed probe receipts to the exact Principal snapshot', async () => {
-    const probeToken = `ocdf_${'p'.repeat(32)}`
+    const probeLocator = `mdloc_${'p'.repeat(32)}`
     const execute = vi.fn(async (raw: unknown) => {
       const invocation = docflowCommandInvocationSchema.parse(raw)
-      return canonicalPlanningReceipt(invocation, probeToken) ?? failureReceipt(invocation)
+      return canonicalPlanningReceipt(invocation, probeLocator) ?? failureReceipt(invocation)
     })
     const adapter = createNativeDocumentProviderAdapter({ docflow: { execute } })
     const selector = { kind: 'text' as const, text: 'Old text', occurrence: 1 }
@@ -1266,10 +1270,10 @@ describe('native-document Content Space provider adapter', () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-08-20T00:00:00.000Z'))
     try {
-      let tokenIndex = 0
+      let locatorIndex = 0
       const execute = vi.fn(async (raw: unknown) => {
         const invocation = docflowCommandInvocationSchema.parse(raw)
-        tokenIndex += 1
+        locatorIndex += 1
         return successReceipt(invocation, {
           json: {
             success: true,
@@ -1286,10 +1290,10 @@ describe('native-document Content Space provider adapter', () => {
             truncation: { total: 1, returned: 1, truncated: false }
           },
           managed: [{
-            role: 'probe-template',
-            token: `ocdf_${String(tokenIndex).padStart(32, '0')}`,
-            name: 'probe-template.json',
-            mediaType: 'application/json'
+            ...managedProbeDescriptor(
+              `mdloc_${String(locatorIndex).padStart(32, '0')}`,
+              invocation.invocationId
+            )
           }]
         })
       })

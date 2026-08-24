@@ -44,6 +44,44 @@ describe('OpenContent Connector main contract', () => {
     }).success).toBe(false)
   })
 
+  it('publishes managed probe material only as a non-authorizing locator and digest', () => {
+    const plan = {
+      invocationId: 'invocation_connector_contract_plan',
+      command: 'docflow-plan',
+      args: { fileId: 'file-a', baseHash: 'a'.repeat(64) },
+      dataFiles: [
+        {
+          role: 'probe-template',
+          encoding: 'managed',
+          locator: `mdloc_${'l'.repeat(32)}`,
+          sourceInvocationId: 'invocation_connector_contract_probe',
+          contentDigest: 'b'.repeat(64)
+        },
+        {
+          role: 'operations',
+          encoding: 'json',
+          name: 'operations.json',
+          mediaType: 'application/json',
+          content: { operations: [{ op: 'replaceText' }] }
+        }
+      ]
+    }
+
+    expect(docflowCommandInvocationSchema.safeParse(plan).success).toBe(true)
+    expect(docflowCommandInvocationSchema.safeParse({
+      ...plan,
+      dataFiles: [
+        {
+          role: 'probe-template',
+          encoding: 'managed',
+          token: 'retired-bearer-value'
+        },
+        plan.dataFiles[1]
+      ]
+    }).success).toBe(false)
+    expect(JSON.stringify(plan)).not.toMatch(/token|credential|secret/iu)
+  })
+
   it('publishes only token-free supplier invocations and the Provider facade', async () => {
     const packageManifest = JSON.parse(readFileSync(resolve(packageRoot, 'package.json'), 'utf8'))
 

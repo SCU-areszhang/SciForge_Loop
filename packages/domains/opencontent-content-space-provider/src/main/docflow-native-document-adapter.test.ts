@@ -44,7 +44,9 @@ describe('DocFlow native document adapter', () => {
       dataFiles: [{
         role: 'edit-plan',
         encoding: 'managed',
-        token: `ocdf_${'p'.repeat(32)}`
+        locator: `mdloc_${'p'.repeat(32)}`,
+        sourceInvocationId: 'invocation_docflow_adapter_probe',
+        contentDigest: 'a'.repeat(64)
       }]
     })).rejects.toThrow()
     for (const command of [

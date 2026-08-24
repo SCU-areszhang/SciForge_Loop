@@ -1,6 +1,12 @@
 import { z } from 'zod'
 
 import {
+  principalSnapshotSchema,
+  samePrincipalSnapshot,
+  type PrincipalSnapshot
+} from '@sciforge/domain-sdk/principal'
+
+import {
   assertOpenContentSkillBundledAssetsPresent,
   type OpenContentSkillBundledAssetLocation
 } from './bundled-assets.js'
@@ -8,6 +14,10 @@ import {
   type OpenContentSupplierCommandTransport,
   type OpenContentSupplierInvocation
 } from '../main-contract.js'
+import {
+  openContentExternalBindingAttestationSchema,
+  type OpenContentExternalBindingAttestation
+} from '../contract.js'
 import {
   DOCFLOW_NATIVE_DOCUMENT_COMMANDS,
   docflowCommandInvocationSchema
@@ -149,11 +159,43 @@ type OpenContentCliConnectionMaterial = z.infer<
   typeof openContentCliConnectionMaterialSchema
 >
 
+export const openContentCliSessionBindingSchema = z.object({
+  principal: principalSnapshotSchema,
+  providerInstanceRef: z.string().trim().min(3).max(256),
+  bindingAttestation: openContentExternalBindingAttestationSchema,
+  invocationId: z.string()
+    .trim()
+    .min(16)
+    .max(128)
+    .regex(/^[A-Za-z0-9][A-Za-z0-9_-]+$/u)
+}).strict().superRefine((binding, context) => {
+  if (binding.bindingAttestation.providerInstanceRef !== binding.providerInstanceRef) {
+    context.addIssue({
+      code: 'custom',
+      path: ['bindingAttestation', 'providerInstanceRef'],
+      message: 'The current binding must target the configured Provider Instance.'
+    })
+  }
+  if (!samePrincipalSnapshot(binding.bindingAttestation.principal, binding.principal)) {
+    context.addIssue({
+      code: 'custom',
+      path: ['bindingAttestation', 'principal'],
+      message: 'The current binding must attest the exact Principal.'
+    })
+  }
+}).readonly()
+
+export type OpenContentCliSessionBinding = z.infer<
+  typeof openContentCliSessionBindingSchema
+>
+
 export type OpenContentCliProcessRequest = Readonly<{
   protocol: typeof OPENCONTENT_CLI_RUNNER_PROTOCOL
   entrypoint: string
   invocation: OpenContentSupplierInvocation
   connectionMaterial: OpenContentCliConnectionMaterial
+  /** Trusted facts from the exact live Connector session; never serialized to the child. */
+  sessionBinding: OpenContentCliSessionBinding
   deadlineAt: string
   signal: AbortSignal
   /** Ephemeral Host Principal lease guard; never serialized or exposed to the child. */
@@ -174,8 +216,10 @@ export interface OpenContentCliProcessPort {
 }
 
 export type OpenContentCliExecutionContext = Readonly<{
+  principal: PrincipalSnapshot
   providerInstanceRef: string
-  invocationId?: string
+  bindingAttestation: OpenContentExternalBindingAttestation
+  invocationId: string
   deadlineAt: string
   signal: AbortSignal
   assertPrincipalCurrent(): void | Promise<void>
@@ -200,10 +244,19 @@ export function createOpenContentCliRunner(
     openContentCliConnectionMaterialSchema.parse(binding.connectionMaterial)
   )
   const assets = assertOpenContentSkillBundledAssetsPresent(binding.assets)
+  const sessionBinding = Object.freeze(openContentCliSessionBindingSchema.parse({
+    principal: binding.execution.principal,
+    providerInstanceRef: binding.execution.providerInstanceRef,
+    bindingAttestation: binding.execution.bindingAttestation,
+    invocationId: binding.execution.invocationId
+  }))
 
   return Object.freeze({
     async invoke(input: OpenContentSupplierInvocation): Promise<unknown> {
       const invocation = openContentCliInvocationSchema.parse(input)
+      if (invocation.invocationId !== sessionBinding.invocationId) {
+        throw new TypeError('The supplier invocation is not bound to the current Provider operation.')
+      }
       await binding.execution.assertPrincipalCurrent()
       if (binding.execution.signal.aborted) {
         throw new DOMException('OpenContent CLI invocation was cancelled.', 'AbortError')
@@ -214,6 +267,7 @@ export function createOpenContentCliRunner(
         entrypoint: assets.cliEntrypoint,
         invocation,
         connectionMaterial,
+        sessionBinding,
         deadlineAt: binding.execution.deadlineAt,
         signal: binding.execution.signal,
         assertPrincipalCurrent: binding.execution.assertPrincipalCurrent,

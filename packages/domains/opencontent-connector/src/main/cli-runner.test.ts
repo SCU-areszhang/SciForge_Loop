@@ -15,6 +15,19 @@ import {
 } from './cli-runner.js'
 
 const testAssetRoot = mkdtempSync(resolve(tmpdir(), 'sciforge-cli-runner-assets-'))
+const principal = Object.freeze({
+  authority: 'sciforge.identity-access',
+  subject: 'subject-a',
+  assurance: 'cloud-authenticated' as const,
+  deviceId: 'device-a',
+  identityVersion: 1
+})
+const bindingAttestation = Object.freeze({
+  providerInstanceRef: 'provider-instance-a',
+  principal,
+  externalSubject: 'a'.repeat(64),
+  bindingRevision: 'b'.repeat(64)
+})
 for (const relativePath of [
   'package.json',
   'cli/bin/oc.js',
@@ -39,11 +52,14 @@ function createTestRunner(binding: Omit<OpenContentCliRunnerBinding, 'assets'>) 
 
 function executionContext(
   signal: AbortSignal,
-  assertPrincipalCurrent: OpenContentCliExecutionContext['assertPrincipalCurrent'] = vi.fn()
+  assertPrincipalCurrent: OpenContentCliExecutionContext['assertPrincipalCurrent'] = vi.fn(),
+  invocationId = 'invocation-runner-a'
 ): OpenContentCliExecutionContext {
   return {
+    principal,
     providerInstanceRef: 'provider-instance-a',
-    invocationId: 'invocation-runner-a',
+    bindingAttestation,
+    invocationId,
     deadlineAt: '2026-08-20T00:05:00.000Z',
     signal,
     assertPrincipalCurrent
@@ -58,7 +74,11 @@ describe('OpenContent CLI runner seam', () => {
       return { protocol: 'docflow-command-result:v1' }
     })
     const runner = createTestRunner({
-      execution: executionContext(new AbortController().signal, assertPrincipalCurrent),
+      execution: executionContext(
+        new AbortController().signal,
+        assertPrincipalCurrent,
+        'invocation_docflow_read_a'
+      ),
       connectionMaterial: {
         site: 'https://provider.invalid',
         systemUserToken: 'ephemeral-token'
@@ -81,6 +101,12 @@ describe('OpenContent CLI runner seam', () => {
     expect(run.mock.calls[0]?.[0]).toMatchObject({
       protocol: OPENCONTENT_CLI_RUNNER_PROTOCOL,
       invocation,
+      sessionBinding: {
+        principal,
+        providerInstanceRef: 'provider-instance-a',
+        bindingAttestation,
+        invocationId: 'invocation_docflow_read_a'
+      },
       limits: {
         stdoutBytes: OPENCONTENT_CLI_MAX_STDOUT_BYTES,
         stderrBytes: OPENCONTENT_CLI_MAX_STDERR_BYTES
@@ -92,7 +118,11 @@ describe('OpenContent CLI runner seam', () => {
   it('rejects caller-controlled process fields before reaching the privileged port', async () => {
     const run = vi.fn()
     const runner = createTestRunner({
-      execution: executionContext(new AbortController().signal),
+      execution: executionContext(
+        new AbortController().signal,
+        vi.fn(),
+        'invocation_docflow_read_b'
+      ),
       connectionMaterial: {
         site: 'https://provider.invalid',
         systemUserToken: 'ephemeral-token'
@@ -117,7 +147,7 @@ describe('OpenContent CLI runner seam', () => {
     controller.abort()
     const run = vi.fn()
     const runner = createTestRunner({
-      execution: executionContext(controller.signal),
+      execution: executionContext(controller.signal, vi.fn(), 'invocation_docflow_read_c'),
       connectionMaterial: {
         site: 'https://provider.invalid',
         systemUserToken: 'ephemeral-token'
@@ -142,7 +172,8 @@ describe('OpenContent CLI runner seam', () => {
     const runner = createTestRunner({
       execution: executionContext(
         new AbortController().signal,
-        assertPrincipalCurrent
+        assertPrincipalCurrent,
+        'invocation_principal_changed_a'
       ),
       connectionMaterial: {
         site: 'https://provider.invalid',
@@ -164,7 +195,11 @@ describe('OpenContent CLI runner seam', () => {
   it('uses the same fixed process seam for an extended-operation command', async () => {
     const run = vi.fn().mockResolvedValue({ protocol: 'opencontent-cli-result:v1' })
     const runner = createTestRunner({
-      execution: executionContext(new AbortController().signal),
+      execution: executionContext(
+        new AbortController().signal,
+        vi.fn(),
+        'invocation_file_info_a'
+      ),
       connectionMaterial: {
         site: 'https://provider.invalid',
         systemUserToken: 'ephemeral-token'
@@ -191,7 +226,8 @@ describe('OpenContent CLI runner seam', () => {
     const runner = createTestRunner({
       execution: executionContext(
         new AbortController().signal,
-        assertPrincipalCurrent
+        assertPrincipalCurrent,
+        'invocation_retired_user_info_runner'
       ),
       connectionMaterial: {
         site: 'https://provider.invalid',
@@ -213,7 +249,11 @@ describe('OpenContent CLI runner seam', () => {
   it('rejects snapshot diagnostics and raw HTTP passthrough before the process seam', async () => {
     const run = vi.fn()
     const runner = createTestRunner({
-      execution: executionContext(new AbortController().signal),
+      execution: executionContext(
+        new AbortController().signal,
+        vi.fn(),
+        'invocation_rejected_command_a'
+      ),
       connectionMaterial: {
         site: 'https://provider.invalid',
         systemUserToken: 'ephemeral-token'

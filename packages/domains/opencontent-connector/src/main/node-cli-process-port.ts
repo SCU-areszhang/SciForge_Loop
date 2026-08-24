@@ -22,7 +22,7 @@ export type NodeOpenContentCliProcessPortOptions = Readonly<{
   /** Host cleanup implementation; production defaults to bounded recursive removal. */
   removeInvocationRoot?: (path: string) => Promise<void>
   /** Values may only tighten the fixed production ceilings. */
-  managedTokenLimits?: Readonly<{
+  managedLocatorLimits?: Readonly<{
     maxEntries: number
     maxBytes: number
   }>
@@ -52,9 +52,9 @@ export function createNodeOpenContentCliProcessPort(
     ...(options.removeInvocationRoot === undefined
       ? {}
       : { removeInvocationRoot: options.removeInvocationRoot }),
-    ...(options.managedTokenLimits === undefined
+    ...(options.managedLocatorLimits === undefined
       ? {}
-      : { managedTokenLimits: options.managedTokenLimits }),
+      : { managedLocatorLimits: options.managedLocatorLimits }),
     ...(options.now === undefined ? {} : { now: options.now }),
     trustedSnapshotIntegrity:
       OPENCONTENT_SKILL_BUNDLED_ASSET_DESCRIPTOR.trustedRuntimeFiles

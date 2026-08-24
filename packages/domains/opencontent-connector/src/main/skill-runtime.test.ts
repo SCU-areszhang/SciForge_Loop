@@ -29,9 +29,6 @@ import {
   OPENCONTENT_SKILL_BUNDLED_ASSET_DESCRIPTOR
 } from './bundled-assets.js'
 
-import {
-  OPENCONTENT_PROVIDER_INSTANCE_REF
-} from '../contract.js'
 import type {
   OpenContentContentSpaceFacade,
   OpenContentSupplierCommandTransport
@@ -43,6 +40,8 @@ import {
   createOpenContentSkillRuntimeSession,
   resolveOpenContentSkillRuntimeAssets
 } from './skill-runtime.js'
+
+const OPENCONTENT_PROVIDER_INSTANCE_REF = 'opencontent-edoc2-demo' as const
 
 const principal = Object.freeze({
   authority: 'sciforge.identity-access',
@@ -394,6 +393,7 @@ describe('OpenContent main-only skill runtime session', () => {
     }))
     const connections = connectionService(tokenCanary)
     const session = createOpenContentSkillRuntimeSession({
+      providerInstanceRef: OPENCONTENT_PROVIDER_INSTANCE_REF,
       connections,
       processPort: { run },
       assets: { mode: 'source', assetRoot: assetFixture.assetRoot },
@@ -412,7 +412,7 @@ describe('OpenContent main-only skill runtime session', () => {
     }, async (transport) => {
       retainedTransport = transport
       return transport.invoke({
-        invocationId: 'invocation_skill_runtime_read_0001',
+        invocationId: 'invocation_skill_runtime_0001',
         command: 'docflow-read',
         args: { fileId: 'file-a' },
         dataFiles: []
@@ -441,6 +441,7 @@ describe('OpenContent main-only skill runtime session', () => {
   it('rejects another Provider Instance before opening the credential session', async () => {
     const connections = connectionService('token-canary')
     const session = createOpenContentSkillRuntimeSession({
+      providerInstanceRef: OPENCONTENT_PROVIDER_INSTANCE_REF,
       connections,
       processPort: { run: vi.fn() },
       assets: { mode: 'source', assetRoot: assetFixture.assetRoot },
@@ -468,6 +469,7 @@ describe('OpenContent main-only skill runtime session', () => {
       managedDataFiles: []
     }))
     const session = createOpenContentSkillRuntimeSession({
+      providerInstanceRef: OPENCONTENT_PROVIDER_INSTANCE_REF,
       connections: connectionService('token-canary'),
       processPort: { run },
       assets: { mode: 'source', assetRoot: assetFixture.assetRoot },
@@ -487,14 +489,14 @@ describe('OpenContent main-only skill runtime session', () => {
       assertPrincipalCurrent
     }, async (transport) => {
       await transport.invoke({
-        invocationId: 'invocation_skill_runtime_principal_read_0001',
+        invocationId: 'invocation_skill_runtime_principal_0001',
         command: 'docflow-read',
         args: { fileId: 'file-a' },
         dataFiles: []
       })
       principalIsCurrent = false
       return transport.invoke({
-        invocationId: 'invocation_skill_runtime_principal_write_0001',
+        invocationId: 'invocation_skill_runtime_principal_0001',
         command: 'rename',
         args: { id: 'file-a', name: 'Renamed.mdoc' },
         dataFiles: []
@@ -512,7 +514,7 @@ function connectionService(token: string): OpenContentConnectionService {
   return {
     status: vi.fn(),
     attestExternalBinding: vi.fn(async () => bindingAttestation),
-    bindExistingAccount: vi.fn(),
+    enroll: vi.fn(),
     useCurrentSession: vi.fn(async (_input, operation) => operation({
       token,
       externalIdentityId: 42,
@@ -549,20 +551,6 @@ function mainEntryFixture(appRoot: string, isPackaged = false): Readonly<{
       read: vi.fn(async () => ({ revision: 0, value: null })),
       write: vi.fn(async (value) => ({ revision: 1, value })),
       clear: vi.fn(async () => ({ revision: 1, value: null }))
-    }),
-    packageSecrets: Object.freeze({
-      has: vi.fn(async () => false),
-      read: vi.fn(async () => null),
-      write: vi.fn(async () => undefined),
-      remove: vi.fn(async () => undefined),
-      providerCredentials: Object.freeze({
-        status: vi.fn(async () => ({ state: 'absent' as const })),
-        replace: vi.fn(async () => undefined),
-        use: vi.fn(async () => {
-          throw new Error('Credential access is outside this activation test.')
-        }),
-        remove: vi.fn(async () => undefined)
-      })
     }),
     internalServices: Object.freeze({
       register<Service extends object>(

@@ -483,7 +483,7 @@ describe('Node OpenContent CLI process port', () => {
     expect(await readdir(fixture.invocationsRoot)).toEqual([])
   })
 
-  it('uses a one-use probe token for a read-only plan without retaining an executable plan', async () => {
+  it('uses a one-use probe locator for a read-only plan without retaining an executable plan', async () => {
     const fixture = await createFixture()
     const port = createNodeOpenContentCliProcessPort({
       trustedEntrypoint: fixture.entrypoint,
@@ -501,8 +501,8 @@ describe('Node OpenContent CLI process port', () => {
       },
       dataFiles: []
     }, fixture.entrypoint)) as Record<string, any>
-    const probeToken = probe.managedDataFiles[0].token as string
-    expect(probeToken).toMatch(/^ocdf_[A-Za-z0-9_-]{32,128}$/u)
+    const probeLocator = probe.managedDataFiles[0].locator as string
+    expect(probeLocator).toMatch(/^mdloc_[A-Za-z0-9_-]{32,128}$/u)
     expect(probe.json.probe).toMatchObject({
       documentHash: 'a'.repeat(64),
       capabilities: { supported: true }
@@ -514,7 +514,7 @@ describe('Node OpenContent CLI process port', () => {
       command: 'docflow-plan' as const,
       args: { fileId: 'file-a', baseHash: 'a'.repeat(64) },
       dataFiles: [
-        { role: 'probe-template' as const, encoding: 'managed' as const, token: probeToken },
+        managedProbeInput(probe.managedDataFiles[0]),
         {
           role: 'operations' as const,
           encoding: 'json' as const,
@@ -534,7 +534,106 @@ describe('Node OpenContent CLI process port', () => {
     expect(await readdir(fixture.invocationsRoot)).toEqual([])
   })
 
-  it('captures the pinned nested probe template as a one-use managed token', async () => {
+  it('does not grant managed probe authority by locator possession alone', async () => {
+    const fixture = await createFixture()
+    const port = createNodeOpenContentCliProcessPort({
+      trustedEntrypoint: fixture.entrypoint,
+      temporaryRoot: fixture.invocationsRoot
+    })
+    const probeInvocationId = 'invocation_locator_probe_authority_0001'
+    const probe = await port.run({
+      ...request({
+        invocationId: probeInvocationId,
+        command: 'docflow-probe',
+        args: {
+          fileId: 'file-a',
+          target: { text: 'Hello' },
+          view: 'target',
+          operation: 'replaceText',
+          include: ['nodes', 'text']
+        },
+        dataFiles: []
+      }, fixture.entrypoint),
+      sessionBinding: supplierSessionBinding(probeInvocationId)
+    } as never) as Record<string, any>
+    const managed = probe.managedDataFiles[0] as Record<string, string>
+    expect(managed).toMatchObject({
+      sourceInvocationId: probeInvocationId
+    })
+    expect(managed.contentDigest).toMatch(/^[a-f0-9]{64}$/u)
+    expect(managed.locator).toMatch(/^mdloc_[A-Za-z0-9_-]{32,128}$/u)
+    expect(managed).not.toHaveProperty('token')
+
+    const planInvocationId = 'invocation_locator_plan_authority_0001'
+    const planInvocation = {
+      invocationId: planInvocationId,
+      command: 'docflow-plan' as const,
+      args: { fileId: 'file-a', baseHash: 'a'.repeat(64) },
+      dataFiles: [
+        {
+          role: 'probe-template' as const,
+          encoding: 'managed' as const,
+          locator: managed.locator,
+          sourceInvocationId: managed.sourceInvocationId,
+          contentDigest: managed.contentDigest
+        },
+        {
+          role: 'operations' as const,
+          encoding: 'json' as const,
+          name: 'operations.json',
+          mediaType: 'application/json' as const,
+          content: { operations: [{ op: 'replaceText' }] }
+        }
+      ]
+    }
+    const wrongBindings = [
+      supplierSessionBinding(planInvocationId, { principalSubject: 'another-subject' }),
+      supplierSessionBinding(planInvocationId, { providerInstanceRef: 'provider-instance-b' }),
+      supplierSessionBinding(planInvocationId, { bindingRevision: 'c'.repeat(64) })
+    ]
+    for (const sessionBinding of wrongBindings) {
+      await expect(port.run({
+        ...request(planInvocation as never, fixture.entrypoint),
+        sessionBinding
+      } as never)).rejects.toMatchObject({ code: 'invalid-input', dispatched: false })
+    }
+    for (const drift of [
+      { sourceInvocationId: 'invocation_locator_wrong_source_0001' },
+      { contentDigest: 'f'.repeat(64) }
+    ]) {
+      const driftedInvocation = {
+        ...planInvocation,
+        dataFiles: [
+          { ...planInvocation.dataFiles[0], ...drift },
+          planInvocation.dataFiles[1]
+        ]
+      }
+      await expect(port.run({
+        ...request(driftedInvocation as never, fixture.entrypoint),
+        sessionBinding: supplierSessionBinding(planInvocationId)
+      } as never)).rejects.toMatchObject({ code: 'invalid-input', dispatched: false })
+    }
+    for (const args of [
+      { fileId: 'file-b', baseHash: 'a'.repeat(64) },
+      { fileId: 'file-a', baseHash: 'b'.repeat(64) }
+    ]) {
+      await expect(port.run({
+        ...request({ ...planInvocation, args } as never, fixture.entrypoint),
+        sessionBinding: supplierSessionBinding(planInvocationId)
+      } as never)).rejects.toMatchObject({ code: 'invalid-input', dispatched: false })
+    }
+
+    await expect(port.run({
+      ...request(planInvocation as never, fixture.entrypoint),
+      sessionBinding: supplierSessionBinding(planInvocationId)
+    } as never)).resolves.toMatchObject({ ok: true, command: 'docflow-plan' })
+    await expect(port.run({
+      ...request(planInvocation as never, fixture.entrypoint),
+      sessionBinding: supplierSessionBinding(planInvocationId)
+    } as never)).rejects.toMatchObject({ code: 'invalid-input', dispatched: false })
+  })
+
+  it('captures the pinned nested probe template as a one-use managed locator', async () => {
     const fixture = await createFixture()
     const port = createNodeOpenContentCliProcessPort({
       trustedEntrypoint: fixture.entrypoint,
@@ -561,7 +660,7 @@ describe('Node OpenContent CLI process port', () => {
         mediaType: 'application/json'
       })
     ])
-    expect(result.managedDataFiles[0].token).toMatch(/^ocdf_[A-Za-z0-9_-]{32,128}$/u)
+    expect(result.managedDataFiles[0].locator).toMatch(/^mdloc_[A-Za-z0-9_-]{32,128}$/u)
     expect(JSON.stringify(result)).not.toContain('editPlanTemplateFile')
     expect(JSON.stringify(result)).not.toContain(fixture.invocationsRoot)
     expect(await readdir(fixture.invocationsRoot)).toEqual([])
@@ -577,7 +676,7 @@ describe('Node OpenContent CLI process port', () => {
     const port = createNodeOpenContentCliProcessPort({
       trustedEntrypoint: fixture.entrypoint,
       temporaryRoot: fixture.invocationsRoot,
-      managedTokenLimits: { maxEntries: 1, maxBytes: 16 * 1024 * 1024 }
+      managedLocatorLimits: { maxEntries: 1, maxBytes: 16 * 1024 * 1024 }
     })
 
     await expect(port.run(request({
@@ -637,11 +736,7 @@ describe('Node OpenContent CLI process port', () => {
       command: 'docflow-plan',
       args: { fileId: 'pinned-plan-shape', baseHash: 'a'.repeat(64) },
       dataFiles: [
-        {
-          role: 'probe-template',
-          encoding: 'managed',
-          token: probe.managedDataFiles[0].token
-        },
+        managedProbeInput(probe.managedDataFiles[0]),
         {
           role: 'operations',
           encoding: 'json',
@@ -697,11 +792,7 @@ describe('Node OpenContent CLI process port', () => {
       command: 'docflow-plan',
       args: { fileId: invalidFileId, baseHash: 'a'.repeat(64) },
       dataFiles: [
-        {
-          role: 'probe-template',
-          encoding: 'managed',
-          token: probe.managedDataFiles[0].token
-        },
+        managedProbeInput(probe.managedDataFiles[0]),
         {
           role: 'operations',
           encoding: 'json',
@@ -717,12 +808,12 @@ describe('Node OpenContent CLI process port', () => {
     expect(await readdir(fixture.invocationsRoot)).toEqual([])
   })
 
-  it('fails closed at the managed-token entry cap without retaining the rejected capture', async () => {
+  it('fails closed at the managed-locator entry cap without retaining the rejected capture', async () => {
     const fixture = await createFixture()
     const port = createNodeOpenContentCliProcessPort({
       trustedEntrypoint: fixture.entrypoint,
       temporaryRoot: fixture.invocationsRoot,
-      managedTokenLimits: {
+      managedLocatorLimits: {
         maxEntries: 1,
         maxBytes: 64 * 1024 * 1024
       }
@@ -739,7 +830,7 @@ describe('Node OpenContent CLI process port', () => {
       },
       dataFiles: []
     }, fixture.entrypoint)) as Record<string, any>
-    const firstToken = firstProbe.managedDataFiles[0].token as string
+    const firstLocator = firstProbe.managedDataFiles[0].locator as string
 
     let failure: unknown
     try {
@@ -764,16 +855,16 @@ describe('Node OpenContent CLI process port', () => {
       dispatched: true
     })
     const serialized = serializeFailure(failure)
-    expect(serialized).not.toContain(firstToken)
+    expect(serialized).not.toContain(firstLocator)
     expect(serialized).not.toContain(fixture.invocationsRoot)
-    expect(serialized).not.toContain('ocdf_')
+    expect(serialized).not.toContain('mdloc_')
 
     const plan = await port.run(request({
       invocationId: 'invocation_managed_entry_cap_recovery_a',
       command: 'docflow-plan',
       args: { fileId: 'file-a', baseHash: 'a'.repeat(64) },
       dataFiles: [
-        { role: 'probe-template', encoding: 'managed', token: firstToken },
+        managedProbeInput(firstProbe.managedDataFiles[0]),
         {
           role: 'operations',
           encoding: 'json',
@@ -788,13 +879,13 @@ describe('Node OpenContent CLI process port', () => {
     expect(await readdir(fixture.invocationsRoot)).toEqual([])
   })
 
-  it('releases expired managed-token capacity immediately before a new capture', async () => {
+  it('releases expired managed-locator capacity immediately before a new capture', async () => {
     const fixture = await createFixture()
     let clock = Date.now()
     const port = createNodeOpenContentCliProcessPort({
       trustedEntrypoint: fixture.entrypoint,
       temporaryRoot: fixture.invocationsRoot,
-      managedTokenLimits: {
+      managedLocatorLimits: {
         maxEntries: 1,
         maxBytes: 64 * 1024 * 1024
       },
@@ -833,12 +924,56 @@ describe('Node OpenContent CLI process port', () => {
     expect(await readdir(fixture.invocationsRoot)).toEqual([])
   })
 
-  it('fails closed at the managed-token byte cap without retaining rejected bytes', async () => {
+  it('rejects an expired managed locator before plan dispatch', async () => {
+    const fixture = await createFixture()
+    let clock = Date.now()
+    const deadlineAt = new Date(clock + 60 * 60 * 1_000).toISOString()
+    const port = createNodeOpenContentCliProcessPort({
+      trustedEntrypoint: fixture.entrypoint,
+      temporaryRoot: fixture.invocationsRoot,
+      now: () => clock
+    })
+    const probe = await port.run(request({
+      invocationId: 'invocation_managed_expired_probe_a',
+      command: 'docflow-probe',
+      args: {
+        fileId: 'file-a',
+        target: { text: 'Hello' },
+        view: 'target',
+        operation: 'replaceText',
+        include: ['nodes', 'text']
+      },
+      dataFiles: []
+    }, fixture.entrypoint, deadlineAt)) as Record<string, any>
+    clock += 10 * 60 * 1_000 + 1
+
+    await expect(port.run(request({
+      invocationId: 'invocation_managed_expired_plan_a',
+      command: 'docflow-plan',
+      args: { fileId: 'file-a', baseHash: 'a'.repeat(64) },
+      dataFiles: [
+        managedProbeInput(probe.managedDataFiles[0]),
+        {
+          role: 'operations',
+          encoding: 'json',
+          name: 'operations.json',
+          mediaType: 'application/json',
+          content: { operations: [{ op: 'replaceText' }] }
+        }
+      ]
+    }, fixture.entrypoint, deadlineAt))).rejects.toMatchObject({
+      code: 'invalid-input',
+      dispatched: false
+    })
+    expect(await readdir(fixture.invocationsRoot)).toEqual([])
+  })
+
+  it('fails closed at the managed-locator byte cap without retaining rejected bytes', async () => {
     const fixture = await createFixture()
     const port = createNodeOpenContentCliProcessPort({
       trustedEntrypoint: fixture.entrypoint,
       temporaryRoot: fixture.invocationsRoot,
-      managedTokenLimits: {
+      managedLocatorLimits: {
         maxEntries: 2_048,
         maxBytes: 128
       }
@@ -868,7 +1003,7 @@ describe('Node OpenContent CLI process port', () => {
     })
     const serialized = serializeFailure(failure)
     expect(serialized).not.toContain(fixture.invocationsRoot)
-    expect(serialized).not.toContain('ocdf_')
+    expect(serialized).not.toContain('mdloc_')
 
     const accepted = await port.run(request({
       invocationId: 'invocation_managed_byte_cap_recovery_a',
@@ -887,12 +1022,12 @@ describe('Node OpenContent CLI process port', () => {
     expect(await readdir(fixture.invocationsRoot)).toEqual([])
   })
 
-  it('releases managed-token entry and byte capacity on dispose', async () => {
+  it('releases managed-locator entry and byte capacity on dispose', async () => {
     const fixture = await createFixture()
     const port = createNodeOpenContentCliProcessPort({
       trustedEntrypoint: fixture.entrypoint,
       temporaryRoot: fixture.invocationsRoot,
-      managedTokenLimits: {
+      managedLocatorLimits: {
         maxEntries: 1,
         maxBytes: 64
       }
@@ -929,12 +1064,12 @@ describe('Node OpenContent CLI process port', () => {
     expect(await readdir(fixture.invocationsRoot)).toEqual([])
   })
 
-  it('releases byte capacity as each one-use managed token is consumed', async () => {
+  it('releases byte capacity as each one-use managed locator is consumed', async () => {
     const fixture = await createFixture()
     const port = createNodeOpenContentCliProcessPort({
       trustedEntrypoint: fixture.entrypoint,
       temporaryRoot: fixture.invocationsRoot,
-      managedTokenLimits: {
+      managedLocatorLimits: {
         maxEntries: 2_048,
         maxBytes: 300
       }
@@ -951,13 +1086,12 @@ describe('Node OpenContent CLI process port', () => {
       },
       dataFiles: []
     }, fixture.entrypoint)) as Record<string, any>
-    const probeToken = probe.managedDataFiles[0].token as string
     const plan = await port.run(request({
       invocationId: 'invocation_managed_consume_plan_a',
       command: 'docflow-plan',
       args: { fileId: 'file-a', baseHash: 'a'.repeat(64) },
       dataFiles: [
-        { role: 'probe-template', encoding: 'managed', token: probeToken },
+        managedProbeInput(probe.managedDataFiles[0]),
         {
           role: 'operations',
           encoding: 'json',
@@ -989,13 +1123,13 @@ describe('Node OpenContent CLI process port', () => {
   it.each([
     { maxEntries: 2_049, maxBytes: 64 * 1024 * 1024 },
     { maxEntries: 2_048, maxBytes: (64 * 1024 * 1024) + 1 }
-  ])('does not allow trusted setup to raise the fixed managed-token ceilings', async (limits) => {
+  ])('does not allow trusted setup to raise the fixed managed-locator ceilings', async (limits) => {
     const fixture = await createFixture()
 
     expect(() => createNodeOpenContentCliProcessPort({
       trustedEntrypoint: fixture.entrypoint,
       temporaryRoot: fixture.invocationsRoot,
-      managedTokenLimits: limits
+      managedLocatorLimits: limits
     })).toThrow(expect.objectContaining({
       code: 'blocked-by-contract',
       dispatched: false
@@ -1578,6 +1712,7 @@ function request(
     entrypoint,
     invocation,
     connectionMaterial,
+    sessionBinding: supplierSessionBinding(invocation.invocationId),
     deadlineAt,
     signal: new AbortController().signal,
     assertPrincipalCurrent,
@@ -1586,6 +1721,45 @@ function request(
       stderrBytes: OPENCONTENT_CLI_MAX_STDERR_BYTES
     }
   }
+}
+
+function supplierSessionBinding(
+  invocationId: string,
+  overrides: Readonly<{
+    principalSubject?: string
+    providerInstanceRef?: string
+    bindingRevision?: string
+  }> = {}
+) {
+  const providerInstanceRef = overrides.providerInstanceRef ?? 'provider-instance-a'
+  const principal = Object.freeze({
+    authority: 'sciforge.identity-access',
+    subject: overrides.principalSubject ?? 'subject-a',
+    assurance: 'cloud-authenticated' as const,
+    deviceId: 'device-a',
+    identityVersion: 1
+  })
+  return Object.freeze({
+    principal,
+    providerInstanceRef,
+    bindingAttestation: Object.freeze({
+      providerInstanceRef,
+      principal,
+      externalSubject: 'a'.repeat(64),
+      bindingRevision: overrides.bindingRevision ?? 'b'.repeat(64)
+    }),
+    invocationId
+  })
+}
+
+function managedProbeInput(raw: Record<string, any>) {
+  return Object.freeze({
+    role: 'probe-template' as const,
+    encoding: 'managed' as const,
+    locator: raw.locator as string,
+    sourceInvocationId: raw.sourceInvocationId as string,
+    contentDigest: raw.contentDigest as string
+  })
 }
 
 function serializeFailure(failure: unknown): string {

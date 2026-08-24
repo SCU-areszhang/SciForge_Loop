@@ -74,7 +74,9 @@ type ProbeState = Readonly<{
   selector: NativeDocumentSelector
   requestedCapability: Extract<NativeDocumentRequest, { operation: 'probe' }>['requestedCapability']
   selection: unknown
-  templateToken: string
+  templateLocator: string
+  templateSourceInvocationId: string
+  templateContentDigest: string
 }>
 
 type PrincipalBoundState<Value> = Readonly<{
@@ -88,7 +90,7 @@ type ManagedStateStore<Value> = Readonly<{
   reservations: Set<symbol>
 }>
 
-type ManagedStateReservation = Readonly<{ kind: 'probe'; token: symbol }>
+type ManagedStateReservation = Readonly<{ kind: 'probe'; reservationId: symbol }>
 
 export type NativeDocumentProviderAdapterBinding = Readonly<{
   docflow: DocflowNativeDocumentAdapter
@@ -219,9 +221,9 @@ function reserveManagedState<Value>(
   if (store.entries.size + store.reservations.size >= MANAGED_STATE_CAPACITY) {
     return undefined
   }
-  const token = Symbol('managed-native-document-state')
-  store.reservations.add(token)
-  return token
+  const reservationId = Symbol('managed-native-document-state')
+  store.reservations.add(reservationId)
+  return reservationId
 }
 
 function commitManagedState<Value>(
@@ -269,7 +271,7 @@ function releaseManagedStateReservation(
   probeStates: ManagedStateStore<ProbeState>
 ): void {
   if (reservation?.kind === 'probe') {
-    probeStates.reservations.delete(reservation.token)
+    probeStates.reservations.delete(reservation.reservationId)
   }
 }
 
@@ -685,14 +687,14 @@ async function prepareInvocation(
       rawInvocation = simpleFileInvocation(invocationId, 'docflow-read', request.document.reference.fileId)
       break
     case 'probe': {
-      const token = reserveManagedState(probeStates, now)
-      if (!token) {
+      const reservationId = reserveManagedState(probeStates, now)
+      if (!reservationId) {
         return {
           success: false,
           receipt: managedStateCapacityReceipt(base)
         }
       }
-      reservation = Object.freeze({ kind: 'probe' as const, token })
+      reservation = Object.freeze({ kind: 'probe' as const, reservationId })
       const probeOperation = mapProbeCapability(request.requestedCapability)
       rawInvocation = {
         invocationId,
@@ -759,7 +761,9 @@ async function prepareInvocation(
           {
             role: 'probe-template',
             encoding: 'managed',
-            token: state.templateToken
+            locator: state.templateLocator,
+            sourceInvocationId: state.templateSourceInvocationId,
+            contentDigest: state.templateContentDigest
           },
           {
             role: 'operations',
@@ -1297,10 +1301,16 @@ function normalizeSuccessReceipt(
         )
       }
       const selection = matches[0]
-      const probeReceiptId = opaqueReceiptId('probe', base.invocationId, template[0]!.token)
+      const probeReceiptId = opaqueReceiptId(
+        'probe',
+        base.invocationId,
+        template[0]!.locator,
+        template[0]!.sourceInvocationId,
+        template[0]!.contentDigest
+      )
       if (reservation?.kind !== 'probe' || !commitManagedState(
         probeStates,
-        reservation.token,
+        reservation.reservationId,
         probeReceiptId,
         Object.freeze({
           providerInstanceRef: request.document.reference.providerInstanceRef,
@@ -1309,7 +1319,9 @@ function normalizeSuccessReceipt(
           selector: request.selector,
           requestedCapability: request.requestedCapability,
           selection,
-          templateToken: template[0]!.token
+          templateLocator: template[0]!.locator,
+          templateSourceInvocationId: template[0]!.sourceInvocationId,
+          templateContentDigest: template[0]!.contentDigest
         }),
         boundPrincipal,
         now
@@ -1569,10 +1581,10 @@ function requiredDeliveryIdentity(
 function opaqueReceiptId(
   kind: 'probe' | 'plan',
   invocationId: string,
-  managedValue: string
+  ...observedValues: readonly string[]
 ): string {
   const digest = createHash('sha256')
-    .update(`${kind}\0${invocationId}\0${managedValue}`)
+    .update(JSON.stringify([kind, invocationId, ...observedValues]))
     .digest('hex')
   return `${kind}_${digest.slice(0, 48)}`
 }
