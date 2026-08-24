@@ -211,7 +211,7 @@ export const cloudIdentitySnapshotSchema = z.object({
 }).strict().readonly()
 
 export const identityCapabilityResourceHandleSchema = z.object({
-  token: z.string().regex(/^cap_[A-Za-z0-9_-]{20,}$/u),
+  resourceHandleId: z.string().regex(/^cap_[A-Za-z0-9_-]{20,}$/u),
   semanticRevision: z.string().regex(/^cloud-[1-9][0-9]*$/u),
   expiresAt: z.string().datetime({ offset: true })
 }).strict().readonly()

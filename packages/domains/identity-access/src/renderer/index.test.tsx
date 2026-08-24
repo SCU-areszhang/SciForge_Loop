@@ -52,7 +52,7 @@ describe('Identity renderer entry', () => {
 
 function rendererHost(toggleGlobalOverlay = vi.fn()): DomainRendererHost {
   const cloudResource = {
-    token: `cap_${'a'.repeat(24)}`,
+    resourceHandleId: `cap_${'a'.repeat(24)}`,
     semanticRevision: 'cloud-1',
     expiresAt: '2027-08-21T00:00:00.000Z'
   }

@@ -124,7 +124,7 @@ function snapshotWith(cloud: CloudIdentitySnapshot): IdentityProjectionSnapshot 
     accounts: [],
     cloud,
     cloudResource: {
-      token: `cap_${'a'.repeat(24)}`,
+      resourceHandleId: `cap_${'a'.repeat(24)}`,
       semanticRevision: cloud.revision,
       expiresAt: '2027-08-21T00:00:00.000Z'
     },

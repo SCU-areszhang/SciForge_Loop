@@ -22,7 +22,7 @@ const cloudSignedOut: CloudIdentitySnapshot = {
 }
 
 const cloudResource = {
-  token: `cap_${'a'.repeat(24)}`,
+  resourceHandleId: `cap_${'a'.repeat(24)}`,
   semanticRevision: 'cloud-1',
   expiresAt: '2027-08-21T00:00:00.000Z'
 }
@@ -213,7 +213,7 @@ describe('IdentityRendererProjection', () => {
     }
     const inspectedResource = {
       ...cloudResource,
-      token: `cap_${'c'.repeat(24)}`,
+      resourceHandleId: `cap_${'c'.repeat(24)}`,
       semanticRevision: 'cloud-3'
     }
     let notifyChange: (() => void) | undefined
@@ -263,7 +263,10 @@ describe('IdentityRendererProjection', () => {
     expect(observedRevisions).not.toContain('mutation-response')
     expect(projection.getSnapshot()).toMatchObject({
       cloud: { revision: 'cloud-3' },
-      cloudResource: { token: inspectedResource.token, semanticRevision: 'cloud-3' },
+      cloudResource: {
+        resourceHandleId: inspectedResource.resourceHandleId,
+        semanticRevision: 'cloud-3'
+      },
       cloudLoading: false,
       error: null
     })
@@ -279,7 +282,7 @@ describe('IdentityRendererProjection', () => {
     }
     const currentResource = {
       ...cloudResource,
-      token: `cap_${'d'.repeat(24)}`,
+      resourceHandleId: `cap_${'d'.repeat(24)}`,
       semanticRevision: 'cloud-current'
     }
     const inspectCloud = vi.fn()
@@ -313,7 +316,7 @@ describe('IdentityRendererProjection', () => {
     expect(inspectCloud).toHaveBeenCalledTimes(2)
     expect(projection.getSnapshot()).toMatchObject({
       cloud: { revision: 'cloud-current' },
-      cloudResource: { token: currentResource.token },
+      cloudResource: { resourceHandleId: currentResource.resourceHandleId },
       error: null
     })
     projection.dispose()
@@ -327,7 +330,7 @@ describe('IdentityRendererProjection', () => {
     }
     const currentResource = {
       ...cloudResource,
-      token: `cap_${'e'.repeat(24)}`,
+      resourceHandleId: `cap_${'e'.repeat(24)}`,
       semanticRevision: 'cloud-current'
     }
     const inspectCloud = vi.fn()
@@ -355,7 +358,7 @@ describe('IdentityRendererProjection', () => {
     expect(observeCloud).not.toHaveBeenCalledWith(cloudResource)
     expect(projection.getSnapshot()).toMatchObject({
       cloud: { revision: 'cloud-current' },
-      cloudResource: { token: currentResource.token }
+      cloudResource: { resourceHandleId: currentResource.resourceHandleId }
     })
     projection.dispose()
   })
