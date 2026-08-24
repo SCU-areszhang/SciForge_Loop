@@ -9,7 +9,7 @@
 ## 2. Identity 与通用安全边界
 
 - [x] 2.1 复用 Domain SDK 的 main-only owner-scoped internal-service mediation，由 identity-access 定义 allowlisted、token-free authenticated Cloud transport public contract，并增加 manifest/composition/边界测试。
-- [ ] 2.2 由 identity-access 实现唯一 OIDC request broker，私有注入 Token、重验 Device lease、严格返回 token-free response，并删除协作包 OIDC/session broker 路径。
+- [x] 2.2 由 identity-access 实现唯一 OIDC request broker，私有注入 Token、重验 Device lease、严格返回 token-free response，并删除协作包 OIDC/session broker 路径。
 - [ ] 2.3 增加 Device key enrollment、原生安全存储、canonical digest signing 和 Cloud verification metadata；禁止 domain 任意签名与私钥导出。
 - [ ] 2.4 将 Agent bootstrap 改为 OIDC User → ACTIVE Device → Runtime configured → 每 Device 一个 active Agent，并覆盖 logout/revoke/refresh/ownership conflict。
 - [ ] 2.5 扩展 secret audit，证明 Token、Device/Agent secret 和 Provider credential 不进入跨包合同、IPC、日志、Git 或回执。
@@ -29,7 +29,7 @@
 ## 4. Content Space 与 OpenContent 真实系统通道
 
 - [ ] 4.1 从 E1 donor 重写 generic `system-download`/`system-upload-new` 合同、Content Space capability/service、Domain SDK system grant 和源/packaged composition。
-- [ ] 4.2 实现 execution-bound Workspace relative path、realpath/symlink/no-overwrite/bounds、bytes/SHA-256 和 exact transfer receipts。
+- [ ] 4.2 实现 execution-bound Workspace relative path、realpath/symlink/no-overwrite/bounds 和 exact operation/resource transfer receipts；逐文件 bytes/SHA-256 可保留为诊断，但不作为本 PoC 门禁。
 - [ ] 4.3 实现 portable Project root/file resolver，metadata 仅验证 locator/ancestry，不授予 ACL；资源绑定 caller/Principal/Workspace/execution。
 - [ ] 4.4 在 OpenContent download 中接入真实 DownloadCheck，并保证授权结果早于 Host 打开目标；增加 metadata-visible-but-unauthorized 测试。
 - [ ] 4.5 在 OpenContent upload-new 中接入真实 Provider write、collision/unauthorized/outcome_unknown 分类和 exact write-after-observation。
@@ -39,7 +39,7 @@
 
 ## 5. 本地 Collaboration Agent 执行
 
-- [ ] 5.1 将 domain-collaboration 改为只消费 token-free transport，并保留独立 Agent machine credential、presence/WSS、durable Inbox/outbox。
+- [ ] 5.1 将 domain-collaboration 改为只消费 Identity-owned token-free User/Agent transport；Agent machine credential 仅由 Identity 私有原生安全存储持有，collaboration 只保留 presence/WSS 状态消费与 durable Inbox/outbox。
 - [ ] 5.2 实现每 Agent Device 本地持久 `manual | automatic` 策略、统一 preflight、显式 accept/reject reason，确认 Cloud 无 acceptancePolicy。
 - [ ] 5.3 实现 Worker availability 发布、Runtime capability tags、active Task count、Provider identity/current Project readiness 与 heartbeat projection。
 - [ ] 5.4 从 B donor 重写 Worker runner，使用 runtime-neutral AgentRuntime、当前 execution journal 和真实 Content Space system channel。
@@ -57,20 +57,21 @@
 
 ## 7. 隔离 Run-0 部署
 
-- [ ] 7.1 新增 `cloud-run0.sciforge.cn`/`login-run0.sciforge.cn`/`SciForge-Run0` 独立 Keycloak、Cloud、PostgreSQL、Compose、secret 和 backup artifacts。
-- [ ] 7.2 增加安全 preflight，验证 database/role/container/network/volume/issuer 与公网部署完全不同，脚本无默认公网 mutation 目标。
+- [x] 7.1 新增 `cloud-run0.sciforge.cn`/`login-run0.sciforge.cn`/`SciForge-Run0` 独立 Keycloak、Cloud、PostgreSQL、Compose、secret 和 backup artifacts。
+- [x] 7.2 增加安全 preflight，验证 database/role/container/network/volume/issuer 与公网部署完全不同，脚本无默认公网 mutation 目标。
 - [ ] 7.3 配置 Run-0 self-registration/PKCE/JIT/Device 与固定 issuer/audience/TLS，DNS 缺失时返回 `awaiting_dns` 且无旧 issuer fallback。
 - [ ] 7.4 部署新 stack、执行 migration/health/backup/restore smoke，并记录脱敏 image/schema receipt；既有 A 部署保持 byte/state 不变。
 
 ## 8. 自动化、packaged 与真机验收
 
 - [ ] 8.1 完成 contracts、server、identity、collaboration、coordinator、Content Space/OpenContent focused tests 和 changed-file lint/typecheck。
-- [ ] 8.2 运行 package boundary、private-import、generated composition freshness、capability governance、secret audit 和 full regression tests。
-- [ ] 8.3 验证 source app 的真实生产 composition，并构建同一 exact commit 的 packaged artifact；验证 packaged app 无 mock/fallback 和 Run-0 配置漂移。
-- [ ] 8.4 准备 U0-U4 合成账号/议程/需求、三文件 Task、HumanNeeded、reject/reassign、review/revision 和 completion 验收脚本。
-- [ ] 8.5 在至少三台机器/独立 VM 的五个 packaged profiles 上完成真实 OIDC、Device/Agent、OpenContent provisioning 与并发会议 happy path。
-- [ ] 8.6 完成 restart、WSS refill、duplicate、old execution fence、Device revoke、Coordinator transfer、Provider removal 和 outcome_unknown recovery matrix。
-- [ ] 8.7 下载最终文件并验证底层 bytes/SHA-256，生成不含秘密的 verification receipt；未满足 DNS/设备门禁时精确标记 `awaiting_dns`/`awaiting_real_devices`。
+- [ ] 8.2 执行 `Repository architecture principles gate`：不得编辑 central feature map、Host 只能依赖通用 SDK、不得保留兼容 shim/双注册、不得写 showcase/provider/domain 硬编码、backend/UI 同包版本，以及 source/packaged 两条 composition 都必须验证。
+- [ ] 8.3 运行 package boundary、private-import、generated composition freshness、capability governance、secret audit 和 full regression tests。
+- [ ] 8.4 验证 source app 的真实生产 composition，并构建同一 exact commit 的 packaged artifact；验证 packaged app 无 mock/fallback 和 Run-0 配置漂移。
+- [ ] 8.5 准备 U0-U4 合成账号/议程/需求、三文件 Task、HumanNeeded、reject/reassign、review/revision 和 completion 验收脚本。
+- [ ] 8.6 在至少三台机器/独立 VM 的五个 packaged profiles 上完成真实 OIDC、Device/Agent、OpenContent provisioning 与并发会议 happy path。
+- [ ] 8.7 完成 restart、WSS refill、duplicate、old execution fence、Device revoke、Coordinator transfer、Provider removal 和 outcome_unknown recovery matrix。
+- [ ] 8.8 从授权 Desktop 下载并人工核对最终产物，生成不含秘密的 verification receipt；逐文件 bytes/SHA-256 不作为本 PoC 门禁，未满足 DNS/设备门禁时精确标记 `awaiting_dns`/`awaiting_real_devices`。
 
 ## 9. 清理与交付
 
