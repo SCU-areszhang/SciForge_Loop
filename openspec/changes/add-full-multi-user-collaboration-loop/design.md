@@ -50,7 +50,7 @@ Alternative rejected: put all UI and runtime behavior in `domain-collaboration`.
 
 ### 2. Identity contributes a token-free authenticated transport
 
-Domain SDK defines a generic main-only authenticated request contribution whose public request contains only an allowlisted relative Cloud route, strict method/body schema, idempotency metadata and abort signal. `domain-identity-access` resolves the current OIDC session, validates Device continuity, injects authorization in its private boundary, executes the request and returns a strict token-free response. Collaboration packages receive neither headers nor session material.
+The implementation reuses Domain SDK's generic owner-scoped, main-only internal-service mediation. `domain-identity-access` owns and publishes the authenticated Cloud transport contract; its public request contains only a registered operation ID, strict bounded body and abort signal, never a caller-selected route, method or header. `domain-identity-access` resolves the current OIDC session, validates Device continuity, injects authorization in its private boundary, executes the canonical operation and returns a strict token-free response. Collaboration packages receive neither headers nor session material. Keeping the domain-specific contract with its owner avoids turning Domain SDK into a collaboration API and avoids unrelated package-version coupling.
 
 Agent machine credentials remain separate and are used only for Agent-authenticated routes/WSS after the Agent is registered to the current OIDC User and Device. Pairing uses the User-authenticated transport and binds only a Human endpoint.
 
