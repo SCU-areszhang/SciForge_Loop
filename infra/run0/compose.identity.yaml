@@ -1,0 +1,193 @@
+name: sciforge-run0-identity
+
+services:
+  identity-db:
+    image: postgres@sha256:ef257d85f76e48da1c64832459b59fcaba1a4dac97bf5d7450c77753542eee94
+    container_name: sciforge-run0-identity-db
+    restart: unless-stopped
+    user: "70:70"
+    read_only: true
+    environment:
+      POSTGRES_DB: sciforge_run0_identity
+      POSTGRES_USER: sciforge_run0_identity
+      POSTGRES_PASSWORD_FILE: /run/secrets/identity-db-password
+    secrets:
+      - source: identity_db_password
+        target: identity-db-password
+        uid: "70"
+        gid: "70"
+        mode: 0400
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h /var/run/postgresql -U sciforge_run0_identity -d sciforge_run0_identity"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 15s
+    volumes:
+      - identity-db-data:/var/lib/postgresql/data
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=64m,uid=70,gid=70,mode=1770
+      - /var/run/postgresql:rw,nosuid,nodev,size=16m,uid=70,gid=70,mode=2775
+    networks:
+      identity-internal:
+        ipv4_address: 172.29.50.2
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    mem_limit: 1024m
+    cpus: 1.0
+    pids_limit: 256
+    stop_grace_period: 60s
+    logging:
+      driver: json-file
+      options:
+        max-size: 20m
+        max-file: "5"
+
+  identity:
+    image: quay.io/keycloak/keycloak@sha256:0f198be292568439d700cdbfb893e69a6009bb43a94a06a945b1d3d506c76b13
+    container_name: sciforge-run0-identity
+    restart: unless-stopped
+    user: "1000:0"
+    read_only: true
+    entrypoint: ["/opt/sciforge-run0/run-keycloak-from-secrets.sh"]
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://identity-db:5432/sciforge_run0_identity
+      KC_DB_USERNAME: sciforge_run0_identity
+      KC_HOSTNAME: https://login-run0.sciforge.cn
+      KC_HOSTNAME_STRICT: "true"
+      KC_PROXY_HEADERS: xforwarded
+      KC_PROXY_TRUSTED_ADDRESSES: 172.29.48.2/32
+      KC_HTTP_ENABLED: "true"
+      KC_HEALTH_ENABLED: "true"
+      KC_METRICS_ENABLED: "true"
+      KC_HTTP_MANAGEMENT_SCHEME: http
+      KC_HTTP_MANAGEMENT_PORT: "9000"
+      SCIFORGE_RUN0_KEYCLOAK_DB_PASSWORD_FILE: /run/secrets/identity-db-password
+      SCIFORGE_RUN0_KEYCLOAK_ADMIN_USERNAME_FILE: /run/secrets/identity-bootstrap-admin-username
+      SCIFORGE_RUN0_KEYCLOAK_ADMIN_PASSWORD_FILE: /run/secrets/identity-bootstrap-admin-password
+    secrets:
+      - source: identity_db_password
+        target: identity-db-password
+        uid: "1000"
+        gid: "0"
+        mode: 0400
+      - source: identity_bootstrap_admin_username
+        target: identity-bootstrap-admin-username
+        uid: "1000"
+        gid: "0"
+        mode: 0400
+      - source: identity_bootstrap_admin_password
+        target: identity-bootstrap-admin-password
+        uid: "1000"
+        gid: "0"
+        mode: 0400
+    volumes:
+      - ./keycloak/realm-sciforge-run0.json:/opt/keycloak/data/import/realm-sciforge-run0.json:ro
+      - ./keycloak/run-keycloak-from-secrets.sh:/opt/sciforge-run0/run-keycloak-from-secrets.sh:ro
+    depends_on:
+      identity-db:
+        condition: service_healthy
+    expose:
+      - "8080"
+    healthcheck:
+      test:
+        - CMD
+        - /bin/bash
+        - -ec
+        - >-
+          { printf 'HEAD /health/ready HTTP/1.0\r\n\r\n' >&0;
+          grep -q 'HTTP/1.0 200'; } 0<>/dev/tcp/127.0.0.1/9000
+      interval: 10s
+      timeout: 5s
+      retries: 18
+      start_period: 90s
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=64m,uid=1000,gid=0,mode=1770
+      - /opt/keycloak/data/tmp:rw,noexec,nosuid,nodev,size=64m,uid=1000,gid=0,mode=1770
+      - /opt/keycloak/data/transaction-logs:rw,noexec,nosuid,nodev,size=32m,uid=1000,gid=0,mode=0770
+    networks:
+      identity-internal:
+        ipv4_address: 172.29.50.3
+      edge-backplane:
+        aliases:
+          - identity-run0
+        ipv4_address: 172.29.48.4
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    mem_limit: 1536m
+    cpus: 1.5
+    pids_limit: 512
+    stop_grace_period: 60s
+    logging:
+      driver: json-file
+      options:
+        max-size: 20m
+        max-file: "5"
+
+  identity-backup:
+    profiles: ["operations"]
+    image: postgres@sha256:ef257d85f76e48da1c64832459b59fcaba1a4dac97bf5d7450c77753542eee94
+    container_name: sciforge-run0-identity-backup
+    restart: "no"
+    entrypoint: ["/bin/sh", "-ec"]
+    command:
+      - >-
+        umask 077;
+        export PGPASSWORD="$$(cat /run/secrets/identity-db-password)";
+        backup_id="$$(date -u +%Y%m%dT%H%M%SZ)";
+        partial="/backup/sciforge-run0-identity-$${backup_id}.dump.partial";
+        final="/backup/sciforge-run0-identity-$${backup_id}.dump";
+        pg_dump --host=identity-db --username=sciforge_run0_identity
+        --dbname=sciforge_run0_identity --format=custom
+        --no-owner --no-privileges --file="$${partial}";
+        pg_restore --list "$${partial}" >/dev/null;
+        mv "$${partial}" "$${final}";
+        sha256sum "$${final}" >"$${final}.sha256"
+    secrets:
+      - source: identity_db_password
+        target: identity-db-password
+        mode: 0400
+    volumes:
+      - type: bind
+        source: ${SCIFORGE_RUN0_IDENTITY_BACKUP_DIRECTORY:-/var/backups/sciforge-run0/identity}
+        target: /backup
+        bind:
+          create_host_path: false
+    depends_on:
+      identity-db:
+        condition: service_healthy
+    networks:
+      identity-internal:
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+secrets:
+  identity_db_password:
+    file: ${SCIFORGE_RUN0_IDENTITY_DB_PASSWORD_FILE:-/etc/sciforge-run0/secrets/identity-db-password}
+  identity_bootstrap_admin_username:
+    file: ${SCIFORGE_RUN0_IDENTITY_BOOTSTRAP_ADMIN_USERNAME_FILE:-/etc/sciforge-run0/secrets/identity-bootstrap-admin-username}
+  identity_bootstrap_admin_password:
+    file: ${SCIFORGE_RUN0_IDENTITY_BOOTSTRAP_ADMIN_PASSWORD_FILE:-/etc/sciforge-run0/secrets/identity-bootstrap-admin-password}
+
+volumes:
+  identity-db-data:
+    name: sciforge-run0-identity-db-data
+
+networks:
+  identity-internal:
+    name: sciforge-run0-identity-internal
+    internal: true
+    ipam:
+      config:
+        - subnet: 172.29.50.0/29
+          gateway: 172.29.50.1
+  edge-backplane:
+    name: sciforge-run0-edge-backplane
+    external: true

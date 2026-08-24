@@ -1,0 +1,24 @@
+{
+  admin off
+  auto_https disable_redirects
+}
+
+(run0_tls) {
+  tls /run/secrets/run0-tls-certificate.pem /run/secrets/run0-tls-private-key.pem
+  encode zstd gzip
+  header {
+    Strict-Transport-Security "max-age=31536000"
+    X-Content-Type-Options "nosniff"
+    Referrer-Policy "no-referrer"
+  }
+}
+
+cloud-run0.sciforge.cn {
+  import run0_tls
+  reverse_proxy cloud-run0:8787
+}
+
+login-run0.sciforge.cn {
+  import run0_tls
+  reverse_proxy identity-run0:8080
+}

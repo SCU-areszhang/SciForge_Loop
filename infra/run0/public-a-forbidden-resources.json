@@ -1,0 +1,32 @@
+{
+  "contractVersion": 1,
+  "source": "repository-static-and-redacted-read-only-audit",
+  "requiresExplicitInventoryForUnlistedResources": true,
+  "resources": {
+    "composeProjects": [
+      "sciforge-collaboration-private",
+      "sciforge-keycloak",
+      "sciforge-collaboration-a-https-oidc-test"
+    ],
+    "containers": [],
+    "networks": [
+      "sciforge-collaboration-private_database",
+      "sciforge-collaboration-private_private-edge",
+      "sciforge-keycloak_identity-internal",
+      "sciforge-keycloak_identity-edge"
+    ],
+    "networkCidrs": [],
+    "volumes": [
+      "sciforge-collaboration-private_collaboration-db",
+      "sciforge-keycloak_keycloak-db-data"
+    ],
+    "databases": [],
+    "roles": [],
+    "secretPaths": [],
+    "backupDirectories": []
+  },
+  "forbiddenOrigins": [
+    "https://cloud-test.sciforge.cn",
+    "https://login-test.sciforge.cn/realms/SciForge"
+  ]
+}

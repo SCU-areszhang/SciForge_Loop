@@ -1,0 +1,195 @@
+name: sciforge-run0-cloud
+
+services:
+  cloud-db:
+    image: postgres@sha256:ef257d85f76e48da1c64832459b59fcaba1a4dac97bf5d7450c77753542eee94
+    container_name: sciforge-run0-cloud-db
+    restart: unless-stopped
+    user: "70:70"
+    read_only: true
+    environment:
+      POSTGRES_DB: sciforge_run0_collaboration
+      POSTGRES_USER: sciforge_run0_cloud
+      POSTGRES_PASSWORD_FILE: /run/secrets/cloud-db-password
+    secrets:
+      - source: cloud_db_password
+        target: cloud-db-password
+        uid: "70"
+        gid: "70"
+        mode: 0400
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h /var/run/postgresql -U sciforge_run0_cloud -d sciforge_run0_collaboration"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 15s
+    volumes:
+      - cloud-db-data:/var/lib/postgresql/data
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=64m,uid=70,gid=70,mode=1770
+      - /var/run/postgresql:rw,nosuid,nodev,size=16m,uid=70,gid=70,mode=2775
+    networks:
+      cloud-internal:
+        ipv4_address: 172.29.49.2
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    mem_limit: 1024m
+    cpus: 1.0
+    pids_limit: 256
+    stop_grace_period: 60s
+    logging:
+      driver: json-file
+      options:
+        max-size: 20m
+        max-file: "5"
+
+  cloud-migrate:
+    profiles: ["operations"]
+    image: ${SCIFORGE_RUN0_CLOUD_IMAGE:?Set an immutable digest-pinned collaboration-server image}
+    container_name: sciforge-run0-cloud-migrate
+    restart: "no"
+    command: ["migrate"]
+    environment: &cloud-environment
+      SCIFORGE_COLLABORATION_DATABASE_URL: postgresql://sciforge_run0_cloud@cloud-db:5432/sciforge_run0_collaboration
+      PGPASSFILE: /run/secrets/cloud-db.pgpass
+      SCIFORGE_COLLABORATION_DATABASE_POOL_SIZE: "10"
+      SCIFORGE_COLLABORATION_LISTEN_HOST: 0.0.0.0
+      SCIFORGE_COLLABORATION_LISTEN_PORT: "8787"
+      SCIFORGE_COLLABORATION_BASE_PATH: ""
+      SCIFORGE_COLLABORATION_ALLOWED_ORIGINS: ""
+      SCIFORGE_COLLABORATION_OIDC_ISSUER: https://login-run0.sciforge.cn/realms/SciForge-Run0
+      SCIFORGE_COLLABORATION_OIDC_AUDIENCE: sciforge-cloud-api
+      SCIFORGE_COLLABORATION_OIDC_ALLOWED_AUTHORIZED_PARTIES: sciforge-desktop
+      SCIFORGE_COLLABORATION_PROVIDER_CONFIG_FILE: /run/config/collaboration-providers.json
+      SCIFORGE_COLLABORATION_SECRET_DIRECTORY: /run/secrets/provider
+    secrets: &cloud-secrets
+      - source: cloud_db_pgpass
+        target: cloud-db.pgpass
+        mode: 0400
+    volumes: &cloud-config-volumes
+      - type: bind
+        source: ${SCIFORGE_RUN0_CLOUD_PROVIDER_CONFIG_FILE:-/etc/sciforge-run0/cloud-provider-config.json}
+        target: /run/config/collaboration-providers.json
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${SCIFORGE_RUN0_PROVIDER_SECRET_DIRECTORY:-/etc/sciforge-run0/secrets/provider}
+        target: /run/secrets/provider
+        read_only: true
+        bind:
+          create_host_path: false
+    depends_on:
+      cloud-db:
+        condition: service_healthy
+    networks:
+      cloud-internal:
+
+  cloud:
+    image: ${SCIFORGE_RUN0_CLOUD_IMAGE:?Set an immutable digest-pinned collaboration-server image}
+    container_name: sciforge-run0-cloud
+    restart: unless-stopped
+    read_only: true
+    environment: *cloud-environment
+    secrets: *cloud-secrets
+    volumes: *cloud-config-volumes
+    depends_on:
+      cloud-db:
+        condition: service_healthy
+    expose:
+      - "8787"
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - fetch('http://127.0.0.1:8787/readyz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))
+      interval: 10s
+      timeout: 5s
+      retries: 18
+      start_period: 30s
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=64m,mode=1770
+    networks:
+      cloud-internal:
+        ipv4_address: 172.29.49.3
+      edge-backplane:
+        aliases:
+          - cloud-run0
+        ipv4_address: 172.29.48.3
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    mem_limit: 1024m
+    cpus: 1.0
+    pids_limit: 256
+    stop_grace_period: 60s
+    logging:
+      driver: json-file
+      options:
+        max-size: 20m
+        max-file: "5"
+
+  cloud-backup:
+    profiles: ["operations"]
+    image: postgres@sha256:ef257d85f76e48da1c64832459b59fcaba1a4dac97bf5d7450c77753542eee94
+    container_name: sciforge-run0-cloud-backup
+    restart: "no"
+    entrypoint: ["/bin/sh", "-ec"]
+    command:
+      - >-
+        umask 077;
+        export PGPASSWORD="$$(cat /run/secrets/cloud-db-password)";
+        backup_id="$$(date -u +%Y%m%dT%H%M%SZ)";
+        partial="/backup/sciforge-run0-cloud-$${backup_id}.dump.partial";
+        final="/backup/sciforge-run0-cloud-$${backup_id}.dump";
+        pg_dump --host=cloud-db --username=sciforge_run0_cloud
+        --dbname=sciforge_run0_collaboration --format=custom
+        --no-owner --no-privileges --file="$${partial}";
+        pg_restore --list "$${partial}" >/dev/null;
+        mv "$${partial}" "$${final}";
+        sha256sum "$${final}" >"$${final}.sha256"
+    secrets:
+      - source: cloud_db_password
+        target: cloud-db-password
+        mode: 0400
+    volumes:
+      - type: bind
+        source: ${SCIFORGE_RUN0_CLOUD_BACKUP_DIRECTORY:-/var/backups/sciforge-run0/cloud}
+        target: /backup
+        bind:
+          create_host_path: false
+    depends_on:
+      cloud-db:
+        condition: service_healthy
+    networks:
+      cloud-internal:
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+secrets:
+  cloud_db_password:
+    file: ${SCIFORGE_RUN0_CLOUD_DB_PASSWORD_FILE:-/etc/sciforge-run0/secrets/cloud-db-password}
+  cloud_db_pgpass:
+    file: ${SCIFORGE_RUN0_CLOUD_DB_PGPASS_FILE:-/etc/sciforge-run0/secrets/cloud-db.pgpass}
+
+volumes:
+  cloud-db-data:
+    name: sciforge-run0-cloud-db-data
+
+networks:
+  cloud-internal:
+    name: sciforge-run0-cloud-internal
+    internal: true
+    ipam:
+      config:
+        - subnet: 172.29.49.0/29
+          gateway: 172.29.49.1
+  edge-backplane:
+    name: sciforge-run0-edge-backplane
+    external: true

@@ -1,0 +1,37 @@
+{
+  "contractVersion": 1,
+  "captureMode": "read-only",
+  "placeholder": true,
+  "capturedAt": "2000-01-01T00:00:00Z",
+  "completeResourceCategories": [
+    "composeProjects",
+    "containers",
+    "networks",
+    "networkCidrs",
+    "volumes",
+    "databases",
+    "roles",
+    "secretPaths",
+    "backupDirectories"
+  ],
+  "listenersComplete": true,
+  "resources": {
+    "composeProjects": ["replace-with-every-observed-compose-project"],
+    "containers": ["replace-with-every-observed-container"],
+    "networks": ["replace-with-every-observed-network"],
+    "networkCidrs": ["192.0.2.0/29"],
+    "volumes": ["replace-with-every-observed-volume"],
+    "databases": ["replace-with-every-observed-database"],
+    "roles": ["replace-with-every-observed-role"],
+    "secretPaths": ["/example/only/replace-with-observed-secret-root"],
+    "backupDirectories": ["/example/only/replace-with-observed-backup-root"]
+  },
+  "listeners": [
+    {
+      "protocol": "tcp",
+      "address": "0.0.0.0",
+      "port": 443,
+      "ownerRef": "redacted:replace-with-observed-owner"
+    }
+  ]
+}

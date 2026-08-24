@@ -1,0 +1,81 @@
+{
+  "contractVersion": 1,
+  "environment": "run0",
+  "mutationPolicy": "explicit-only",
+  "cloudOrigin": "https://cloud-run0.sciforge.cn",
+  "oidc": {
+    "issuer": "https://login-run0.sciforge.cn/realms/SciForge-Run0",
+    "realm": "SciForge-Run0",
+    "audience": "sciforge-cloud-api",
+    "desktopClientId": "sciforge-desktop",
+    "desktopRedirectUri": "http://127.0.0.1:43110/oidc/callback",
+    "pkceMethod": "S256"
+  },
+  "composeFiles": [
+    "infra/run0/compose.edge.yaml",
+    "infra/run0/compose.identity.yaml",
+    "infra/run0/compose.cloud.yaml"
+  ],
+  "resources": {
+    "composeProjects": [
+      "sciforge-run0-edge",
+      "sciforge-run0-identity",
+      "sciforge-run0-cloud"
+    ],
+    "containers": [
+      "sciforge-run0-edge",
+      "sciforge-run0-identity-db",
+      "sciforge-run0-identity",
+      "sciforge-run0-identity-backup",
+      "sciforge-run0-cloud-db",
+      "sciforge-run0-cloud-migrate",
+      "sciforge-run0-cloud",
+      "sciforge-run0-cloud-backup"
+    ],
+    "networks": [
+      "sciforge-run0-edge-backplane",
+      "sciforge-run0-identity-internal",
+      "sciforge-run0-cloud-internal"
+    ],
+    "networkCidrs": [
+      "172.29.48.0/29",
+      "172.29.49.0/29",
+      "172.29.50.0/29"
+    ],
+    "volumes": [
+      "sciforge-run0-identity-db-data",
+      "sciforge-run0-cloud-db-data"
+    ],
+    "databases": [
+      "sciforge_run0_identity",
+      "sciforge_run0_collaboration"
+    ],
+    "roles": [
+      "sciforge_run0_identity",
+      "sciforge_run0_cloud"
+    ],
+    "secretPaths": [
+      "/etc/sciforge-run0/secrets/identity-db-password",
+      "/etc/sciforge-run0/secrets/identity-bootstrap-admin-username",
+      "/etc/sciforge-run0/secrets/identity-bootstrap-admin-password",
+      "/etc/sciforge-run0/secrets/cloud-db-password",
+      "/etc/sciforge-run0/secrets/cloud-db.pgpass",
+      "/etc/sciforge-run0/secrets/edge-tls-certificate.pem",
+      "/etc/sciforge-run0/secrets/edge-tls-private-key.pem",
+      "/etc/sciforge-run0/secrets/provider"
+    ],
+    "backupDirectories": [
+      "/var/backups/sciforge-run0/identity",
+      "/var/backups/sciforge-run0/cloud"
+    ]
+  },
+  "ingress": {
+    "container": "sciforge-run0-edge",
+    "publishedAddress": "0.0.0.0",
+    "publishedPort": 443,
+    "hostnames": [
+      "cloud-run0.sciforge.cn",
+      "login-run0.sciforge.cn"
+    ]
+  }
+}
