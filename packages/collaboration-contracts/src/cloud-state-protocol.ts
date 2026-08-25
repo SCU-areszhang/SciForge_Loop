@@ -406,6 +406,25 @@ export const externalOperationObserveCommandSchema = z.object({
   }
 })
 
+/**
+ * Owner cancellation of one exact Project-scoped recovery attempt. A fresh
+ * external_operation.observe remains the sole resume path.
+ */
+export const projectContentRecoveryAbandonCommandSchema = z.object({
+  ...writeCommandShape,
+  type: z.literal('project.content.recovery.abandon'),
+  projectId: projectIdSchema,
+  provisioningIntentId: provisioningIntentIdSchema,
+  recoveryActionId: recoveryActionIdSchema,
+  journalEntryId: contentRecoveryJournalEntryIdSchema,
+  expectedProjectRevision: revisionSchema,
+  expectedProvisioningRevision: revisionSchema,
+  expectedProvisioningIntentRevision: revisionSchema,
+  expectedRecoveryActionRevision: revisionSchema,
+  expectedJournalRevision: revisionSchema,
+  reason: z.string().trim().min(1).max(500)
+}).strict()
+
 export const projectPlanSubmitCommandSchema = z.object({
   ...writeCommandShape,
   type: z.literal('project.plan.submit'),
@@ -456,6 +475,7 @@ export const taskOfferCreateCommandSchema = z.object({
   expectedAvailabilityRevision: revisionSchema,
   offerExpiresAt: timestampSchema
 }).strict()
+export type TaskOfferCreateCommand = z.infer<typeof taskOfferCreateCommandSchema>
 
 export const taskOfferAcceptCommandSchema = z.object({
   ...offerCommandShape,
@@ -476,6 +496,7 @@ export const taskOfferRejectCommandSchema = z.object({
     })
   }
 })
+export type TaskOfferRejectCommand = z.infer<typeof taskOfferRejectCommandSchema>
 
 export const taskOfferWithdrawCommandSchema = z.object({
   ...writeCommandShape,
@@ -495,13 +516,16 @@ export const taskOfferReassignCommandSchema = z.object({
   type: z.literal('task.offer.reassign'),
   taskId: taskIdSchema,
   previousExecutionId: executionIdSchema,
+  expectedProjectRevision: revisionSchema,
   expectedTaskRevision: revisionSchema,
   expectedExecutionRevision: revisionSchema,
   expectedCoordinatorAuthorityEpoch: revisionSchema,
+  expectedExecutionAuthorityEpoch: revisionSchema,
   assigneeAgentId: agentIdSchema,
   expectedAvailabilityRevision: revisionSchema,
   offerExpiresAt: timestampSchema
 }).strict()
+export type TaskOfferReassignCommand = z.infer<typeof taskOfferReassignCommandSchema>
 
 export const taskExecutionStartCommandSchema = z.object({
   ...writeCommandShape,
@@ -594,6 +618,7 @@ export const taskResultReviewCommandSchema = z.object({
     })
   }
 })
+export type TaskResultReviewCommand = z.infer<typeof taskResultReviewCommandSchema>
 
 export const taskRecoveryLinkObservedOutputCommandSchema = z.object({
   ...writeCommandShape,
@@ -635,9 +660,16 @@ export const projectFinalSummarySubmitCommandSchema = z.object({
   expectedExecutionAuthorityEpoch: revisionSchema,
   projectPlanId: projectPlanIdSchema,
   confirmedPlanRevision: revisionSchema,
-  acceptedResultSubmissionIds: z.array(resultSubmissionIdSchema).min(1).max(10_000),
+  acceptedResultSubmissionIds: z.array(resultSubmissionIdSchema).min(1).max(10_000)
+    .refine(
+      (resultSubmissionIds) => new Set(resultSubmissionIds).size === resultSubmissionIds.length,
+      'Accepted result submissions must be unique.'
+    ),
   summary: nonEmptyTextSchema
 }).strict()
+export type ProjectFinalSummarySubmitCommand = z.infer<
+  typeof projectFinalSummarySubmitCommandSchema
+>
 
 export const cloudStateCommandSchemas = [
   projectListQuerySchema,
@@ -659,6 +691,7 @@ export const cloudStateCommandSchemas = [
   externalOperationPrepareCommandSchema,
   externalOperationDispatchCommandSchema,
   externalOperationObserveCommandSchema,
+  projectContentRecoveryAbandonCommandSchema,
   projectPlanSubmitCommandSchema,
   projectPlanConfirmCommandSchema,
   taskOfferCreateCommandSchema,

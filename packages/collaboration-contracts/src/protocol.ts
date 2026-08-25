@@ -5,6 +5,7 @@ import {
   challengeIdSchema,
   deviceIdSchema,
   humanEndpointIdSchema,
+  humanRequestIdSchema,
   idempotencyKeySchema,
   installationIdSchema,
   inboxMessageIdSchema,
@@ -479,6 +480,29 @@ const writeCommandShape = {
   idempotencyKey: idempotencyKeySchema
 } as const
 
+export const projectTransferCoordinatorCommandSchema = z.object({
+  ...writeCommandShape,
+  type: z.literal('project.transfer_coordinator'),
+  projectId: projectIdSchema,
+  expectedRevision: revisionSchema,
+  expectedCoordinatorAuthorityEpoch: revisionSchema,
+  coordinatorAgentId: agentIdSchema,
+  expectedCoordinatorAvailabilityRevision: revisionSchema
+}).strict()
+export type ProjectTransferCoordinatorCommand = z.infer<
+  typeof projectTransferCoordinatorCommandSchema
+>
+
+export const humanAnswerCommandSchema = z.object({
+  ...writeCommandShape,
+  type: z.literal('human.answer'),
+  humanRequestId: humanRequestIdSchema,
+  requestRevision: revisionSchema,
+  answer: nonEmptyTextSchema,
+  decision: z.enum(['approve', 'reject']).optional()
+}).strict()
+export type HumanAnswerCommand = z.infer<typeof humanAnswerCommandSchema>
+
 export const restRequestSchema = z.discriminatedUnion('type', [
   ...cloudStateCommandSchemas,
   z.object({
@@ -534,8 +558,8 @@ export const restRequestSchema = z.discriminatedUnion('type', [
   z.object({ ...writeCommandShape, type: z.literal('projection.update'), projectionId: projectionIdSchema, expectedRevision: revisionSchema, displayName: z.string().trim().min(1).max(200).optional(), status: z.enum(['active', 'paused', 'closed']).optional(), locator: providerLocatorSchema.optional(), locatorRevision: revisionSchema.optional(), allowedSenderUserIds: z.array(userIdSchema).min(1).max(100).optional() }).strict(),
   z.object({ ...writeCommandShape, type: z.literal('projection.message.publish'), projectionId: projectionIdSchema, projectionRevision: revisionSchema, localItemId: localItemIdSchema, localTurnId: runtimeTurnIdSchema.optional(), kind: z.enum(['user_message', 'assistant_progress', 'assistant_final', 'system_status']), text: nonEmptyTextSchema, occurredAt: timestampSchema }).strict(),
   z.object({ ...protocolEnvelopeShape, type: z.literal('project.get'), projectId: projectIdSchema }).strict(),
-  z.object({ ...writeCommandShape, type: z.literal('project.transition'), projectId: projectIdSchema, expectedRevision: revisionSchema, expectedCoordinatorAuthorityEpoch: revisionSchema, expectedExecutionAuthorityEpoch: revisionSchema, status: z.enum(['active', 'paused', 'completed', 'cancelled']) }).strict(),
-  z.object({ ...writeCommandShape, type: z.literal('project.transfer_coordinator'), projectId: projectIdSchema, expectedRevision: revisionSchema, expectedCoordinatorAuthorityEpoch: revisionSchema, coordinatorAgentId: agentIdSchema, expectedCoordinatorAvailabilityRevision: revisionSchema }).strict(),
+  z.object({ ...writeCommandShape, type: z.literal('project.transition'), projectId: projectIdSchema, expectedRevision: revisionSchema, expectedCoordinatorAuthorityEpoch: revisionSchema, expectedExecutionAuthorityEpoch: revisionSchema, status: z.enum(['active', 'paused', 'cancelled']) }).strict(),
+  projectTransferCoordinatorCommandSchema,
   z.object({ ...writeCommandShape, type: z.literal('project.input.create'), projectId: projectIdSchema, senderUserId: userIdSchema, sourceHumanEndpointId: humanEndpointIdSchema, providerMessageId: providerMessageIdSchema, text: nonEmptyTextSchema, occurredAt: timestampSchema }).strict(),
   z.object({ ...writeCommandShape, type: z.literal('project.endpoint.bind'), projectId: projectIdSchema, locator: providerLocatorSchema }).strict(),
   z.object({ ...writeCommandShape, type: z.literal('project.endpoint.update'), projectEndpointBindingId: projectEndpointBindingIdSchema, expectedRevision: revisionSchema, locator: providerLocatorSchema.optional(), locatorRevision: revisionSchema.optional(), status: z.enum(['active', 'closed']).optional() }).strict(),
@@ -546,7 +570,7 @@ export const restRequestSchema = z.discriminatedUnion('type', [
   z.object({ ...writeCommandShape, type: z.literal('project_record.accept'), projectRecordId: projectRecordIdSchema, expectedRevision: revisionSchema, decision: z.enum(['accepted', 'rejected']) }).strict(),
   z.object({ ...protocolEnvelopeShape, type: z.literal('inbox.pull'), recipientType: z.enum(['user', 'agent']), afterSequence: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER), limit: z.number().int().min(1).max(1_000) }).strict(),
   z.object({ ...writeCommandShape, type: z.literal('inbox.ack'), inboxMessageId: inboxMessageIdSchema, sequence: sequenceSchema }).strict(),
-  z.object({ ...writeCommandShape, type: z.literal('human.answer'), humanRequestId: z.string().regex(/^hrq_[A-Za-z0-9]{12,64}$/u), requestRevision: revisionSchema, answer: nonEmptyTextSchema, decision: z.enum(['approve', 'reject']).optional() }).strict(),
+  humanAnswerCommandSchema,
   z.object({ ...writeCommandShape, type: z.literal('human.needed.create'), projectId: projectIdSchema, taskId: taskIdSchema, executionId: executionIdSchema, expectedTaskRevision: revisionSchema, expectedExecutionRevision: revisionSchema, requiredAssurance: assuranceLevelSchema, prompt: nonEmptyTextSchema, confirmableAction: confirmableHumanActionSchema.nullable().optional(), expiresAt: timestampSchema }).strict(),
   z.object({ ...protocolEnvelopeShape, type: z.literal('receipt.get'), receiptId: receiptIdSchema }).strict()
 ])
