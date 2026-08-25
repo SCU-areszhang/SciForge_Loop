@@ -11,6 +11,7 @@ const sourceExtensions = new Set(['.cjs', '.js', '.jsx', '.mjs', '.ts', '.tsx'])
 const hostSecurityBoundaryPath = /^src\/(?:main|preload|renderer|shared)\//u
 const hostDataBoundaryPath = /^src\/(?:preload|renderer|shared)\//u
 const hostCompositionPath = /^src\/renderer\/src\/domain-modules\//u
+const privateMainConnectorPath = /^src\/main\/connectors\/([^/]+)\//u
 const meetingLoopArtifactPath = /^(?:docs|infra|openspec)\/.*(?:collaboration|content-space|full-multi-user|identity-access|run0)/iu
 const meetingLoopPackageSegment = /(?:^|-)(?:collaboration|content-space|identity-access|opencontent|project-coordinator)(?:-|$)/u
 const testPath = /(?:^|\/)(?:__tests__|tests?|test-fixtures)(?:\/|$)|(?:^|\/)(?:test_[^/]+|[^/]+\.(?:test|spec))\.[^/]+$/iu
@@ -1090,22 +1091,48 @@ function collectStaticStringConstants(sourceFile) {
   return values
 }
 
-function environmentAccessName(node, staticStrings) {
+function expressionContainsWholeProcessEnvironment(node, sourceFile) {
+  let found = false
+  function visit(current) {
+    if (found) return
+    if (isWholeProcessEnvironment(current, sourceFile)) {
+      found = true
+      return
+    }
+    ts.forEachChild(current, visit)
+  }
+  visit(node)
+  return found
+}
+
+function isProcessEnvironmentReceiver(node, sourceFile) {
+  const text = node.getText(sourceFile)
+  if (/^(?:Deno|process)\.env$|^import\.meta\.env$/u.test(text)) return true
+  if (ts.isPropertyAccessExpression(node) &&
+    /^(?:environment|env)$/u.test(normalizeName(node.name.text))) return true
+  if (!ts.isIdentifier(node)) return false
+  const declaration = lexicalIdentifierDeclaration(node)
+  if (!declaration) return false
+  if (declaration.type && /(?:^|\.)ProcessEnv\b/u.test(declaration.type.getText(sourceFile))) return true
+  return Boolean(declaration.initializer &&
+    expressionContainsWholeProcessEnvironment(declaration.initializer, sourceFile))
+}
+
+function environmentAccessNames(file, node, staticStrings, resolveReference) {
   if (!ts.isPropertyAccessExpression(node) && !ts.isElementAccessExpression(node)) return null
   const receiver = node.expression
-  const receiverText = receiver.getText(node.getSourceFile())
-  const receiverName = ts.isPropertyAccessExpression(receiver)
-    ? normalizeName(receiver.name.text)
-    : ''
-  if (receiverText !== 'process.env' && receiverText !== 'Deno.env' &&
-    receiverText !== 'import.meta.env' && receiverName !== 'environment' && receiverName !== 'env') {
-    return null
-  }
-  if (ts.isPropertyAccessExpression(node)) return node.name.text
+  if (!isProcessEnvironmentReceiver(receiver, node.getSourceFile())) return null
+  if (ts.isPropertyAccessExpression(node)) return [node.name.text]
   const argument = node.argumentExpression
-  if (ts.isStringLiteralLike(argument)) return argument.text
-  if (ts.isIdentifier(argument)) return staticStrings.get(argument.text) ?? null
-  return null
+  if (ts.isStringLiteralLike(argument)) return [argument.text]
+  if (ts.isIdentifier(argument)) {
+    const staticValue = staticStrings.get(argument.text)
+    if (staticValue) return [staticValue]
+    return staticStringValues(file, argument, resolveReference) ??
+      loopBindingEnvironmentNames(file, argument, resolveReference) ??
+      callbackBindingEnvironmentNames(file, argument, resolveReference) ?? []
+  }
+  return []
 }
 
 function isWholeProcessEnvironment(node, sourceFile) {
@@ -1134,9 +1161,31 @@ function staticStringValues(file, node, resolveReference, visited = new Set()) {
     }
     return values
   }
+  if (ts.isConditionalExpression(node)) {
+    const whenTrue = staticStringValues(file, node.whenTrue, resolveReference, visited)
+    const whenFalse = staticStringValues(file, node.whenFalse, resolveReference, visited)
+    return whenTrue && whenFalse ? [...new Set([...whenTrue, ...whenFalse])] : null
+  }
+  if (ts.isCallExpression(node) && calleeName(node.expression, node.getSourceFile()) === 'Object.freeze' &&
+    node.arguments[0]) {
+    return staticStringValues(file, node.arguments[0], resolveReference, visited)
+  }
   if (ts.isStringLiteralLike(node)) return [node.text]
   if (ts.isIdentifier(node) || ts.isQualifiedName(node) || ts.isPropertyAccessExpression(node)) {
-    for (const target of resolveReference(file, node)) {
+    const targets = resolveReference(file, node)
+    if (targets.length === 0 && ts.isIdentifier(node)) {
+      const declaration = lexicalIdentifierDeclaration(node)
+      if (declaration) {
+        const values = staticStringValues(
+          file,
+          declaration.initializer ?? declaration,
+          resolveReference,
+          visited
+        )
+        if (values) return values
+      }
+    }
+    for (const target of targets) {
       const values = staticStringValues(
         target.file,
         target.declaration.initializer ?? target.declaration,
@@ -1164,6 +1213,27 @@ function loopBindingEnvironmentNames(file, identifier, resolveReference) {
   return null
 }
 
+function callbackBindingEnvironmentNames(file, identifier, resolveReference) {
+  let current = identifier.parent
+  while (current && !ts.isSourceFile(current)) {
+    if (ts.isFunctionLike(current)) {
+      const parameterIndex = current.parameters.findIndex((parameter) =>
+        collectBindingIdentifiers(parameter.name).some((name) => name.text === identifier.text))
+      if (parameterIndex !== 0) return null
+      let parent = current.parent
+      while (parent && (ts.isParenthesizedExpression(parent) || ts.isAsExpression(parent) ||
+        ts.isSatisfiesExpression(parent))) parent = parent.parent
+      if (!parent || !ts.isCallExpression(parent) ||
+        !parent.arguments.some((argument) => current.pos >= argument.pos && current.end <= argument.end) ||
+        !ts.isPropertyAccessExpression(parent.expression) ||
+        !/^(?:every|filter|find|flatMap|forEach|map|some)$/u.test(parent.expression.name.text)) return null
+      return staticStringValues(file, parent.expression.expression, resolveReference)
+    }
+    current = current.parent
+  }
+  return null
+}
+
 function environmentAccessNamesForParameter(file, access, resolveReference) {
   if (ts.isPropertyAccessExpression(access)) return [access.name.text]
   if (!ts.isElementAccessExpression(access)) return null
@@ -1181,6 +1251,1146 @@ function functionLikeFromDeclaration(declaration) {
     return declaration.initializer
   }
   return null
+}
+
+function privateConnectorRoot(file) {
+  const match = file.match(privateMainConnectorPath)
+  return match ? `src/main/connectors/${match[1]}/` : null
+}
+
+function discoverPrivateConnectorPublicFiles(root, files, sources, publicModules) {
+  const fileSet = new Set(files)
+  const result = new Set([...publicModules.keys()].filter((file) => privateConnectorRoot(file)))
+  for (const [file, sourceFile] of sources) {
+    const sourceConnectorRoot = privateConnectorRoot(file)
+    for (const statement of sourceFile.statements) {
+      const moduleSpecifier = (ts.isImportDeclaration(statement) || ts.isExportDeclaration(statement)) &&
+        statement.moduleSpecifier && ts.isStringLiteralLike(statement.moduleSpecifier)
+        ? statement.moduleSpecifier.text
+        : null
+      if (!moduleSpecifier) continue
+      const target = resolveSourceModule(root, file, moduleSpecifier, fileSet)
+      const targetConnectorRoot = target ? privateConnectorRoot(target) : null
+      if (target && targetConnectorRoot && sourceConnectorRoot !== targetConnectorRoot) result.add(target)
+    }
+  }
+  for (const file of sources.keys()) {
+    if (privateConnectorRoot(file) && /\/index\.(?:[cm]?[jt]sx?)$/iu.test(file)) result.add(file)
+  }
+  return result
+}
+
+function electronSafeStorageBindings(sourceFile) {
+  const direct = new Set()
+  const namespaces = new Set()
+  for (const statement of sourceFile.statements) {
+    if (!ts.isImportDeclaration(statement) || !ts.isStringLiteralLike(statement.moduleSpecifier) ||
+      statement.moduleSpecifier.text !== 'electron') continue
+    const bindings = statement.importClause?.namedBindings
+    if (bindings && ts.isNamedImports(bindings)) {
+      for (const element of bindings.elements) {
+        if ((element.propertyName ?? element.name).text === 'safeStorage') direct.add(element.name.text)
+      }
+    } else if (bindings && ts.isNamespaceImport(bindings)) {
+      namespaces.add(bindings.name.text)
+    }
+  }
+  return { direct, namespaces }
+}
+
+function isNativeSafeStorageCall(call, sourceFile, operationName) {
+  if (!ts.isPropertyAccessExpression(call.expression) ||
+    call.expression.name.text !== operationName) return false
+  const receiver = call.expression.expression
+  const bindings = electronSafeStorageBindings(sourceFile)
+  if (ts.isIdentifier(receiver)) return bindings.direct.has(receiver.text)
+  return ts.isPropertyAccessExpression(receiver) && receiver.name.text === 'safeStorage' &&
+    ts.isIdentifier(receiver.expression) && bindings.namespaces.has(receiver.expression.text)
+}
+
+function isNativeSafeStorageDecryptCall(call, sourceFile) {
+  return isNativeSafeStorageCall(call, sourceFile, 'decryptString')
+}
+
+function isNativeSafeStorageEncryptCall(call, sourceFile) {
+  return isNativeSafeStorageCall(call, sourceFile, 'encryptString')
+}
+
+function expressionContainsNames(node, names) {
+  let found = false
+  function visit(current) {
+    if (found) return
+    if ((ts.isIdentifier(current) || ts.isPrivateIdentifier(current)) && names.has(current.text)) {
+      found = true
+      return
+    }
+    ts.forEachChild(current, visit)
+  }
+  visit(node)
+  return found
+}
+
+function containsNamedTaint(node, taintedNames) {
+  let match = null
+  function visit(current) {
+    if (match || isProvenNonSecretStructuralReplacement(current)) return
+    if ((ts.isIdentifier(current) || ts.isPrivateIdentifier(current)) &&
+      taintedNames.has(current.text)) {
+      match = { node: current, category: taintedNames.get(current.text) }
+      return
+    }
+    ts.forEachChild(current, visit)
+  }
+  visit(node)
+  return match
+}
+
+function nearestOwningFunction(node) {
+  let current = node.parent
+  while (current && !ts.isSourceFile(current)) {
+    if (ts.isFunctionLike(current)) return current
+    current = current.parent
+  }
+  return null
+}
+
+function declarationReturnsNativeSecret(
+  file,
+  declaration,
+  connectorRoot,
+  sources,
+  resolveReference,
+  visited
+) {
+  const functionLike = functionLikeFromDeclaration(declaration)
+  if (!functionLike?.body) return false
+  const key = `${file}:${declaration.pos}:${declaration.end}`
+  if (visited.has(key)) return false
+  visited.add(key)
+
+  const taintedNames = new Set()
+  const markBinding = (name) => {
+    let changed = false
+    for (const identifier of collectBindingIdentifiers(name)) {
+      if (taintedNames.has(identifier.text)) continue
+      taintedNames.add(identifier.text)
+      changed = true
+    }
+    return changed
+  }
+
+  for (let pass = 0; pass < 8; pass += 1) {
+    let changed = false
+    function collect(node) {
+      if (node !== functionLike && ts.isFunctionLike(node)) return
+      if (ts.isVariableDeclaration(node) && node.initializer) {
+        if (expressionReadsPrivateConnectorSecret(
+          file,
+          node.initializer,
+          connectorRoot,
+          sources,
+          resolveReference,
+          visited
+        ) || expressionContainsNames(node.initializer, taintedNames)) {
+          changed = markBinding(node.name) || changed
+        }
+      }
+      ts.forEachChild(node, collect)
+    }
+    collect(functionLike.body)
+    if (!changed) break
+  }
+
+  const returns = []
+  if (ts.isBlock(functionLike.body)) {
+    function collectReturns(node) {
+      if (node !== functionLike && ts.isFunctionLike(node)) return
+      if (ts.isReturnStatement(node) && node.expression) returns.push(node.expression)
+      ts.forEachChild(node, collectReturns)
+    }
+    collectReturns(functionLike.body)
+  } else {
+    returns.push(functionLike.body)
+  }
+  return returns.some((expression) =>
+    expressionContainsNames(expression, taintedNames) ||
+    expressionReadsPrivateConnectorSecret(
+      file,
+      expression,
+      connectorRoot,
+      sources,
+      resolveReference,
+      visited
+    ))
+}
+
+function lexicalIdentifierDeclaration(identifier) {
+  let current = identifier.parent
+  while (current && !ts.isSourceFile(current)) {
+    if (ts.isFunctionLike(current)) {
+      const parameter = current.parameters.find((candidate) =>
+        collectBindingIdentifiers(candidate.name).some((name) => name.text === identifier.text))
+      if (parameter) return parameter
+    }
+    if (ts.isBlock(current) || ts.isSourceFile(current)) {
+      let declaration = null
+      function find(node) {
+        if (declaration || node.pos > identifier.pos) return
+        if (ts.isVariableDeclaration(node) &&
+          collectBindingIdentifiers(node.name).some((name) => name.text === identifier.text)) {
+          declaration = node
+          return
+        }
+        if (node !== current && ts.isFunctionLike(node)) return
+        ts.forEachChild(node, find)
+      }
+      find(current)
+      if (declaration) return declaration
+    }
+    current = current.parent
+  }
+  return null
+}
+
+function connectorReferenceTargets(file, reference, sources, resolveReference) {
+  const resolved = resolveReference(file, reference)
+  if (resolved.length > 0 || !ts.isIdentifier(reference)) return resolved
+  const declaration = lexicalIdentifierDeclaration(reference)
+  const sourceFile = sources.get(file)
+  return declaration && sourceFile ? [{ file, sourceFile, declaration }] : []
+}
+
+function typeDeclaresOperation(file, node, operationName, resolveReference, visited = new Set()) {
+  if (!node) return false
+  const key = `${file}:${node.pos}:${node.end}:${operationName}`
+  if (visited.has(key)) return false
+  visited.add(key)
+  if (ts.isParameter(node) || ts.isPropertySignature(node) || ts.isPropertyDeclaration(node) ||
+    ts.isVariableDeclaration(node) || ts.isTypeAliasDeclaration(node)) {
+    return typeDeclaresOperation(file, node.type ?? node.initializer, operationName, resolveReference, visited)
+  }
+  if (ts.isTypeLiteralNode(node) || ts.isInterfaceDeclaration(node)) {
+    return node.members.some((member) => nodeName(member.name) === operationName)
+  }
+  if (ts.isIntersectionTypeNode(node) || ts.isUnionTypeNode(node)) {
+    return node.types.some((member) =>
+      typeDeclaresOperation(file, member, operationName, resolveReference, visited))
+  }
+  if (ts.isParenthesizedTypeNode(node)) {
+    return typeDeclaresOperation(file, node.type, operationName, resolveReference, visited)
+  }
+  if (ts.isTypeReferenceNode(node)) {
+    return resolveReference(file, node.typeName).some((target) =>
+      typeDeclaresOperation(
+        target.file,
+        target.declaration,
+        operationName,
+        resolveReference,
+        visited
+      )) || Boolean(node.typeArguments?.some((argument) =>
+      typeDeclaresOperation(file, argument, operationName, resolveReference, visited)))
+  }
+  return false
+}
+
+function typeDeclaresPropertyOperation(
+  file,
+  node,
+  propertyPath,
+  operationName,
+  resolveReference,
+  visited = new Set()
+) {
+  if (propertyPath.length === 0) {
+    return typeDeclaresOperation(file, node, operationName, resolveReference)
+  }
+  if (!node) return false
+  const key = `${file}:${node.pos}:${node.end}:${propertyPath.join('.')}:${operationName}`
+  if (visited.has(key)) return false
+  visited.add(key)
+  if (ts.isParameter(node) || ts.isPropertySignature(node) || ts.isPropertyDeclaration(node) ||
+    ts.isVariableDeclaration(node) || ts.isTypeAliasDeclaration(node)) {
+    return typeDeclaresPropertyOperation(
+      file,
+      node.type ?? node.initializer,
+      propertyPath,
+      operationName,
+      resolveReference,
+      visited
+    )
+  }
+  if (ts.isTypeLiteralNode(node) || ts.isInterfaceDeclaration(node)) {
+    return node.members.some((member) => nodeName(member.name) === propertyPath[0] &&
+      typeDeclaresPropertyOperation(
+        file,
+        member,
+        propertyPath.slice(1),
+        operationName,
+        resolveReference,
+        visited
+      ))
+  }
+  if (ts.isIntersectionTypeNode(node) || ts.isUnionTypeNode(node)) {
+    return node.types.some((member) => typeDeclaresPropertyOperation(
+      file,
+      member,
+      propertyPath,
+      operationName,
+      resolveReference,
+      visited
+    ))
+  }
+  if (ts.isParenthesizedTypeNode(node)) {
+    return typeDeclaresPropertyOperation(
+      file,
+      node.type,
+      propertyPath,
+      operationName,
+      resolveReference,
+      visited
+    )
+  }
+  if (ts.isTypeReferenceNode(node)) {
+    return resolveReference(file, node.typeName).some((target) =>
+      typeDeclaresPropertyOperation(
+        target.file,
+        target.declaration,
+        propertyPath,
+        operationName,
+        resolveReference,
+        visited
+      )) || Boolean(node.typeArguments?.some((argument) => typeDeclaresPropertyOperation(
+      file,
+      argument,
+      propertyPath,
+      operationName,
+      resolveReference,
+      visited
+    )))
+  }
+  return false
+}
+
+function receiverDeclaresOperation(file, receiver, operationName, resolveReference) {
+  const propertyPath = []
+  let root = receiver
+  while (ts.isPropertyAccessExpression(root)) {
+    propertyPath.unshift(root.name.text)
+    root = root.expression
+  }
+  if (!ts.isIdentifier(root)) return false
+  const declaration = lexicalIdentifierDeclaration(root)
+  return Boolean(declaration && typeDeclaresPropertyOperation(
+    file,
+    declaration,
+    propertyPath,
+    operationName,
+    resolveReference
+  ))
+}
+
+function connectorDefinesNativeStorageOperation(
+  connectorRoot,
+  operationName,
+  nativeOperationName,
+  sources
+) {
+  for (const [file, sourceFile] of sources) {
+    if (!file.startsWith(connectorRoot)) continue
+    let found = false
+    function visit(node) {
+      if (found) return
+      if ((ts.isPropertyAssignment(node) || ts.isMethodDeclaration(node)) &&
+        nodeName(node.name) === operationName) {
+        let hasDecrypt = false
+        function inspect(current) {
+          if (hasDecrypt) return
+          if (ts.isCallExpression(current) &&
+            isNativeSafeStorageCall(current, sourceFile, nativeOperationName)) {
+            hasDecrypt = true
+            return
+          }
+          ts.forEachChild(current, inspect)
+        }
+        inspect(node)
+        if (hasDecrypt) {
+          found = true
+          return
+        }
+      }
+      ts.forEachChild(node, visit)
+    }
+    visit(sourceFile)
+    if (found) return true
+  }
+  return false
+}
+
+function connectorDefinesNativeDecryptOperation(connectorRoot, operationName, sources) {
+  return connectorDefinesNativeStorageOperation(
+    connectorRoot,
+    operationName,
+    'decryptString',
+    sources
+  )
+}
+
+function connectorDefinesNativeEncryptOperation(connectorRoot, operationName, sources) {
+  return connectorDefinesNativeStorageOperation(
+    connectorRoot,
+    operationName,
+    'encryptString',
+    sources
+  )
+}
+
+function isPrivateConnectorNativeDecryptOperation(
+  file,
+  call,
+  connectorRoot,
+  sources,
+  resolveReference
+) {
+  if (!ts.isPropertyAccessExpression(call.expression)) return false
+  const receiver = call.expression.expression
+  const operationName = call.expression.name.text
+  return Boolean(
+    receiverDeclaresOperation(file, receiver, operationName, resolveReference) &&
+    connectorDefinesNativeDecryptOperation(connectorRoot, operationName, sources))
+}
+
+function isPrivateConnectorNativeEncryptOperation(
+  file,
+  call,
+  connectorRoot,
+  sources,
+  resolveReference
+) {
+  if (!ts.isPropertyAccessExpression(call.expression)) return false
+  const receiver = call.expression.expression
+  const operationName = call.expression.name.text
+  return Boolean(
+    receiverDeclaresOperation(file, receiver, operationName, resolveReference) &&
+    connectorDefinesNativeEncryptOperation(connectorRoot, operationName, sources))
+}
+
+function declarationReturnsParameterInvocation(declaration, parameterIndex) {
+  const functionLike = functionLikeFromDeclaration(declaration)
+  const parameter = functionLike?.parameters[parameterIndex]
+  if (!functionLike?.body || !parameter || !ts.isIdentifier(parameter.name)) return false
+  let returnsInvocation = false
+  function visit(node) {
+    if (returnsInvocation || (node !== functionLike && ts.isFunctionLike(node))) return
+    if (ts.isReturnStatement(node) && node.expression) {
+      let expression = unwrapAliasExpression(node.expression)
+      if (ts.isCallExpression(expression) && ts.isIdentifier(expression.expression) &&
+        expression.expression.text === parameter.name.text) {
+        returnsInvocation = true
+        return
+      }
+    }
+    ts.forEachChild(node, visit)
+  }
+  if (ts.isBlock(functionLike.body)) visit(functionLike.body)
+  else {
+    const expression = unwrapAliasExpression(functionLike.body)
+    returnsInvocation = ts.isCallExpression(expression) && ts.isIdentifier(expression.expression) &&
+      expression.expression.text === parameter.name.text
+  }
+  return returnsInvocation
+}
+
+function argumentReturnsNativeSecret(
+  file,
+  argument,
+  connectorRoot,
+  sources,
+  resolveReference,
+  visited
+) {
+  const expression = unwrapAliasExpression(argument)
+  if (ts.isArrowFunction(expression) || ts.isFunctionExpression(expression)) {
+    return declarationReturnsNativeSecret(
+      file,
+      expression,
+      connectorRoot,
+      sources,
+      resolveReference,
+      visited
+    )
+  }
+  if (!ts.isIdentifier(expression)) return false
+  return connectorReferenceTargets(file, expression, sources, resolveReference).some((target) =>
+    target.file.startsWith(connectorRoot) && declarationReturnsNativeSecret(
+      target.file,
+      target.declaration,
+      connectorRoot,
+      sources,
+      resolveReference,
+      visited
+    ))
+}
+
+function expressionReadsPrivateConnectorSecret(
+  file,
+  node,
+  connectorRoot,
+  sources,
+  resolveReference,
+  visited = new Set()
+) {
+  let found = false
+  function visit(current) {
+    if (found) return
+    if (ts.isCallExpression(current)) {
+      const sourceFile = sources.get(file)
+      if (sourceFile && isNativeSafeStorageDecryptCall(current, sourceFile)) {
+        found = true
+        return
+      }
+      if (isPrivateConnectorNativeDecryptOperation(
+        file,
+        current,
+        connectorRoot,
+        sources,
+        resolveReference
+      )) {
+        found = true
+        return
+      }
+      for (const target of connectorReferenceTargets(
+        file,
+        current.expression,
+        sources,
+        resolveReference
+      )) {
+        if (!target.file.startsWith(connectorRoot)) continue
+        if (declarationReturnsNativeSecret(
+          target.file,
+          target.declaration,
+          connectorRoot,
+          sources,
+          resolveReference,
+          visited
+        )) {
+          found = true
+          return
+        }
+        for (let index = 0; index < current.arguments.length; index += 1) {
+          if (declarationReturnsParameterInvocation(target.declaration, index) &&
+            argumentReturnsNativeSecret(
+              file,
+              current.arguments[index],
+              connectorRoot,
+              sources,
+              resolveReference,
+              visited
+            )) {
+            found = true
+            return
+          }
+        }
+      }
+    }
+    ts.forEachChild(current, visit)
+  }
+  visit(node)
+  return found
+}
+
+function connectorAliasCarriesSecret(node, sourceFile, taintedNames) {
+  const expression = unwrapAliasExpression(node)
+  if (!expressionContainsNames(expression, new Set(taintedNames.keys()))) return false
+  if (!ts.isCallExpression(expression)) return true
+  const name = calleeName(expression.expression, sourceFile)
+  return isMaterialPreservingCall(expression, sourceFile) ||
+    /(?:^|\.)(?:normalize|parse|toString|trim|trimEnd|trimStart)$/u.test(name)
+}
+
+function collectPrivateConnectorTaints(
+  file,
+  scopeNode,
+  sourceFile,
+  connectorRoot,
+  sources,
+  resolveReference
+) {
+  const taintedNames = new Map()
+  const mark = (identifier) => {
+    if (!identifier?.text || taintedNames.has(identifier.text)) return false
+    taintedNames.set(identifier.text, 'credential')
+    return true
+  }
+  const markBinding = (name) => collectBindingIdentifiers(name)
+    .reduce((changed, identifier) => mark(identifier) || changed, false)
+
+  for (let pass = 0; pass < 8; pass += 1) {
+    let changed = false
+    function visit(node) {
+      if (node !== scopeNode && (ts.isFunctionLike(node) || ts.isSourceFile(node))) return
+      if (ts.isVariableDeclaration(node) && node.initializer) {
+        if (expressionReadsPrivateConnectorSecret(
+          file,
+          node.initializer,
+          connectorRoot,
+          sources,
+          resolveReference
+        ) || connectorAliasCarriesSecret(node.initializer, sourceFile, taintedNames)) {
+          changed = markBinding(node.name) || changed
+        }
+      } else if (ts.isBinaryExpression(node) && node.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
+        (ts.isIdentifier(node.left) || ts.isPrivateIdentifier(node.left)) &&
+        connectorAliasCarriesSecret(node.right, sourceFile, taintedNames)) {
+        changed = mark(node.left) || changed
+      }
+      ts.forEachChild(node, visit)
+    }
+    visit(scopeNode)
+    if (!changed) break
+  }
+  return taintedNames
+}
+
+function createPrivateConnectorTaintResolver(file, sourceFile, sources, resolveReference) {
+  const connectorRoot = privateConnectorRoot(file)
+  if (!connectorRoot) return null
+  const cache = new Map()
+  return (node) => {
+    const scopes = []
+    let current = nearestTaintScope(node)
+    while (current) {
+      scopes.push(current)
+      if (ts.isSourceFile(current)) break
+      current = nearestTaintScope(current.parent)
+    }
+    const result = new Map()
+    for (const scope of scopes.reverse()) {
+      let taints = cache.get(scope)
+      if (!taints) {
+        taints = collectPrivateConnectorTaints(
+          file,
+          scope,
+          sourceFile,
+          connectorRoot,
+          sources,
+          resolveReference
+        )
+        cache.set(scope, taints)
+      }
+      for (const [name, category] of taints) result.set(name, category)
+    }
+    return result
+  }
+}
+
+function isOutboundAuthorizationCall(call, authorizationNode, sourceFile) {
+  const name = calleeName(call.expression, sourceFile)
+  if (!/(?:^|\.)(?:fetch|request)$|fetch(?:impl)?$/iu.test(name)) return false
+  let current = authorizationNode.parent
+  let headers = false
+  while (current && current !== call && !ts.isFunctionLike(current)) {
+    if ((ts.isPropertyAssignment(current) || ts.isPropertyDeclaration(current)) &&
+      normalizeName(nodeName(current.name)) === 'headers') headers = true
+    current = current.parent
+  }
+  return current === call && headers && call.arguments.length > 0
+}
+
+function provesPrivateConnectorAuthorizationUse(
+  file,
+  authorizationNode,
+  authorizationValue,
+  sourceFile,
+  connectorTaintsFor
+) {
+  if (!privateConnectorRoot(file) || !connectorTaintsFor) return false
+  const sensitive = containsSensitiveExpression(
+    authorizationValue,
+    sourceFile,
+    connectorTaintsFor(authorizationNode)
+  )
+  if (sensitive?.category !== 'credential') return false
+  let current = authorizationNode.parent
+  while (current && !ts.isFunctionLike(current) && !ts.isSourceFile(current)) {
+    if (ts.isCallExpression(current) &&
+      isOutboundAuthorizationCall(current, authorizationNode, sourceFile)) return true
+    current = current.parent
+  }
+  return false
+}
+
+function isFunctionParameterCallback(call) {
+  if (!ts.isIdentifier(call.expression)) return false
+  const owner = nearestOwningFunction(call)
+  if (!owner) return false
+  return owner.parameters.some((parameter) =>
+    ts.isIdentifier(parameter.name) && parameter.name.text === call.expression.text &&
+    (parameter.type ? ts.isFunctionTypeNode(parameter.type) : false))
+}
+
+function isImmediatePrivateConnectorRequestReturn(
+  file,
+  expression,
+  sourceFile,
+  connectorTaintsFor
+) {
+  const taints = connectorTaintsFor(expression)
+  const taintedNodes = []
+  const allowedRanges = []
+  function visit(node) {
+    if ((ts.isIdentifier(node) || ts.isPrivateIdentifier(node)) && taints.has(node.text)) {
+      taintedNodes.push(node)
+    }
+    if ((ts.isPropertyAssignment(node) || ts.isPropertyDeclaration(node)) && node.initializer &&
+      normalizeName(nodeName(node.name)) === 'authorization' &&
+      provesPrivateConnectorAuthorizationUse(
+        file,
+        node,
+        node.initializer,
+        sourceFile,
+        connectorTaintsFor
+      )) {
+      allowedRanges.push({ pos: node.initializer.pos, end: node.initializer.end })
+    }
+    ts.forEachChild(node, visit)
+  }
+  visit(expression)
+  return taintedNodes.length > 0 && taintedNodes.every((node) =>
+    allowedRanges.some((range) => node.pos >= range.pos && node.end <= range.end))
+}
+
+function expressionProvesPrivateConnectorEncryption(
+  file,
+  expression,
+  rawNames,
+  connectorRoot,
+  sources,
+  resolveReference
+) {
+  const rawNodes = []
+  const encryptedRanges = []
+  function visit(node) {
+    if ((ts.isIdentifier(node) || ts.isPrivateIdentifier(node)) && rawNames.has(node.text)) {
+      rawNodes.push(node)
+    }
+    if (ts.isCallExpression(node)) {
+      const sourceFile = sources.get(file)
+      if ((sourceFile && isNativeSafeStorageEncryptCall(node, sourceFile)) ||
+        isPrivateConnectorNativeEncryptOperation(
+          file,
+          node,
+          connectorRoot,
+          sources,
+          resolveReference
+        )) {
+        encryptedRanges.push({ pos: node.pos, end: node.end })
+      }
+    }
+    ts.forEachChild(node, visit)
+  }
+  visit(expression)
+  return rawNodes.length > 0 && rawNodes.every((node) => encryptedRanges.some((range) =>
+    node.pos >= range.pos && node.end <= range.end))
+}
+
+function markPrivateConnectorBindings(bindings, name) {
+  let changed = false
+  for (const identifier of collectBindingIdentifiers(name)) {
+    if (bindings.has(identifier.text)) continue
+    bindings.add(identifier.text)
+    changed = true
+  }
+  return changed
+}
+
+function tracePrivateConnectorPersistence(
+  target,
+  rawParameterIndices,
+  protectedParameterIndices,
+  connectorRoot,
+  sources,
+  resolveReference,
+  visited
+) {
+  const functionLike = functionLikeFromDeclaration(target.declaration)
+  if (!functionLike?.body) return { safe: false, persisted: false }
+  const key = `${target.file}:${target.declaration.pos}:${target.declaration.end}:` +
+    `${[...rawParameterIndices].join(',')}:${[...protectedParameterIndices].join(',')}`
+  if (visited.has(key)) return { safe: false, persisted: false }
+  visited.add(key)
+
+  const rawNames = new Set()
+  const protectedNames = new Set()
+  for (const [index, parameter] of functionLike.parameters.entries()) {
+    if (rawParameterIndices.has(index)) markPrivateConnectorBindings(rawNames, parameter.name)
+    if (protectedParameterIndices.has(index)) {
+      markPrivateConnectorBindings(protectedNames, parameter.name)
+    }
+  }
+
+  for (let pass = 0; pass < 8; pass += 1) {
+    let changed = false
+    function collect(node) {
+      if (node !== functionLike && ts.isFunctionLike(node)) return
+      let name = null
+      let initializer = null
+      if (ts.isVariableDeclaration(node) && node.initializer) {
+        name = node.name
+        initializer = node.initializer
+      } else if (ts.isBinaryExpression(node) &&
+        node.operatorToken.kind === ts.SyntaxKind.EqualsToken && ts.isIdentifier(node.left)) {
+        name = node.left
+        initializer = node.right
+      }
+      if (name && initializer) {
+        const hasRaw = expressionContainsNames(initializer, rawNames)
+        if (hasRaw && expressionProvesPrivateConnectorEncryption(
+          target.file,
+          initializer,
+          rawNames,
+          connectorRoot,
+          sources,
+          resolveReference
+        )) {
+          changed = markPrivateConnectorBindings(protectedNames, name) || changed
+        } else if (hasRaw) {
+          changed = markPrivateConnectorBindings(rawNames, name) || changed
+        } else if (expressionContainsNames(initializer, protectedNames)) {
+          changed = markPrivateConnectorBindings(protectedNames, name) || changed
+        }
+      }
+      ts.forEachChild(node, collect)
+    }
+    collect(functionLike.body)
+    if (!changed) break
+  }
+
+  let safe = true
+  let persisted = false
+  function inspect(node) {
+    if (!safe || (node !== functionLike && ts.isFunctionLike(node))) return
+    if (ts.isCallExpression(node)) {
+      const rawArguments = new Set()
+      const protectedArguments = new Set()
+      for (const [index, argument] of node.arguments.entries()) {
+        if (expressionContainsNames(argument, rawNames)) rawArguments.add(index)
+        if (expressionContainsNames(argument, protectedNames)) protectedArguments.add(index)
+      }
+      if (rawArguments.size > 0 || protectedArguments.size > 0) {
+        const sourceFile = sources.get(target.file)
+        const nativeEncryption = Boolean(sourceFile &&
+          (isNativeSafeStorageEncryptCall(node, sourceFile) ||
+            isPrivateConnectorNativeEncryptOperation(
+              target.file,
+              node,
+              connectorRoot,
+              sources,
+              resolveReference
+            )))
+        if (!nativeEncryption) {
+          const targets = connectorReferenceTargets(
+            target.file,
+            node.expression,
+            sources,
+            resolveReference
+          ).filter((candidate) => candidate.file.startsWith(connectorRoot) &&
+            functionLikeFromDeclaration(candidate.declaration)?.body)
+          if (targets.length > 0) {
+            for (const nestedTarget of targets) {
+              const nested = tracePrivateConnectorPersistence(
+                nestedTarget,
+                rawArguments,
+                protectedArguments,
+                connectorRoot,
+                sources,
+                resolveReference,
+                visited
+              )
+              if (!nested.safe) {
+                safe = false
+                return
+              }
+              persisted = persisted || nested.persisted
+            }
+          } else {
+            const name = sourceFile ? calleeName(node.expression, sourceFile) : ''
+            if (persistenceSinkName.test(name)) {
+              if (rawArguments.size > 0) {
+                safe = false
+                return
+              }
+              persisted = persisted || protectedArguments.size > 0
+            } else if (rawArguments.size > 0 && sourceFile &&
+              !isMaterialPreservingCall(node, sourceFile)) {
+              safe = false
+              return
+            }
+          }
+        }
+      }
+    }
+    ts.forEachChild(node, inspect)
+  }
+  inspect(functionLike.body)
+  return { safe, persisted }
+}
+
+function provesPrivateConnectorSecurePersistence(
+  file,
+  call,
+  connectorTaintsFor,
+  sources,
+  resolveReference
+) {
+  const connectorRoot = privateConnectorRoot(file)
+  if (!connectorRoot || !connectorTaintsFor) return false
+  const taints = connectorTaintsFor(call)
+  const rawParameterIndices = new Set()
+  for (const [index, argument] of call.arguments.entries()) {
+    if (containsNamedTaint(argument, taints)?.category === 'credential') {
+      rawParameterIndices.add(index)
+    }
+  }
+  if (rawParameterIndices.size === 0) return false
+  const targets = connectorReferenceTargets(
+    file,
+    call.expression,
+    sources,
+    resolveReference
+  ).filter((target) => target.file.startsWith(connectorRoot) &&
+    functionLikeFromDeclaration(target.declaration)?.body)
+  if (targets.length === 0) return false
+  const visited = new Set()
+  let persisted = false
+  for (const target of targets) {
+    const result = tracePrivateConnectorPersistence(
+      target,
+      rawParameterIndices,
+      new Set(),
+      connectorRoot,
+      sources,
+      resolveReference,
+      visited
+    )
+    if (!result.safe) return false
+    persisted = persisted || result.persisted
+  }
+  return persisted
+}
+
+function expressionDirectlyReturnsPrivateConnectorSecret(
+  file,
+  expression,
+  taints,
+  connectorRoot,
+  sources,
+  resolveReference,
+  visited = new Set()
+) {
+  const node = unwrapAliasExpression(expression)
+  const key = `${file}:${node.pos}:${node.end}`
+  if (visited.has(key) || isProvenNonSecretStructuralReplacement(node)) return false
+  visited.add(key)
+  if (ts.isIdentifier(node) || ts.isPrivateIdentifier(node)) {
+    if (!taints.has(node.text)) return false
+    const declaration = lexicalIdentifierDeclaration(node)
+    if (!declaration || !ts.isVariableDeclaration(declaration) || !declaration.initializer) return true
+    return expressionDirectlyReturnsPrivateConnectorSecret(
+      file,
+      declaration.initializer,
+      taints,
+      connectorRoot,
+      sources,
+      resolveReference,
+      visited
+    )
+  }
+  if (ts.isPropertyAccessExpression(node) || ts.isElementAccessExpression(node)) {
+    return expressionDirectlyReturnsPrivateConnectorSecret(
+      file,
+      node.expression,
+      taints,
+      connectorRoot,
+      sources,
+      resolveReference,
+      visited
+    )
+  }
+  if (ts.isObjectLiteralExpression(node)) {
+    return node.properties.some((property) => {
+      if (ts.isPropertyAssignment(property)) {
+        return expressionDirectlyReturnsPrivateConnectorSecret(
+          file,
+          property.initializer,
+          taints,
+          connectorRoot,
+          sources,
+          resolveReference,
+          visited
+        )
+      }
+      if (ts.isShorthandPropertyAssignment(property)) {
+        return expressionDirectlyReturnsPrivateConnectorSecret(
+          file,
+          property.name,
+          taints,
+          connectorRoot,
+          sources,
+          resolveReference,
+          visited
+        )
+      }
+      if (ts.isSpreadAssignment(property)) {
+        return expressionDirectlyReturnsPrivateConnectorSecret(
+          file,
+          property.expression,
+          taints,
+          connectorRoot,
+          sources,
+          resolveReference,
+          visited
+        )
+      }
+      return false
+    })
+  }
+  if (ts.isArrayLiteralExpression(node)) {
+    return node.elements.some((element) => expressionDirectlyReturnsPrivateConnectorSecret(
+      file,
+      element,
+      taints,
+      connectorRoot,
+      sources,
+      resolveReference,
+      visited
+    ))
+  }
+  if (ts.isTemplateExpression(node)) {
+    return node.templateSpans.some((span) => expressionDirectlyReturnsPrivateConnectorSecret(
+      file,
+      span.expression,
+      taints,
+      connectorRoot,
+      sources,
+      resolveReference,
+      visited
+    ))
+  }
+  if (ts.isBinaryExpression(node)) {
+    return expressionDirectlyReturnsPrivateConnectorSecret(
+      file,
+      node.left,
+      taints,
+      connectorRoot,
+      sources,
+      resolveReference,
+      visited
+    ) || expressionDirectlyReturnsPrivateConnectorSecret(
+      file,
+      node.right,
+      taints,
+      connectorRoot,
+      sources,
+      resolveReference,
+      visited
+    )
+  }
+  if (ts.isCallExpression(node)) {
+    const sourceFile = sources.get(file)
+    if ((sourceFile && isNativeSafeStorageDecryptCall(node, sourceFile)) ||
+      isPrivateConnectorNativeDecryptOperation(
+        file,
+        node,
+        connectorRoot,
+        sources,
+        resolveReference
+      )) return true
+    if (connectorReferenceTargets(file, node.expression, sources, resolveReference).some((target) =>
+      target.file.startsWith(connectorRoot) && declarationReturnsNativeSecret(
+        target.file,
+        target.declaration,
+        connectorRoot,
+        sources,
+        resolveReference,
+        new Set()
+      ))) return true
+    return node.arguments.some((argument) => expressionDirectlyReturnsPrivateConnectorSecret(
+      file,
+      argument,
+      taints,
+      connectorRoot,
+      sources,
+      resolveReference,
+      visited
+    ))
+  }
+  return false
+}
+
+function scanPrivateConnectorSecretEscapes(
+  file,
+  sourceFile,
+  addFinding,
+  connectorTaintsFor,
+  sources,
+  resolveReference,
+  privateConnectorPublicFiles
+) {
+  if (!connectorTaintsFor) return
+  const publicConnectorModule = privateConnectorPublicFiles.has(file)
+  const connectorRoot = privateConnectorRoot(file)
+  const publicFunctions = new Set(exportedDeclarations(
+    sourceFile,
+    allPackageExports()
+  ).map(functionLikeFromDeclaration).filter(Boolean))
+  function visit(node) {
+    const taints = connectorTaintsFor(node)
+    if (publicConnectorModule && connectorRoot && ts.isReturnStatement(node) && node.expression &&
+      publicFunctions.has(nearestOwningFunction(node))) {
+      const sensitive = containsNamedTaint(node.expression, taints)
+      if (sensitive?.category === 'credential' && expressionDirectlyReturnsPrivateConnectorSecret(
+        file,
+        node.expression,
+        taints,
+        connectorRoot,
+        sources,
+        resolveReference
+      ) && !isImmediatePrivateConnectorRequestReturn(
+          file,
+          node.expression,
+          sourceFile,
+          connectorTaintsFor
+        )) {
+        addFinding(file, lineOf(sourceFile, sensitive.node), 'connector-secret-return')
+      }
+    }
+    if (ts.isCallExpression(node)) {
+      const sensitive = containsNamedTaint(node, taints)
+      if (sensitive?.category === 'credential') {
+        const name = calleeName(node.expression, sourceFile)
+        if (logSinkName.test(name)) {
+          addFinding(file, lineOf(sourceFile, sensitive.node), 'secret-log-credential')
+        } else if (isProcessSink(name) || processIoSinkName.test(name)) {
+          addFinding(file, lineOf(sourceFile, sensitive.node), 'secret-process-credential')
+        } else if (isIpcSink(name, file)) {
+          addFinding(file, lineOf(sourceFile, sensitive.node), 'secret-ipc-credential')
+        } else if (persistenceSinkName.test(name) && !isSecurePersistenceSink(name, file) &&
+          !provesPrivateConnectorSecurePersistence(
+            file,
+            node,
+            connectorTaintsFor,
+            sources,
+            resolveReference
+          )) {
+          addFinding(file, lineOf(sourceFile, sensitive.node), 'insecure-secret-persistence-credential')
+        } else if (isFunctionParameterCallback(node)) {
+          addFinding(file, lineOf(sourceFile, sensitive.node), 'connector-secret-callback')
+        }
+      }
+    }
+    ts.forEachChild(node, visit)
+  }
+  visit(sourceFile)
 }
 
 function parameterUsesOnlyNonSecretEnvironmentNames(file, functionLike, parameter, resolveReference) {
@@ -1262,7 +2472,13 @@ function staticEnvironmentPropertyName(node, staticStrings) {
   return /^[A-Z][A-Z0-9_]+$/u.test(name) ? name : null
 }
 
-function scanEnvironmentAndAuthorizationBoundaries(file, sourceFile, addFinding, resolveReference) {
+function scanEnvironmentAndAuthorizationBoundaries(
+  file,
+  sourceFile,
+  addFinding,
+  resolveReference,
+  connectorTaintsFor
+) {
   const staticStrings = collectStaticStringConstants(sourceFile)
   const taintsFor = createTaintResolver(sourceFile)
 
@@ -1272,8 +2488,13 @@ function scanEnvironmentAndAuthorizationBoundaries(file, sourceFile, addFinding,
       addFinding(file, lineOf(sourceFile, node), 'boundary-secret-environment')
     }
 
-    const environmentName = environmentAccessName(node, staticStrings)
-    if (environmentName && environmentSecretCategory(environmentName)) {
+    const deletedEnvironmentAccess = Boolean(node.parent &&
+      ts.isDeleteExpression(node.parent) && node.parent.expression === node)
+    const environmentNames = deletedEnvironmentAccess
+      ? null
+      : environmentAccessNames(file, node, staticStrings, resolveReference)
+    if (environmentNames && (environmentNames.length === 0 ||
+      environmentNames.some((name) => environmentSecretCategory(name)))) {
       addFinding(file, lineOf(sourceFile, node), 'boundary-secret-environment')
     }
 
@@ -1299,7 +2520,15 @@ function scanEnvironmentAndAuthorizationBoundaries(file, sourceFile, addFinding,
       const crossesAuditedBoundary = hostSecurityBoundaryPath.test(file) ||
         sensitive?.category === 'environment' ||
         Boolean(containsEnvironmentSource(authorizationValue, sourceFile))
-      if (crossesAuditedBoundary && (sensitive || /(?:Bearer|Basic)\s/u.test(text))) {
+      const privateConnectorUse = provesPrivateConnectorAuthorizationUse(
+        file,
+        node,
+        authorizationValue,
+        sourceFile,
+        connectorTaintsFor
+      )
+      if (!privateConnectorUse && crossesAuditedBoundary &&
+        (sensitive || /(?:Bearer|Basic)\s/u.test(text))) {
         addFinding(file, lineOf(sourceFile, authorizationValue), 'boundary-secret-authorization-header')
       }
     }
@@ -1317,7 +2546,14 @@ function isProvenNonAuthorizingStructuralValue(node) {
   return false
 }
 
-function scanSinks(file, sourceFile, addFinding) {
+function scanSinks(
+  file,
+  sourceFile,
+  addFinding,
+  connectorTaintsFor,
+  sources,
+  resolveReference
+) {
   const syntheticTest = testPath.test(file)
   const taintsFor = createTaintResolver(sourceFile)
   function visit(node) {
@@ -1352,7 +2588,14 @@ function scanSinks(file, sourceFile, addFinding) {
           addFinding(file, lineOf(sourceFile, sensitive.node), `secret-ipc-${sensitive.category}`)
         } else if (receiptSinkName.test(name) || (receiptFilePath.test(file) && /JSON\.stringify$/u.test(name))) {
           addFinding(file, lineOf(sourceFile, sensitive.node), `secret-receipt-${sensitive.category}`)
-        } else if (persistenceSinkName.test(name) && !isSecurePersistenceSink(name, file)) {
+        } else if (persistenceSinkName.test(name) && !isSecurePersistenceSink(name, file) &&
+          !provesPrivateConnectorSecurePersistence(
+            file,
+            node,
+            connectorTaintsFor,
+            sources,
+            resolveReference
+          )) {
           addFinding(file, lineOf(sourceFile, sensitive.node), `insecure-secret-persistence-${sensitive.category}`)
         }
       }
@@ -1638,8 +2881,20 @@ export function auditRoot({
     [...contents.keys()],
     sources
   )
+  const privateConnectorPublicFiles = discoverPrivateConnectorPublicFiles(
+    absoluteRoot,
+    [...contents.keys()],
+    sources,
+    publicModules
+  )
   const visitedPublicDeclarations = new Set()
   for (const [file, sourceFile] of sources) {
+    const connectorTaintsFor = createPrivateConnectorTaintResolver(
+      file,
+      sourceFile,
+      sources,
+      resolvePublicReference
+    )
     const exportSelection = publicModules.get(file)
     if (exportSelection) {
       for (const declaration of exportedDeclarations(sourceFile, exportSelection)) {
@@ -1662,10 +2917,27 @@ export function auditRoot({
         file,
         sourceFile,
         addFinding,
-        resolvePublicReference
+        resolvePublicReference,
+        connectorTaintsFor
       )
     }
-    scanSinks(file, sourceFile, addFinding)
+    scanPrivateConnectorSecretEscapes(
+      file,
+      sourceFile,
+      addFinding,
+      connectorTaintsFor,
+      sources,
+      resolvePublicReference,
+      privateConnectorPublicFiles
+    )
+    scanSinks(
+      file,
+      sourceFile,
+      addFinding,
+      connectorTaintsFor,
+      sources,
+      resolvePublicReference
+    )
     scanLiteralAssignments(file, sourceFile, addFinding)
   }
 

@@ -173,6 +173,37 @@ test('default gate rejects whole environment projection and direct domain creden
     finding.file === 'packages/installed-domain/src/index.ts' && finding.line >= 5), false)
 })
 
+test('rejects a dynamic selector against a structurally proven process environment', (t) => {
+  const repo = fixture({
+    'package.json': JSON.stringify({
+      name: '@fixture/desktop',
+      dependencies: { '@fixture/installed-domain': '1.0.0' }
+    }),
+    'packages/installed-domain/package.json': JSON.stringify({
+      name: '@fixture/installed-domain',
+      exports: './src/index.ts'
+    }),
+    'packages/installed-domain/src/index.ts': [
+      'function readSelected(environment: NodeJS.ProcessEnv, selector: string) {',
+      '  const selected = environment[selector]',
+      '  const language = environment.LANG',
+      '  return { selected, language }',
+      '}',
+      'export function connect(selector: string) {',
+      '  return readSelected(process.env, selector)',
+      '}'
+    ].join('\n')
+  })
+  t.after(repo.close)
+
+  assert.deepEqual(repo.auditDefault().findings.filter((finding) =>
+    finding.kind === 'boundary-secret-environment'), [{
+    file: 'packages/installed-domain/src/index.ts',
+    line: 2,
+    kind: 'boundary-secret-environment'
+  }])
+})
+
 test('proves a non-secret environment allowlist without trusting a sanitizer name', (t) => {
   const repo = fixture({
     'src/main/worker-environment.ts': [
@@ -200,6 +231,23 @@ test('proves a non-secret environment allowlist without trusting a sanitizer nam
     line: 14,
     kind: 'boundary-secret-environment'
   }])
+})
+
+test('proves mapped and conditional non-secret environment selectors', (t) => {
+  const repo = fixture({
+    'src/main/worker-environment.ts': [
+      "const SAFE_CHILD_ENVIRONMENT = Object.freeze(['PATH', 'LANG'] as const)",
+      'export function safeEnvironment(source: NodeJS.ProcessEnv) {',
+      '  const selected = SAFE_CHILD_ENVIRONMENT.map((name) => source[name])',
+      "  const pathName = source.PATH === undefined ? 'Path' : 'PATH'",
+      '  return { selected, path: source[pathName] }',
+      '}'
+    ].join('\n')
+  })
+  t.after(repo.close)
+
+  assert.deepEqual(repo.auditDefault().findings.filter((finding) =>
+    finding.kind === 'boundary-secret-environment'), [])
 })
 
 test('default gate rejects credential strings in shared, preload, and renderer boundaries', (t) => {
@@ -235,6 +283,197 @@ test('default gate rejects credential strings in shared, preload, and renderer b
     finding.kind === 'boundary-secret-credential'))
   assert.equal(result.findings.some((finding) =>
     finding.file === 'src/shared/app-settings.ts' && finding.line >= 3), false)
+})
+
+test('allows only an immediate native-vault authorization use inside a private main connector', (t) => {
+  const repo = fixture({
+    'src/main/connectors/example/native-vault.internal.ts': [
+      "import { safeStorage } from 'electron'",
+      'export function readNativeValue(ciphertext: Buffer): string {',
+      '  return safeStorage.decryptString(ciphertext)',
+      '}'
+    ].join('\n'),
+    'src/main/connectors/example/index.ts': [
+      "import { readNativeValue } from './native-vault.internal'",
+      'declare function loadCiphertext(): Buffer',
+      'export function createConnector(fetchImpl: typeof fetch) {',
+      '  return {',
+      '    async request(body: unknown, signal?: AbortSignal) {',
+      '      const material = readNativeValue(loadCiphertext())',
+      "      return fetchImpl('https://provider.invalid/v1/request', {",
+      "        method: 'POST',",
+      '        headers: { authorization: `Bearer ${material}` },',
+      '        body: JSON.stringify(body),',
+      '        signal',
+      '      })',
+      '    }',
+      '  }',
+      '}'
+    ].join('\n')
+  })
+  t.after(repo.close)
+
+  assert.deepEqual(repo.auditDefault().findings, [])
+})
+
+test('follows private connector secret flow through local serializer and connection closures', (t) => {
+  const repo = fixture({
+    'src/main/connectors/example/native-sealer.ts': [
+      "import { safeStorage } from 'electron'",
+      "import type { NativeSealer } from './runtime'",
+      'export function createNativeSealer(): NativeSealer {',
+      '  return {',
+      '    seal: (plaintext) => safeStorage.encryptString(plaintext),',
+      '    unseal: (ciphertext) => safeStorage.decryptString(ciphertext)',
+      '  }',
+      '}'
+    ].join('\n'),
+    'src/main/connectors/example/runtime.ts': [
+      "import { writeFile } from 'node:fs/promises'",
+      'export type NativeSealer = Readonly<{',
+      '  seal(plaintext: string): Buffer',
+      '  unseal(ciphertext: Buffer): string',
+      '}>',
+      'declare function loadCiphertext(): Buffer',
+      'declare function parseRecord(value: unknown): { runtimeApiKey: string }',
+      'export function createConnector(input: { sealer: NativeSealer; fetchImpl: typeof fetch }) {',
+      '  const read = () => parseRecord(JSON.parse(input.sealer.unseal(loadCiphertext())))',
+      '  const persist = (value: unknown) => persistRecord(value, input.sealer)',
+      '  const serialize = async <Value>(operation: () => Promise<Value> | Value) => {',
+      '    return await operation()',
+      '  }',
+      '  const resolveConnection = async () => {',
+      '    const resolved = await serialize(read)',
+      '    await persist(resolved)',
+      '    const runtimeApiKey = resolved.runtimeApiKey',
+      "    return { url: 'https://provider.invalid/v1/request', runtimeApiKey }",
+      '  }',
+      '  return {',
+      '    async request(body: unknown) {',
+      '      const connection = await resolveConnection()',
+      '      return input.fetchImpl(connection.url, {',
+      '        headers: { authorization: `Bearer ${connection.runtimeApiKey}` },',
+      '        body: JSON.stringify(body)',
+      '      })',
+      '    }',
+      '  }',
+      '}',
+      'async function persistRecord(value: unknown, sealer: NativeSealer) {',
+      "  const ciphertext = sealer.seal(JSON.stringify(value)).toString('base64')",
+      '  const envelope = { version: 1, ciphertext }',
+      "  await writeFile('/private/example.enc.json', JSON.stringify(envelope))",
+      '}'
+    ].join('\n')
+  })
+  t.after(repo.close)
+
+  assert.deepEqual(repo.auditDefault().findings, [])
+})
+
+test('rejects raw connector persistence hidden behind a local helper', (t) => {
+  const repo = fixture({
+    'src/main/connectors/example/native-vault.internal.ts': [
+      "import { safeStorage } from 'electron'",
+      'export function readNativeValue(ciphertext: Buffer): string {',
+      '  return safeStorage.decryptString(ciphertext)',
+      '}'
+    ].join('\n'),
+    'src/main/connectors/example/index.ts': [
+      "import { writeFile } from 'node:fs/promises'",
+      "import { readNativeValue } from './native-vault.internal'",
+      'declare function loadCiphertext(): Buffer',
+      'const fakeEncrypt = (value: string) => value',
+      'const persist = (value: string) => {',
+      '  const ciphertext = fakeEncrypt(value)',
+      "  return writeFile('/private/example.enc.json', ciphertext)",
+      '}',
+      'export async function leak() {',
+      '  const material = readNativeValue(loadCiphertext())',
+      '  await persist(material)',
+      '}'
+    ].join('\n')
+  })
+  t.after(repo.close)
+
+  assert.ok(repo.auditDefault().findings.some((finding) =>
+    finding.file === 'src/main/connectors/example/index.ts' &&
+    finding.kind === 'insecure-secret-persistence-credential'))
+})
+
+test('rejects a raw secret return from any connector module imported by Host', (t) => {
+  const repo = fixture({
+    'src/main/index.ts': [
+      "import { rawReturn } from './connectors/example/runtime'",
+      'void rawReturn'
+    ].join('\n'),
+    'src/main/connectors/example/native-vault.internal.ts': [
+      "import { safeStorage } from 'electron'",
+      'export function readNativeValue(ciphertext: Buffer): string {',
+      '  return safeStorage.decryptString(ciphertext)',
+      '}'
+    ].join('\n'),
+    'src/main/connectors/example/runtime.ts': [
+      "import { readNativeValue } from './native-vault.internal'",
+      'declare function loadCiphertext(): Buffer',
+      'export function rawReturn() {',
+      '  const material = readNativeValue(loadCiphertext())',
+      '  return material',
+      '}'
+    ].join('\n')
+  })
+  t.after(repo.close)
+
+  assert.ok(repo.auditDefault().findings.some((finding) =>
+    finding.file === 'src/main/connectors/example/runtime.ts' &&
+    finding.kind === 'connector-secret-return'))
+})
+
+test('private connector boundary still rejects raw returns callbacks and outbound projections', (t) => {
+  const repo = fixture({
+    'src/main/connectors/example/native-vault.internal.ts': [
+      "import { safeStorage } from 'electron'",
+      'export function readNativeValue(ciphertext: Buffer): string {',
+      '  return safeStorage.decryptString(ciphertext)',
+      '}'
+    ].join('\n'),
+    'src/main/connectors/example/index.ts': [
+      "import { readNativeValue } from './native-vault.internal'",
+      'declare function loadCiphertext(): Buffer',
+      'export function rawReturn() {',
+      '  const material = readNativeValue(loadCiphertext())',
+      '  return material',
+      '}',
+      'export function leak(',
+      '  emit: (value: unknown) => void,',
+      '  ipcRenderer: { send(channel: string, value: unknown): void },',
+      '  logger: { info(value: unknown): void },',
+      '  spawn: (command: string, args: string[], options: unknown) => void,',
+      '  writeFile: (path: string, value: unknown) => void',
+      ') {',
+      '  const material = readNativeValue(loadCiphertext())',
+      '  logger.info(material)',
+      "  ipcRenderer.send('connector', material)",
+      "  spawn('helper', [], { env: { PROVIDER_SECRET: material } })",
+      "  writeFile('/tmp/connector-output', material)",
+      '  emit(material)',
+      '}',
+      'export function callerSupplied(fetchImpl: typeof fetch, apiKey: string) {',
+      "  return fetchImpl('https://provider.invalid/v1/request', {",
+      '    headers: { authorization: `Bearer ${apiKey}` }',
+      '  })',
+      '}'
+    ].join('\n')
+  })
+  t.after(repo.close)
+
+  const kinds = findingKinds(repo.auditDefault())
+  assert.ok(kinds.includes('connector-secret-return'))
+  assert.ok(kinds.includes('secret-log-credential'))
+  assert.ok(kinds.includes('secret-ipc-credential'))
+  assert.ok(kinds.includes('secret-process-credential'))
+  assert.ok(kinds.includes('insecure-secret-persistence-credential'))
+  assert.ok(kinds.includes('connector-secret-callback'))
+  assert.ok(kinds.includes('boundary-secret-authorization-header'))
 })
 
 test('default gate rejects credential-like material in a cross-package contract', (t) => {
