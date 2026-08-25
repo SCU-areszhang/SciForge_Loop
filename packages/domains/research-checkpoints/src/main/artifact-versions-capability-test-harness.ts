@@ -66,6 +66,12 @@ export async function createArtifactVersionsCapabilityTestHarness(
     return definition.outputSchema.parse(result.output) as TOutput
   }
   const invoker: DomainMainSystemCapabilityInvoker = Object.freeze({
+    beginApprovedBatch: () => {
+      throw new Error('Artifact Versions test harness does not use approved batches.')
+    },
+    executeApprovedBatchOperation: async () => {
+      throw new Error('Artifact Versions test harness does not use approved batches.')
+    },
     invoke: async <TInput, TOutput>(
       contract: DomainCapabilityContract<TInput, TOutput>,
       input: TInput,

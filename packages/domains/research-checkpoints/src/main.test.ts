@@ -258,6 +258,12 @@ test('domain entry commits, reads, lists, restarts, and rejects wrong exact owne
         readDurableTurnBoundarySnapshot: async () => durableBoundarySnapshot
       },
       capabilities: {
+        beginApprovedBatch: () => {
+          throw new Error('Research Checkpoints lifecycle test does not use approved batches.')
+        },
+        executeApprovedBatchOperation: async () => {
+          throw new Error('Research Checkpoints lifecycle test does not use approved batches.')
+        },
         invoke: async (contract: { actionId: string; outputSchema: { parse: (value: unknown) => unknown } }, input: unknown, options?: { workspaceId?: string }) => {
           const workspace = options?.workspaceId ?? workspaceRoot
           if (contract.actionId.startsWith('artifact-versions.')) {
@@ -277,7 +283,10 @@ test('domain entry commits, reads, lists, restarts, and rejects wrong exact owne
           throw new Error(`unexpected action ${contract.actionId}`)
         }
       },
-      modelAccess: { textReasoner: async () => null },
+      textReasoning: {
+        status: async () => ({ state: 'unavailable', reason: 'not-configured' }),
+        invoke: async () => ({ status: 'incomplete', reason: 'unknown' })
+      },
       executionEvents: { publish: async () => undefined },
       workflowExecutionReceipts: [],
       enablement: { isEnabled: async () => true, subscribe: () => () => undefined },

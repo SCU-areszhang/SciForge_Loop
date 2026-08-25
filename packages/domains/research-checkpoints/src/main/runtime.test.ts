@@ -748,10 +748,19 @@ function context(
       readDurableTurnBoundarySnapshot: async () => durableBoundarySnapshot
     },
     capabilities: {
+      beginApprovedBatch: () => {
+        throw new Error('Research Checkpoints runtime test does not use approved batches.')
+      },
+      executeApprovedBatchOperation: async () => {
+        throw new Error('Research Checkpoints runtime test does not use approved batches.')
+      },
       invoke: ((contract: { actionId: string }, input: unknown) =>
         harness.invoke(contract.actionId, input)) as never
     },
-    modelAccess: { textReasoner: async () => null },
+    textReasoning: {
+      status: async () => ({ state: 'unavailable', reason: 'not-configured' }),
+      invoke: async () => ({ status: 'incomplete', reason: 'unknown' })
+    },
     executionEvents: { publish: async () => { throw new Error('unexpected execution event') } },
     workflowExecutionReceipts: [],
     enablement: {
@@ -793,6 +802,12 @@ function realArtifactContext(
   return {
     ...base,
     capabilities: {
+      beginApprovedBatch: () => {
+        throw new Error('Research Checkpoints runtime test does not use approved batches.')
+      },
+      executeApprovedBatchOperation: async () => {
+        throw new Error('Research Checkpoints runtime test does not use approved batches.')
+      },
       invoke: async (contract, input, options) => {
         if (contract.actionId === GIT_CHECKPOINTS_CAPABILITY_IDS.list) {
           return contract.outputSchema.parse({ ok: true, value: [] })
