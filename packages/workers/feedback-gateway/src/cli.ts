@@ -1,13 +1,8 @@
-import { feedbackGatewayConfigFromEnv, createConfiguredFeedbackGateway } from './config.js'
+import { feedbackGatewayConfigFromEnv } from './config.js'
 import { createFeedbackGatewayServer } from './server.js'
 
 const config = feedbackGatewayConfigFromEnv()
-const service = createConfiguredFeedbackGateway(config)
-const server = createFeedbackGatewayServer({
-  service,
-  ...(config.authToken ? { authToken: config.authToken } : {}),
-  maxBodyBytes: config.maxBodyBytes
-})
+const server = createFeedbackGatewayServer()
 
 server.listen(config.port, config.host, () => {
   console.log(`[feedback-gateway] listening on http://${config.host}:${config.port}`)

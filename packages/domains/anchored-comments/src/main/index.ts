@@ -27,11 +27,7 @@ import {
 } from '../definition'
 import { AnchoredCommentService } from './comment-service'
 import { AnchoredCommentFeedbackService } from './feedback-service'
-import {
-  configuredFeedbackGatewayToken,
-  configuredFeedbackGatewayUrl,
-  FeedbackGatewayClient
-} from './feedback-gateway-client'
+import { configuredFeedbackGatewayUrl } from './feedback-gateway-configuration'
 
 type AnchoredCommentsCapabilityEffect = 'read' | 'workspace-write' | 'external-write'
 
@@ -78,16 +74,12 @@ export function createDomainMainEntry(
 
   const getFeedback = (): AnchoredCommentFeedbackService => {
     if (feedback) return feedback
-    const url = configuredFeedbackGatewayUrl(process.env)
-    const gateway = url
-      ? new FeedbackGatewayClient({
-          baseUrl: url,
-          authToken: configuredFeedbackGatewayToken(process.env) ?? undefined
-        })
-      : null
+    // Preserve validation of the non-secret deployment endpoint without
+    // constructing a raw authenticated HTTP path in the domain package.
+    configuredFeedbackGatewayUrl(process.env)
     feedback = new AnchoredCommentFeedbackService({
       comments: getComments(),
-      gateway
+      gateway: null
     })
     return feedback
   }

@@ -2,42 +2,42 @@ import { describe, expect, it } from 'vitest'
 
 import { feedbackGatewayConfigFromEnv } from './config.js'
 
-function environment(): NodeJS.ProcessEnv {
-  return {
-    SCIFORGE_FEEDBACK_GITHUB_TOKEN: 'github-token',
-    SCIFORGE_FEEDBACK_ALLOWED_REPOSITORIES: 'XingYu-Zhong/SciForge',
-    SCIFORGE_FEEDBACK_S3_BUCKET: 'feedback-assets',
-    SCIFORGE_FEEDBACK_ASSET_PUBLIC_BASE_URL: 'https://assets.sciforge.test/'
-  }
-}
-
 describe('feedbackGatewayConfigFromEnv', () => {
-  it('loads a minimal production configuration with safe defaults', () => {
-    expect(feedbackGatewayConfigFromEnv(environment())).toMatchObject({
+  it('loads only the health listener configuration', () => {
+    expect(feedbackGatewayConfigFromEnv({})).toEqual({
       host: '127.0.0.1',
-      port: 8787,
-      allowedRepositories: ['XingYu-Zhong/SciForge'],
-      githubRecoveryPages: 3,
-      s3: {
-        bucket: 'feedback-assets',
-        region: 'auto',
-        forcePathStyle: false,
-        keyPrefix: 'feedback'
-      }
+      port: 8787
     })
+    expect(feedbackGatewayConfigFromEnv({
+      SCIFORGE_FEEDBACK_HOST: '0.0.0.0',
+      SCIFORGE_FEEDBACK_PORT: '9000'
+    })).toEqual({ host: '0.0.0.0', port: 9000 })
   })
 
-  it('requires paired explicit S3 credentials', () => {
-    expect(() => feedbackGatewayConfigFromEnv({
-      ...environment(),
-      SCIFORGE_FEEDBACK_S3_ACCESS_KEY_ID: 'only-one-half'
-    })).toThrow('must be configured together')
+  it.each([
+    'SCIFORGE_FEEDBACK_GATEWAY_TOKEN',
+    'SCIFORGE_FEEDBACK_GITHUB_TOKEN',
+    'SCIFORGE_FEEDBACK_S3_ACCESS_KEY_ID',
+    'SCIFORGE_FEEDBACK_S3_SECRET_ACCESS_KEY'
+  ])('ignores the removed legacy secret environment path %s', (name) => {
+    const canary = 'feedback-secret-canary-must-not-cross'
+    const config = feedbackGatewayConfigFromEnv({ [name]: canary })
+    expect(JSON.stringify(config)).not.toContain(canary)
+    expect(Object.keys(config).join('\n')).not.toMatch(/auth|credential|secret|token/i)
   })
 
-  it('rejects malformed repository allowlist entries', () => {
-    expect(() => feedbackGatewayConfigFromEnv({
-      ...environment(),
-      SCIFORGE_FEEDBACK_ALLOWED_REPOSITORIES: 'not-a-repository'
-    })).toThrow('owner/name')
+  it('does not consume the AWS SDK credential-chain environment fallback', () => {
+    const canary = 'feedback-aws-chain-canary-must-not-cross'
+    const config = feedbackGatewayConfigFromEnv({
+      AWS_ACCESS_KEY_ID: canary,
+      AWS_SECRET_ACCESS_KEY: canary,
+      AWS_SESSION_TOKEN: canary
+    })
+    expect(JSON.stringify(config)).not.toContain(canary)
+  })
+
+  it('rejects an invalid listener port', () => {
+    expect(() => feedbackGatewayConfigFromEnv({ SCIFORGE_FEEDBACK_PORT: '0' }))
+      .toThrow('must be an integer')
   })
 })

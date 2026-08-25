@@ -67,6 +67,34 @@ function packet(): ProductFeedbackPacket {
 }
 
 describe('AnchoredCommentFeedbackService', () => {
+  it('fails closed before evidence hydration when no private Connector is installed', async () => {
+    let current = thread()
+    const readScreenshotAsset = vi.fn()
+    const service = new AnchoredCommentFeedbackService({
+      comments: {
+        getThread: async () => structuredClone(current),
+        upsertThread: async (next) => {
+          current = structuredClone(next)
+          return next
+        },
+        readScreenshotAsset
+      },
+      gateway: null,
+      now: () => new Date(now)
+    })
+
+    await expect(service.submit({ packet: packet() })).resolves.toEqual({
+      ok: false,
+      message: expect.stringContaining('private Connector'),
+      retryable: false
+    })
+    expect(readScreenshotAsset).not.toHaveBeenCalled()
+    expect(current.feedback).toMatchObject({
+      state: 'failed',
+      error: expect.stringContaining('private Connector')
+    })
+  })
+
   it('hydrates approved screenshots from integrity-checked local assets and tracks submission', async () => {
     let current = thread()
     const upsertThread = vi.fn(async (next: AnchoredCommentThread) => {

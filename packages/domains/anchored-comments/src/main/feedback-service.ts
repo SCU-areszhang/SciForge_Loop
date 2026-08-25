@@ -20,6 +20,9 @@ export type AnchoredCommentFeedbackServiceOptions = {
   now?: () => Date
 }
 
+const PRIVATE_CONNECTOR_UNAVAILABLE =
+  'Authenticated feedback submission is unavailable because no owner-private Connector is installed.'
+
 function resultFromFeedback(feedback: AnchoredCommentFeedbackState): FeedbackGatewayResult | null {
   if (feedback.state !== 'submitted' || !feedback.issue || !feedback.idempotencyKey) return null
   return {
@@ -88,12 +91,12 @@ export class AnchoredCommentFeedbackService {
         state: 'failed',
         idempotencyKey: packet.idempotencyKey,
         disclosure: packet.disclosure,
-        error: 'SciForge feedback gateway is not configured.',
+        error: PRIVATE_CONNECTOR_UNAVAILABLE,
         updatedAt: this.nowIso()
       })
       return {
         ok: false,
-        message: 'SciForge feedback gateway is not configured.',
+        message: PRIVATE_CONNECTOR_UNAVAILABLE,
         retryable: false
       }
     }
