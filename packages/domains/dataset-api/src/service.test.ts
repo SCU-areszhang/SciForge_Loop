@@ -1,12 +1,28 @@
 import assert from 'node:assert/strict'
-import { mkdtemp, readFile, rm, symlink } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises'
 import { createServer } from 'node:http'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import test from 'node:test'
 import { EXECUTABLE_DATASET_PROVIDER_IDS, executableDatasetProviderIdSchema } from './contract.js'
 import { EXECUTABLE_DATASET_PROVIDER_PRESETS } from './provider-presets.js'
-import { createDatasetApiService } from './service.js'
+import {
+  createDatasetApiService as createProductionDatasetApiService,
+  createDatasetApiServiceWithConnector
+} from './service.js'
+import { createDatasetHttpConnector } from './main/connectors/dataset-connectors.internal.js'
+
+function createDatasetApiService(options: Readonly<{
+  workspaceRoot: string
+  fetchImpl?: typeof fetch
+}>) {
+  return options.fetchImpl
+    ? createDatasetApiServiceWithConnector({
+      workspaceRoot: options.workspaceRoot,
+      connector: createDatasetHttpConnector({ fetchImpl: options.fetchImpl })
+    })
+    : createProductionDatasetApiService({ workspaceRoot: options.workspaceRoot })
+}
 
 test('keeps executable provider schemas and presets in sync', () => {
   assert.deepEqual(Object.keys(EXECUTABLE_DATASET_PROVIDER_PRESETS), [...EXECUTABLE_DATASET_PROVIDER_IDS])
@@ -99,12 +115,18 @@ test('serializes concurrent registry updates without losing a source', async (co
   assert.deepEqual(persisted.sources.map((source) => source.id), ['first', 'second'])
 })
 
-test('registers a database and reads its metadata endpoint', async () => {
+test('uses the private HTTP Connector without inheriting process credentials', async () => {
   const workspaceRoot = await mkdtemp(join(tmpdir(), 'sciforge-dataset-api-'))
+  const canary = 'dataset-env-canary-must-not-cross'
+  const previousCanary = process.env.NCBI_API_KEY
+  process.env.NCBI_API_KEY = canary
   const server = createServer((request, response) => {
-    assert.equal(request.headers.authorization, 'Bearer test-token')
+    assert.equal(request.headers.authorization, undefined)
+    assert.equal(request.method, 'GET')
+    assert.equal(request.headers['content-length'], undefined)
     const url = new URL(request.url ?? '/', 'http://127.0.0.1')
     assert.equal(url.pathname, '/api/datasets/ds-42/metadata')
+    assert.equal(JSON.stringify({ url: request.url, headers: request.headers }).includes(canary), false)
     response.setHeader('content-type', 'application/json')
     response.end(JSON.stringify({ id: 'ds-42', title: 'Example dataset', files: 1 }))
   })
@@ -112,14 +134,13 @@ test('registers a database and reads its metadata endpoint', async () => {
   const address = server.address()
   assert.ok(address && typeof address === 'object')
   try {
-    const service = createDatasetApiService({ workspaceRoot, env: { DATASET_TOKEN: 'test-token' } })
+    const service = createDatasetApiService({ workspaceRoot })
     await service.register({
       id: 'example',
       name: 'Example database',
       baseUrl: `http://127.0.0.1:${address.port}/api/`,
       metadataEndpoint: 'datasets/{datasetId}/metadata',
-      rawDataEndpoint: 'datasets/{datasetId}/raw/{assetId}',
-      auth: { type: 'bearer', envVar: 'DATASET_TOKEN' }
+      rawDataEndpoint: 'datasets/{datasetId}/raw/{assetId}'
     })
     const metadata = await service.metadata({
       sourceId: 'example',
@@ -136,8 +157,11 @@ test('registers a database and reads its metadata endpoint', async () => {
     const listed = await service.list({})
     const listedExample = listed.sources.find((source) => source.id === 'example')
     assert.equal(listedExample?.metadataEndpoint, 'datasets/{datasetId}/metadata')
-    assert.equal(listedExample?.auth?.configured, true)
+    assert.deepEqual(listedExample?.authentication, { mode: 'anonymous', status: 'ready' })
+    assert.equal(JSON.stringify({ metadata, listed }).includes(canary), false)
   } finally {
+    if (previousCanary === undefined) delete process.env.NCBI_API_KEY
+    else process.env.NCBI_API_KEY = previousCanary
     await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()))
     await rm(workspaceRoot, { recursive: true, force: true })
   }
@@ -256,7 +280,12 @@ test('streams raw data to the workspace cache with a checksum and byte range', a
     assert.match(result.artifact.sha256, /^[a-f0-9]{64}$/)
     const manifest = JSON.parse(await readFile(result.artifact.manifestPath, 'utf8'))
     assert.equal(manifest.operation, 'dataset_api_raw_data')
-    assert.equal(manifest.request.url, 'https://example.com/api/datasets/ds-1/raw/file-1')
+    assert.deepEqual(manifest.request, {
+      origin: 'https://example.com',
+      path: '/api/datasets/ds-1/raw/file-1',
+      queryNames: [],
+      range: { start: 0, end: 18 }
+    })
     const reused = await service.rawData({
       sourceId: 'raw-db',
       pathParameters: { datasetId: 'ds-1', assetId: 'file-1' },
@@ -618,7 +647,7 @@ test('rejects a mislabeled FASTA response and removes the temporary artifact', a
   }
 })
 
-test('rejects insecure remote URLs and secret-bearing stored headers', async () => {
+test('rejects insecure URLs and legacy public credential fields', async () => {
   const workspaceRoot = await mkdtemp(join(tmpdir(), 'sciforge-dataset-api-'))
   const service = createDatasetApiService({ workspaceRoot })
   const endpoints = { metadataEndpoint: 'metadata', rawDataEndpoint: 'raw' }
@@ -634,9 +663,77 @@ test('rejects insecure remote URLs and secret-bearing stored headers', async () 
         ...endpoints,
         defaultHeaders: { Authorization: 'secret' }
       }),
-      /auth\.envVar/
+      /unrecognized key/i
+    )
+    await assert.rejects(
+      service.register({
+        id: 'secret',
+        baseUrl: 'https://example.com/data',
+        ...endpoints,
+        auth: { type: 'bearer', envVar: 'DATASET_TOKEN' }
+      }),
+      /unrecognized key/i
+    )
+    await assert.rejects(
+      service.register({
+        id: 'userinfo',
+        baseUrl: 'https://user:password@example.com/data',
+        ...endpoints
+      }),
+      /must not contain credentials/
     )
   } finally {
     await rm(workspaceRoot, { recursive: true, force: true })
   }
+})
+
+test('fails closed for opaque authenticated bindings before any HTTP request', async (context) => {
+  const workspaceRoot = await mkdtemp(join(tmpdir(), 'sciforge-dataset-bound-'))
+  context.after(() => rm(workspaceRoot, { recursive: true, force: true }))
+  let requests = 0
+  const service = createDatasetApiServiceWithConnector({
+    workspaceRoot,
+    connector: createDatasetHttpConnector({
+      fetchImpl: async () => {
+        requests += 1
+        return new Response('{}', { headers: { 'content-type': 'application/json' } })
+      }
+    })
+  })
+  await service.register({
+    id: 'bound-source',
+    baseUrl: 'https://example.com/',
+    metadataEndpoint: 'metadata',
+    rawDataEndpoint: 'raw',
+    credentialBindingId: 'binding:dataset:test'
+  })
+  const listed = await service.list({ sourceIds: ['bound-source'] })
+  assert.deepEqual(listed.sources[0]?.authentication, { mode: 'bound', status: 'unavailable' })
+  await assert.rejects(
+    service.metadata({ sourceId: 'bound-source' }),
+    /native secure-store enrollment is not configured/
+  )
+  assert.equal(requests, 0)
+})
+
+test('rejects legacy v1 API registries instead of migrating credential authority', async (context) => {
+  const workspaceRoot = await mkdtemp(join(tmpdir(), 'sciforge-dataset-legacy-'))
+  context.after(() => rm(workspaceRoot, { recursive: true, force: true }))
+  const registryPath = join(workspaceRoot, '.sciforge', 'datasets', 'api-sources.json')
+  await mkdir(dirname(registryPath), { recursive: true })
+  await writeFile(registryPath, JSON.stringify({
+    version: 1,
+    sources: [{
+      id: 'legacy',
+      name: 'Legacy',
+      baseUrl: 'https://example.com/',
+      metadataEndpoint: 'metadata',
+      rawDataEndpoint: 'raw',
+      auth: { type: 'query', envVar: 'DATASET_CANARY', queryName: 'api_key' },
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z'
+    }]
+  }))
+  const service = createDatasetApiService({ workspaceRoot })
+  await assert.rejects(service.list({}), /Failed to read Dataset API registry/)
 })

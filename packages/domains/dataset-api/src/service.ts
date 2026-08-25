@@ -1,11 +1,8 @@
 import { createHash, randomUUID } from 'node:crypto'
-import type { LookupAddress } from 'node:dns'
-import { lookup as systemLookup } from 'node:dns/promises'
 import { createReadStream } from 'node:fs'
 import { access, link, mkdir, open, readFile, realpath, rename, rm, writeFile } from 'node:fs/promises'
-import type { LookupFunction } from 'node:net'
 import { basename, dirname, extname, join, resolve } from 'node:path'
-import { Agent, fetch as undiciFetch } from 'undici'
+import { z } from 'zod'
 import {
   datasetApiListInputSchema,
   datasetApiCatalogInputSchema,
@@ -13,6 +10,7 @@ import {
   datasetApiMetadataInputSchema,
   datasetApiRawDataInputSchema,
   datasetApiRegisterInputSchema,
+  datasetCredentialBindingIdSchema,
   type DatasetApiListInput,
   type DatasetApiCatalogInput,
   type DatasetApiRegisterProviderInput,
@@ -23,46 +21,59 @@ import {
 } from './contract.js'
 import { BIOLOGY_DATASET_PROVIDERS } from './providers.js'
 import { EXECUTABLE_DATASET_PROVIDER_PRESETS } from './provider-presets.js'
+import {
+  createDatasetHttpConnector,
+  DatasetConnectorRequestError,
+  type DatasetHttpConnector,
+  type DatasetHttpResponse
+} from './main/connectors/dataset-connectors.internal.js'
 
 type DatasetApiRegistry = {
-  version: 1
+  version: 2
   sources: DatasetApiSource[]
 }
 
+const datasetApiSourceRegistrySchema = z.object({
+  id: z.string().trim().min(1).max(80).regex(/^[a-z0-9][a-z0-9_-]*$/),
+  name: z.string().trim().min(1).max(160),
+  description: z.string().trim().max(2000).optional(),
+  baseUrl: z.string().trim().url().max(4096),
+  metadataEndpoint: z.string().trim().min(1).max(2048),
+  rawDataEndpoint: z.string().trim().min(1).max(2048),
+  credentialBindingId: datasetCredentialBindingIdSchema.optional(),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime()
+}).strict()
+
+const datasetApiRegistrySchema = z.object({
+  version: z.literal(2),
+  sources: z.array(datasetApiSourceRegistrySchema).max(1000)
+}).strict()
+
 export type DatasetApiService = ReturnType<typeof createDatasetApiService>
 
-const resilientDatasetFetch = createResilientDatasetFetch()
 const RAW_ARTIFACT_PREVIEW_BYTES = 2 * 1024
 const DEFAULT_DATASET_MAX_RETRIES = 3
 const BUILTIN_SOURCE_TIMESTAMP = '1970-01-01T00:00:00.000Z'
 const registryMutations = new Map<string, Promise<void>>()
 
-export class DatasetApiRequestError extends Error {
-  readonly code = 'DATASET_API_NETWORK_ERROR'
-
-  constructor(
-    message: string,
-    readonly details: {
-      sourceId: string
-      host: string
-      attempts: number
-      causeCode?: string
-      causeMessage: string
-    }
-  ) {
-    super(message)
-    this.name = 'DatasetApiRequestError'
-  }
-}
+export { DatasetConnectorRequestError as DatasetApiRequestError }
 
 export function createDatasetApiService(options: {
   workspaceRoot?: string
-  fetchImpl?: typeof fetch
-  env?: NodeJS.ProcessEnv
 } = {}) {
+  return createDatasetApiServiceWithConnector({
+    workspaceRoot: options.workspaceRoot,
+    connector: createDatasetHttpConnector()
+  })
+}
+
+export function createDatasetApiServiceWithConnector(options: Readonly<{
+  workspaceRoot?: string
+  connector: DatasetHttpConnector
+}>) {
   const defaultWorkspaceRoot = options.workspaceRoot?.trim()
-  const fetchImpl = options.fetchImpl ?? resilientDatasetFetch
-  const env = options.env ?? process.env
+  const connector = options.connector
 
   return {
     async catalog(raw: DatasetApiCatalogInput) {
@@ -98,7 +109,7 @@ export function createDatasetApiService(options: {
         .map((source) => ({
           usageExamples: providerUsageExamples(source),
           ...source,
-          auth: source.auth ? { ...source.auth, configured: !!env[source.auth.envVar] } : undefined
+          authentication: authenticationStatus(source.credentialBindingId)
         }))
       const usageExamplesBySource = Object.fromEntries(
         sources.flatMap((source) => source.usageExamples ? [[source.id, source.usageExamples]] : [])
@@ -138,20 +149,18 @@ export function createDatasetApiService(options: {
     async metadata(raw: DatasetApiMetadataInput) {
       const input = datasetApiMetadataInputSchema.parse(raw)
       const { source, workspaceRoot } = await registeredSource(input.sourceId, input.workspaceRoot, defaultWorkspaceRoot)
-      const url = buildEndpointUrl(source, source.metadataEndpoint, input.pathParameters, input.query, env)
-      const response = await requestDataset(
-        fetchImpl,
+      const url = buildEndpointUrl(source, source.metadataEndpoint, input.pathParameters, input.query)
+      const response = await connector.get({
+        sourceId: source.id,
         url,
-        source,
-        env,
-        input.timeoutMs ?? 30_000,
-        undefined,
-        input.maxRetries ?? DEFAULT_DATASET_MAX_RETRIES
-      )
+        credentialBindingId: source.credentialBindingId,
+        timeoutMs: input.timeoutMs ?? 30_000,
+        maxRetries: input.maxRetries ?? DEFAULT_DATASET_MAX_RETRIES
+      })
       const maxBytes = input.maxBytes ?? 2 * 1024 * 1024
-      if (!response.ok) throw await httpError(response, maxBytes)
+      if (!response.ok) throw httpError(response)
       const body = await readResponseBody(response, maxBytes)
-      const contentType = response.headers.get('content-type') ?? ''
+      const contentType = response.contentType
       const metadata = parseMetadata(body, contentType)
       const responseMode = input.responseMode ?? 'auto'
       const summarizeResponse = responseMode === 'summary' || (
@@ -161,7 +170,7 @@ export function createDatasetApiService(options: {
         ? summarizeMetadata(metadata)
         : metadata
       const sourceRecord = { id: source.id, name: source.name }
-      const requestRecord = { url: redactUrl(url) }
+      const requestRecord = publicRequestRecord(url)
       const responseRecord = { status: response.status, contentType, bytes: Buffer.byteLength(body) }
       let artifact: Record<string, unknown> | undefined
       if (input.outputFileName) {
@@ -242,35 +251,29 @@ export function createDatasetApiService(options: {
         input.workspaceRoot,
         defaultWorkspaceRoot
       )
-      let url = buildEndpointUrl(source, source.rawDataEndpoint, input.pathParameters, input.query, env)
+      let url = buildEndpointUrl(source, source.rawDataEndpoint, input.pathParameters, input.query)
       let resolvedFrom: Record<string, unknown> | undefined
       if (isNcbiGeneFastaRequest(source, input.query, input.expectedFormat, input.outputFileName)) {
         const resolved = await resolveNcbiGeneFastaRequest(
-          fetchImpl,
+          connector,
           source,
           input.query ?? {},
-          env,
           input.timeoutMs ?? 30_000,
           input.maxRetries ?? DEFAULT_DATASET_MAX_RETRIES
         )
         url = resolved.url
         resolvedFrom = resolved.resolvedFrom
       }
-      const headers = buildRequestHeaders(source, env)
-      if (input.range) {
-        headers.set('range', `bytes=${input.range.start}-${input.range.end ?? ''}`)
-      }
-      const response = await requestDataset(
-        fetchImpl,
+      const response = await connector.get({
+        sourceId: source.id,
         url,
-        source,
-        env,
-        input.timeoutMs ?? 5 * 60_000,
-        headers,
-        input.maxRetries ?? DEFAULT_DATASET_MAX_RETRIES
-      )
+        credentialBindingId: source.credentialBindingId,
+        timeoutMs: input.timeoutMs ?? 5 * 60_000,
+        maxRetries: input.maxRetries ?? DEFAULT_DATASET_MAX_RETRIES,
+        ...(input.range ? { range: input.range } : {})
+      })
       const maxBytes = input.maxBytes ?? 256 * 1024 * 1024
-      if (!response.ok) throw await httpError(response, Math.min(maxBytes, 16 * 1024))
+      if (!response.ok) throw httpError(response)
       const fileName = resolveRawFileName(input.outputFileName, response, url, input.sourceId)
       const expectedFormat = resolveExpectedFormat(input.expectedFormat, input.outputFileName, input.query, response)
       const outputDir = join(workspaceRoot, '.sciforge', 'datasets', 'raw', input.sourceId)
@@ -301,14 +304,14 @@ export function createDatasetApiService(options: {
       finalArtifactPath = await realpath(finalArtifactPath)
       const sourceRecord = { id: source.id, name: source.name }
       const requestRecord = {
-        url: redactUrl(url),
+        ...publicRequestRecord(url),
         ...(input.range ? { range: input.range } : {}),
         ...(resolvedFrom ? { resolvedFrom } : {})
       }
       const responseRecord = {
         status: response.status,
-        contentType: response.headers.get('content-type') ?? '',
-        contentRange: response.headers.get('content-range') ?? undefined,
+        contentType: response.contentType,
+        contentRange: response.contentRange,
         rangeSatisfied: input.range ? response.status === 206 : undefined,
         bytes: streamed.bytes
       }
@@ -406,7 +409,6 @@ async function registerSource(
   validateBaseUrl(input.baseUrl)
   validateEndpoint(input.metadataEndpoint, 'metadataEndpoint')
   validateEndpoint(input.rawDataEndpoint, 'rawDataEndpoint')
-  validateHeaders(input.defaultHeaders)
   return withRegistryMutation(registryPath, async () => {
     const registry = await readRegistry(registryPath)
     const existingIndex = registry.sources.findIndex((source) => source.id === input.id)
@@ -419,8 +421,7 @@ async function registerSource(
       baseUrl: input.baseUrl,
       metadataEndpoint: input.metadataEndpoint,
       rawDataEndpoint: input.rawDataEndpoint,
-      ...(input.defaultHeaders ? { defaultHeaders: input.defaultHeaders } : {}),
-      ...(input.auth ? { auth: input.auth } : {}),
+      ...(input.credentialBindingId ? { credentialBindingId: input.credentialBindingId } : {}),
       createdAt: previous?.createdAt ?? now,
       updatedAt: now
     }
@@ -446,8 +447,7 @@ function sameSourceConfiguration(left: DatasetApiSource, right: DatasetApiSource
     baseUrl: source.baseUrl,
     metadataEndpoint: source.metadataEndpoint,
     rawDataEndpoint: source.rawDataEndpoint,
-    defaultHeaders: source.defaultHeaders,
-    auth: source.auth
+    credentialBindingId: source.credentialBindingId
   })
   return JSON.stringify(configuration(left)) === JSON.stringify(configuration(right))
 }
@@ -485,10 +485,15 @@ function resolveRegistryPath(requestedRoot: string | undefined, defaultRoot: str
 
 async function readRegistry(path: string): Promise<DatasetApiRegistry> {
   try {
-    const parsed = JSON.parse(await readFile(path, 'utf8')) as Partial<DatasetApiRegistry>
-    return { version: 1, sources: Array.isArray(parsed.sources) ? parsed.sources : [] }
+    const registry = datasetApiRegistrySchema.parse(JSON.parse(await readFile(path, 'utf8')))
+    for (const source of registry.sources) {
+      validateBaseUrl(source.baseUrl)
+      validateEndpoint(source.metadataEndpoint, 'metadataEndpoint')
+      validateEndpoint(source.rawDataEndpoint, 'rawDataEndpoint')
+    }
+    return registry
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return { version: 1, sources: [] }
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return { version: 2, sources: [] }
     throw new Error(`Failed to read Dataset API registry: ${message(error)}`)
   }
 }
@@ -556,20 +561,11 @@ function isLoopbackHost(hostname: string): boolean {
   return normalized === 'localhost' || normalized === '127.0.0.1' || normalized === '::1'
 }
 
-function validateHeaders(headers: Record<string, string> | undefined): void {
-  for (const name of Object.keys(headers ?? {})) {
-    if (['authorization', 'cookie', 'proxy-authorization'].includes(name.toLowerCase())) {
-      throw new Error(`Secret-bearing header '${name}' must be configured through auth.envVar.`)
-    }
-  }
-}
-
 function buildEndpointUrl(
   source: DatasetApiSource,
   endpoint: string,
   pathParameters: Record<string, string> | undefined,
-  query: Record<string, string | number | boolean | Array<string | number | boolean>> | undefined,
-  env: NodeJS.ProcessEnv
+  query: Record<string, string | number | boolean | Array<string | number | boolean>> | undefined
 ): URL {
   const renderedEndpoint = endpoint.replace(/\{([A-Za-z][A-Za-z0-9_]*)\}/g, (_, name: string) => {
     const value = pathParameters?.[name] ?? (
@@ -590,162 +586,7 @@ function buildEndpointUrl(
       url.searchParams.append(name, String(value))
     }
   }
-  if (source.auth?.type === 'query') {
-    const secret = authSecret(source, env)
-    if (secret) url.searchParams.set(source.auth.queryName ?? 'api_key', secret)
-  }
   return url
-}
-
-function buildRequestHeaders(source: DatasetApiSource, env: NodeJS.ProcessEnv): Headers {
-  validateHeaders(source.defaultHeaders)
-  const headers = new Headers(source.defaultHeaders)
-  if (!headers.has('accept')) headers.set('accept', 'application/json, application/octet-stream;q=0.9, */*;q=0.5')
-  if (!headers.has('user-agent')) headers.set('user-agent', 'SciForge-Dataset-API/0.1.0')
-  if (source.auth) {
-    if (source.auth.type === 'query') return headers
-    const secret = authSecret(source, env)
-    if (!secret) return headers
-    if (source.auth.type === 'bearer') headers.set('authorization', `Bearer ${secret}`)
-    else headers.set(source.auth.headerName ?? 'x-api-key', secret)
-  }
-  return headers
-}
-
-function createResilientDatasetFetch(): typeof fetch {
-  const dispatcher = new Agent({
-    connect: {
-      lookup: createCachedDnsLookup()
-    }
-  })
-  return ((input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) =>
-    undiciFetch(
-      input as Parameters<typeof undiciFetch>[0],
-      { ...(init as Parameters<typeof undiciFetch>[1]), dispatcher }
-    ) as unknown as Promise<Response>) as typeof fetch
-}
-
-function createCachedDnsLookup(): LookupFunction {
-  const cache = new Map<string, { addresses: LookupAddress[]; expiresAt: number }>()
-  const ttlMs = 5 * 60_000
-  const staleTtlMs = 60 * 60_000
-  return (hostname, options, callback) => {
-    const key = hostname.toLowerCase()
-    const cached = cache.get(key)
-    const now = Date.now()
-    const deliver = (addresses: LookupAddress[]) => {
-      const family = typeof options.family === 'number' ? options.family : 0
-      const filtered = family === 4 || family === 6
-        ? addresses.filter((address) => address.family === family)
-        : addresses
-      const usable = filtered.length ? filtered : addresses
-      if (!usable.length) {
-        callback(Object.assign(new Error(`No DNS addresses resolved for ${hostname}.`), { code: 'ENOTFOUND' }), '', 0)
-        return
-      }
-      if (options.all) callback(null, usable)
-      else callback(null, usable[0]!.address, usable[0]!.family)
-    }
-    if (cached && cached.expiresAt > now) {
-      deliver(cached.addresses)
-      return
-    }
-    void systemLookup(hostname, { all: true, verbatim: true }).then((addresses) => {
-      cache.set(key, { addresses, expiresAt: Date.now() + ttlMs })
-      deliver(addresses)
-    }).catch((error: unknown) => {
-      if (cached && cached.expiresAt + staleTtlMs > now) {
-        deliver(cached.addresses)
-        return
-      }
-      callback(error as NodeJS.ErrnoException, '', 0)
-    })
-  }
-}
-
-function authSecret(source: DatasetApiSource, env: NodeJS.ProcessEnv): string | undefined {
-  if (!source.auth) return undefined
-  const secret = env[source.auth.envVar]
-  if (!secret && source.auth.required !== false) {
-    throw new Error(`Dataset auth environment variable '${source.auth.envVar}' is not configured.`)
-  }
-  return secret
-}
-
-async function requestDataset(
-  fetchImpl: typeof fetch,
-  url: URL,
-  source: DatasetApiSource,
-  env: NodeJS.ProcessEnv,
-  timeoutMs: number,
-  providedHeaders?: Headers,
-  maxRetries = 2
-): Promise<Response> {
-  let lastError: unknown
-  const attempts = maxRetries + 1
-  for (let attempt = 1; attempt <= attempts; attempt += 1) {
-    try {
-      const response = await fetchImpl(url, {
-        method: 'GET',
-        headers: providedHeaders ?? buildRequestHeaders(source, env),
-        redirect: 'error',
-        signal: AbortSignal.timeout(timeoutMs)
-      })
-      if (!isRetryableStatus(response.status) || attempt === attempts) return response
-      await response.body?.cancel().catch(() => undefined)
-      lastError = new Error(`HTTP ${response.status}`)
-    } catch (error) {
-      lastError = error
-      if (attempt === attempts || !isRetryableNetworkError(error)) {
-        throw requestError(source, url, attempt, error)
-      }
-    }
-    await retryDelay(attempt)
-  }
-  throw requestError(source, url, attempts, lastError)
-}
-
-function isRetryableStatus(status: number): boolean {
-  return status === 408 || status === 425 || status === 429 || status >= 500
-}
-
-function isRetryableNetworkError(error: unknown): boolean {
-  if (!(error instanceof Error)) return true
-  const code = errorCode(error)
-  return error.name === 'TypeError' || error.name === 'TimeoutError' || error.name === 'AbortError' ||
-    ['EAI_AGAIN', 'ECONNRESET', 'ECONNREFUSED', 'ENETUNREACH', 'ENOTFOUND', 'ETIMEDOUT'].includes(code ?? '')
-}
-
-function requestError(source: DatasetApiSource, url: URL, attempts: number, error: unknown): DatasetApiRequestError {
-  const causeMessage = message(error)
-  const causeCode = errorCode(error)
-  const diagnostic = [causeCode, nestedCauseMessage(error)].filter(Boolean).join(': ')
-  return new DatasetApiRequestError(
-    `Dataset API request to '${source.id}' (${url.hostname}) failed after ${attempts} attempt${attempts === 1 ? '' : 's'}: ${causeMessage}${diagnostic ? `; cause=${diagnostic}` : ''}`,
-    {
-      sourceId: source.id,
-      host: url.hostname,
-      attempts,
-      ...(causeCode ? { causeCode } : {}),
-      causeMessage: nestedCauseMessage(error) || causeMessage
-    }
-  )
-}
-
-function errorCode(error: unknown): string | undefined {
-  const direct = (error as NodeJS.ErrnoException | undefined)?.code
-  if (typeof direct === 'string') return direct
-  const cause = (error as Error & { cause?: NodeJS.ErrnoException } | undefined)?.cause
-  return typeof cause?.code === 'string' ? cause.code : undefined
-}
-
-function nestedCauseMessage(error: unknown): string | undefined {
-  const cause = (error as Error & { cause?: unknown } | undefined)?.cause
-  return cause instanceof Error ? cause.message : cause === undefined ? undefined : String(cause)
-}
-
-async function retryDelay(attempt: number): Promise<void> {
-  await new Promise((resolve) => setTimeout(resolve, Math.min(150 * (2 ** (attempt - 1)), 1_000)))
 }
 
 function isNcbiGeneFastaRequest(
@@ -763,10 +604,9 @@ function isNcbiGeneFastaRequest(
 }
 
 async function resolveNcbiGeneFastaRequest(
-  fetchImpl: typeof fetch,
+  connector: DatasetHttpConnector,
   source: DatasetApiSource,
   query: NonNullable<DatasetApiRawDataInput['query']>,
-  env: NodeJS.ProcessEnv,
   timeoutMs: number,
   maxRetries: number
 ): Promise<{ url: URL; resolvedFrom: Record<string, unknown> }> {
@@ -777,17 +617,15 @@ async function resolveNcbiGeneFastaRequest(
     id: geneId,
     retmode: 'json',
     ...(query.tool !== undefined ? { tool: query.tool } : {})
-  }, env)
-  const summaryResponse = await requestDataset(
-    fetchImpl,
-    summaryUrl,
-    source,
-    env,
+  })
+  const summaryResponse = await connector.get({
+    sourceId: source.id,
+    url: summaryUrl,
+    credentialBindingId: source.credentialBindingId,
     timeoutMs,
-    undefined,
     maxRetries
-  )
-  if (!summaryResponse.ok) throw await httpError(summaryResponse, 1024 * 1024)
+  })
+  if (!summaryResponse.ok) throw httpError(summaryResponse)
   const summaryBody = await readResponseBody(summaryResponse, 1024 * 1024)
   const summary = JSON.parse(summaryBody) as {
     result?: Record<string, { genomicinfo?: Array<{ chraccver?: string; chrstart?: number; chrstop?: number }> }>
@@ -811,7 +649,7 @@ async function resolveNcbiGeneFastaRequest(
     rettype: 'fasta',
     retmode: 'text',
     ...(query.tool !== undefined ? { tool: query.tool } : {})
-  }, env)
+  })
   return {
     url,
     resolvedFrom: {
@@ -830,14 +668,12 @@ function scalarQueryValue(value: unknown): string | undefined {
   return value === undefined ? undefined : String(value)
 }
 
-async function httpError(response: Response, maxBytes: number): Promise<Error> {
-  const body = await readResponseBody(response, maxBytes).catch(() => '')
-  return new Error(`Dataset API returned HTTP ${response.status}${body ? `: ${body.slice(0, 500)}` : ''}`)
+function httpError(response: DatasetHttpResponse): Error {
+  return new Error(`Dataset API returned HTTP ${response.status}.`)
 }
 
-async function readResponseBody(response: Response, maxBytes: number): Promise<string> {
-  const declaredLength = Number(response.headers.get('content-length'))
-  if (Number.isFinite(declaredLength) && declaredLength > maxBytes) {
+async function readResponseBody(response: DatasetHttpResponse, maxBytes: number): Promise<string> {
+  if (response.contentLength !== undefined && response.contentLength > maxBytes) {
     throw new Error(`Dataset response exceeds the ${maxBytes}-byte limit.`)
   }
   if (!response.body) return ''
@@ -906,13 +742,12 @@ function summarizeMetadata(value: unknown, depth = 0): unknown {
 }
 
 async function streamResponseToFile(
-  response: Response,
+  response: DatasetHttpResponse,
   outputPath: string,
   maxBytes: number,
   expectedFormat: 'fasta' | 'json' | 'text' | 'binary'
 ): Promise<{ bytes: number; sha256: string }> {
-  const declaredLength = Number(response.headers.get('content-length'))
-  if (Number.isFinite(declaredLength) && declaredLength > maxBytes) {
+  if (response.contentLength !== undefined && response.contentLength > maxBytes) {
     throw new Error(`Raw dataset response exceeds the ${maxBytes}-byte limit.`)
   }
   const handle = await open(outputPath, 'wx')
@@ -958,11 +793,11 @@ function resolveExpectedFormat(
   requested: DatasetApiRawDataInput['expectedFormat'],
   outputFileName: string | undefined,
   query: DatasetApiRawDataInput['query'],
-  response: Response
+  response: DatasetHttpResponse
 ): 'fasta' | 'json' | 'text' | 'binary' {
   if (requested && requested !== 'auto') return requested
   const rettype = scalarQueryValue(query?.rettype)?.toLowerCase()
-  const contentType = response.headers.get('content-type') ?? ''
+  const contentType = response.contentType
   const fileName = outputFileName ?? ''
   if (rettype === 'fasta' || /format\s*=\s*fasta/i.test(contentType) || /\.(?:fa|faa|fna|fasta)$/i.test(fileName)) {
     return 'fasta'
@@ -988,23 +823,23 @@ function validateResponseFormat(prefix: string, expectedFormat: 'fasta' | 'json'
 
 function resolveRawFileName(
   requested: string | undefined,
-  response: Response,
+  response: DatasetHttpResponse,
   url: URL,
   sourceId: string
 ): string {
-  const dispositionName = response.headers.get('content-disposition')?.match(/filename\*?=(?:UTF-8'')?["']?([^"';]+)/i)?.[1]
+  const dispositionName = response.contentDisposition?.match(/filename\*?=(?:UTF-8'')?["']?([^"';]+)/i)?.[1]
   const urlName = basename(url.pathname)
-  const inferred = dispositionName ? decodeURIComponent(dispositionName) : urlName || `${sourceId}-raw${extensionForContentType(response.headers.get('content-type'))}`
+  const inferred = dispositionName ? decodeURIComponent(dispositionName) : urlName || `${sourceId}-raw${extensionForContentType(response.contentType)}`
   const candidate = requested ?? inferred
   if (candidate !== basename(candidate) || candidate === '.' || candidate === '..') {
     throw new Error('outputFileName must be a plain file name without directory segments.')
   }
   const sanitized = candidate.replace(/[^A-Za-z0-9._-]+/g, '_').replace(/^\.+/, '')
   if (!sanitized) throw new Error('Unable to derive a safe raw-data file name.')
-  return extname(sanitized) ? sanitized : `${sanitized}${extensionForContentType(response.headers.get('content-type'))}`
+  return extname(sanitized) ? sanitized : `${sanitized}${extensionForContentType(response.contentType)}`
 }
 
-function extensionForContentType(contentType: string | null): string {
+function extensionForContentType(contentType: string | null | undefined): string {
   if (/json/i.test(contentType ?? '')) return '.json'
   if (/csv/i.test(contentType ?? '')) return '.csv'
   if (/zip/i.test(contentType ?? '')) return '.zip'
@@ -1084,12 +919,25 @@ async function pathExists(path: string): Promise<boolean> {
   }
 }
 
-function redactUrl(url: URL): string {
-  const safe = new URL(url)
-  for (const key of safe.searchParams.keys()) {
-    if (/token|secret|key|auth|password/i.test(key)) safe.searchParams.set(key, '[REDACTED]')
-  }
-  return safe.toString()
+function publicRequestRecord(url: URL): Readonly<{
+  origin: string
+  path: string
+  queryNames: readonly string[]
+}> {
+  return Object.freeze({
+    origin: url.origin,
+    path: url.pathname,
+    queryNames: Object.freeze([...new Set(url.searchParams.keys())].sort())
+  })
+}
+
+function authenticationStatus(credentialBindingId: string | undefined): Readonly<{
+  mode: 'anonymous' | 'bound'
+  status: 'ready' | 'unavailable'
+}> {
+  return credentialBindingId
+    ? Object.freeze({ mode: 'bound', status: 'unavailable' })
+    : Object.freeze({ mode: 'anonymous', status: 'ready' })
 }
 
 function message(error: unknown): string {

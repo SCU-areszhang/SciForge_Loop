@@ -6,20 +6,23 @@ import test from 'node:test'
 import { datasetPreparePlanInputSchema } from './contract.js'
 import { createDatasetPlanExecutor } from './plan-executor.js'
 import { createDatasetProcessingService } from './processing.js'
-import { createDatasetApiService } from './service.js'
+import { createDatasetApiServiceWithConnector } from './service.js'
+import { createDatasetHttpConnector } from './main/connectors/dataset-connectors.internal.js'
 
 async function fixture() {
   const workspaceRoot = await mkdtemp(join(tmpdir(), 'sciforge-dataset-executor-'))
   let fetchCount = 0
-  const api = createDatasetApiService({
+  const api = createDatasetApiServiceWithConnector({
     workspaceRoot,
-    fetchImpl: async () => {
-      fetchCount += 1
-      return new Response(JSON.stringify([
-        { accession: 'P04637', reviewed: true },
-        { accession: 'Q9TEST', reviewed: false }
-      ]), { headers: { 'content-type': 'application/json' } })
-    }
+    connector: createDatasetHttpConnector({
+      fetchImpl: async () => {
+        fetchCount += 1
+        return new Response(JSON.stringify([
+          { accession: 'P04637', reviewed: true },
+          { accession: 'Q9TEST', reviewed: false }
+        ]), { headers: { 'content-type': 'application/json' } })
+      }
+    })
   })
   const processing = createDatasetProcessingService({ workspaceRoot })
   await api.register({

@@ -105,10 +105,6 @@ type DatasetApiServices = Readonly<{
   executor: ReturnType<typeof createDatasetPlanExecutor>
 }>
 
-type DatasetMainHost = DomainMainHost & Readonly<{
-  createDatasetApiServices?: () => DatasetApiServices
-}>
-
 export type DatasetApiCapabilityFactory<CapabilityDefinition = unknown> = Readonly<{
   moduleId: typeof DATASET_API_DOMAIN_MODULE_ID
   policy: Readonly<{
@@ -121,25 +117,21 @@ export type DatasetApiCapabilityFactory<CapabilityDefinition = unknown> = Readon
 }>
 
 export function createDomainMainEntry(
-  host: DatasetMainHost
+  host: DomainMainHost
 ): TrustedDomainProcessEntryInput<
   DatasetApiCapabilityFactory | DomainWorkflowExecutionReceiptProvider | CreateLoopResourceExecutor
 > {
   let services: DatasetApiServices | undefined
   const getServices = (): DatasetApiServices => {
     if (!services) {
-      if (host.createDatasetApiServices) {
-        services = host.createDatasetApiServices()
-      } else {
-        const api = createDatasetApiService()
-        const objectStore = createDatasetObjectStoreService()
-        const processing = createDatasetProcessingService()
-        services = {
-          api,
-          objectStore,
-          processing,
-          executor: createDatasetPlanExecutor(api, processing)
-        }
+      const api = createDatasetApiService()
+      const objectStore = createDatasetObjectStoreService()
+      const processing = createDatasetProcessingService()
+      services = {
+        api,
+        objectStore,
+        processing,
+        executor: createDatasetPlanExecutor(api, processing)
       }
     }
     return services
@@ -280,7 +272,7 @@ export function createDatasetApiCapabilityFactory<CapabilityDefinition>(options:
       defineWrite(
         DATASET_API_CAPABILITY_IDS.register,
         'Register a dataset database',
-        'Registers an API-backed database with separate metadata and raw-data endpoint templates.',
+        'Registers public endpoint templates or an opaque credential binding. Bound access fails closed until private Connector enrollment is available.',
         datasetApiRegisterInputSchema.omit({ workspaceRoot: true }),
         async (input, workspaceRoot) => services().api.register(withWorkspace(workspaceRoot, input)),
         ['dataset', 'biology', 'data-access', 'registration'],
@@ -326,8 +318,8 @@ export function createDatasetApiCapabilityFactory<CapabilityDefinition>(options:
       ),
       defineWrite(
         DATASET_API_CAPABILITY_IDS.registerObjectStore,
-        'Register a private dataset object store',
-        'Registers an S3-compatible object store using credential environment-variable references; credential values are never accepted or persisted.',
+        'Register a dataset object store',
+        'Registers an anonymous S3-compatible endpoint or an opaque credential binding. Bound access fails closed until native secure-store enrollment is available.',
         datasetObjectStoreRegisterInputSchema.omit({ workspaceRoot: true }),
         async (input, workspaceRoot) => services().objectStore.register(withWorkspace(workspaceRoot, input)),
         ['dataset', 'object-storage', 'private-data', 'registration'],
@@ -336,7 +328,7 @@ export function createDatasetApiCapabilityFactory<CapabilityDefinition>(options:
       defineRead(
         DATASET_API_CAPABILITY_IDS.listObjectStores,
         'List registered dataset object stores',
-        'Lists workspace-scoped S3-compatible object stores and credential readiness without exposing credential values.',
+        'Lists workspace-scoped S3-compatible object stores and anonymous/bound readiness without exposing connector authority.',
         datasetObjectStoreListInputSchema.omit({ workspaceRoot: true }),
         async (_input, workspaceRoot) => services().objectStore.list({ workspaceRoot }),
         ['dataset', 'object-storage', 'private-data']

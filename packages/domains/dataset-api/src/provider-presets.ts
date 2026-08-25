@@ -14,13 +14,7 @@ export const EXECUTABLE_DATASET_PROVIDER_PRESETS = {
       description: 'Entrez summaries as metadata and EFetch records as raw data.',
       baseUrl: 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/',
       metadataEndpoint: 'esummary.fcgi',
-      rawDataEndpoint: 'efetch.fcgi',
-      auth: {
-        type: 'query',
-        envVar: 'NCBI_API_KEY',
-        queryName: 'api_key',
-        required: false
-      }
+      rawDataEndpoint: 'efetch.fcgi'
     },
     metadataExample: {
       sourceId: 'ncbi-eutils',

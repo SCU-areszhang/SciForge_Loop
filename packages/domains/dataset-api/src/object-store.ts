@@ -1,19 +1,14 @@
-import {
-  GetObjectCommand,
-  HeadObjectCommand,
-  ListObjectsV2Command,
-  S3Client,
-  type S3ClientConfig
-} from '@aws-sdk/client-s3'
 import { createHash } from 'node:crypto'
 import { access, mkdir, open, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { basename, dirname, extname, join, resolve } from 'node:path'
+import { z } from 'zod'
 import {
   datasetObjectListInputSchema,
   datasetObjectMetadataInputSchema,
   datasetObjectRawDataInputSchema,
   datasetObjectStoreListInputSchema,
   datasetObjectStoreRegisterInputSchema,
+  datasetCredentialBindingIdSchema,
   type DatasetObjectListInput,
   type DatasetObjectMetadataInput,
   type DatasetObjectRawDataInput,
@@ -21,22 +16,35 @@ import {
   type DatasetObjectStoreRegisterInput,
   type DatasetObjectStoreSource
 } from './contract.js'
+import {
+  createDatasetS3Connector,
+  type DatasetS3Connector
+} from './main/connectors/dataset-connectors.internal.js'
 
 type ObjectStoreRegistry = Readonly<{
-  version: 1
+  version: 2
   sources: DatasetObjectStoreSource[]
 }>
 
-type S3Sender = Readonly<{
-  send(command: unknown): Promise<any>
-  destroy?: () => void
-}>
+const objectStoreSourceRegistrySchema = z.object({
+  id: z.string().trim().min(1).max(80).regex(/^[a-z0-9][a-z0-9_-]*$/),
+  name: z.string().trim().min(1).max(160),
+  description: z.string().trim().max(2000).optional(),
+  endpoint: z.string().trim().url().max(4096),
+  bucket: z.string().trim().min(1).max(255),
+  prefix: z.string().max(4096).optional(),
+  region: z.string().trim().min(1).max(128),
+  forcePathStyle: z.boolean(),
+  allowInsecureHttp: z.boolean(),
+  credentialBindingId: datasetCredentialBindingIdSchema.optional(),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime()
+}).strict()
 
-type ResolvedCredentials = Readonly<{
-  accessKeyId: string
-  secretAccessKey: string
-  sessionToken?: string
-}>
+const objectStoreRegistrySchema = z.object({
+  version: z.literal(2),
+  sources: z.array(objectStoreSourceRegistrySchema).max(1000)
+}).strict()
 
 export type DatasetObjectStoreService = ReturnType<typeof createDatasetObjectStoreService>
 
@@ -46,15 +54,19 @@ const PREVIEW_BYTES = 8 * 1024
 
 export function createDatasetObjectStoreService(options: {
   workspaceRoot?: string
-  env?: NodeJS.ProcessEnv
-  clientFactory?: (input: Readonly<{
-    source: DatasetObjectStoreSource
-    credentials: ResolvedCredentials
-  }>) => S3Sender
 } = {}) {
+  return createDatasetObjectStoreServiceWithConnector({
+    workspaceRoot: options.workspaceRoot,
+    connector: createDatasetS3Connector()
+  })
+}
+
+export function createDatasetObjectStoreServiceWithConnector(options: Readonly<{
+  workspaceRoot?: string
+  connector: DatasetS3Connector
+}>) {
   const defaultWorkspaceRoot = options.workspaceRoot?.trim()
-  const env = options.env ?? process.env
-  const clientFactory = options.clientFactory ?? defaultClientFactory
+  const connector = options.connector
 
   return {
     async register(raw: DatasetObjectStoreRegisterInput) {
@@ -76,7 +88,7 @@ export function createDatasetObjectStoreService(options: {
         region: input.region ?? DEFAULT_REGION,
         forcePathStyle: input.forcePathStyle ?? true,
         allowInsecureHttp: input.allowInsecureHttp ?? false,
-        credentialEnv: input.credentialEnv,
+        ...(input.credentialBindingId ? { credentialBindingId: input.credentialBindingId } : {}),
         createdAt: previous?.createdAt ?? now,
         updatedAt: now
       }
@@ -84,7 +96,7 @@ export function createDatasetObjectStoreService(options: {
         if (sameConfiguration(previous, source)) {
           return {
             registryPath,
-            source: publicSource(previous, env),
+            source: publicSource(previous),
             reused: true
           }
         }
@@ -94,7 +106,7 @@ export function createDatasetObjectStoreService(options: {
       else registry.sources.push(source)
       registry.sources.sort((left, right) => left.id.localeCompare(right.id))
       await writeRegistry(registryPath, registry)
-      return { registryPath, source: publicSource(source, env), reused: false }
+      return { registryPath, source: publicSource(source), reused: false }
     },
 
     async list(raw: DatasetObjectStoreListInput) {
@@ -104,7 +116,7 @@ export function createDatasetObjectStoreService(options: {
       const registry = await readRegistry(registryPath)
       return {
         registryPath,
-        stores: registry.sources.map((source) => publicSource(source, env))
+        stores: registry.sources.map(publicSource)
       }
     },
 
@@ -112,36 +124,33 @@ export function createDatasetObjectStoreService(options: {
       const input = datasetObjectListInputSchema.parse(raw)
       const { source } = await registeredSource(input.sourceId, input.workspaceRoot, defaultWorkspaceRoot)
       const prefix = scopedKey(source.prefix, input.prefix)
-      return withClient(source, env, clientFactory, async (client) => {
-        const result = await client.send(new ListObjectsV2Command({
-          Bucket: source.bucket,
-          ...(prefix ? { Prefix: prefix } : {}),
-          ...(input.delimiter ? { Delimiter: input.delimiter } : {}),
-          ...(input.continuationToken ? { ContinuationToken: input.continuationToken } : {}),
-          MaxKeys: input.maxKeys ?? 100
-        }))
+      return withConnectorError(source, async () => {
+        const result = await connector.listObjects(source, {
+          ...(prefix ? { prefix } : {}),
+          ...(input.delimiter ? { delimiter: input.delimiter } : {}),
+          ...(input.continuationToken ? { continuationToken: input.continuationToken } : {}),
+          maxKeys: input.maxKeys ?? 100
+        })
         return {
-          source: publicSource(source, env),
+          source: publicSource(source),
           request: {
             bucket: source.bucket,
             prefix,
             ...(input.delimiter ? { delimiter: input.delimiter } : {})
           },
-          response: { status: result.$metadata?.httpStatusCode ?? 200 },
-          objects: (result.Contents ?? []).map((object: any) => ({
-            key: object.Key,
-            relativeKey: relativeKey(source.prefix, object.Key),
-            size: object.Size,
-            etag: cleanEtag(object.ETag),
-            lastModified: isoDate(object.LastModified),
-            storageClass: object.StorageClass
+          response: { status: result.status },
+          objects: result.objects.map((object) => ({
+            key: object.key,
+            relativeKey: relativeKey(source.prefix, object.key),
+            size: object.size,
+            etag: object.etag,
+            lastModified: object.lastModified,
+            storageClass: object.storageClass
           })),
-          commonPrefixes: (result.CommonPrefixes ?? [])
-            .map((entry: any) => entry.Prefix)
-            .filter((value: unknown): value is string => typeof value === 'string'),
-          isTruncated: result.IsTruncated === true,
-          nextContinuationToken: result.NextContinuationToken,
-          keyCount: result.KeyCount ?? result.Contents?.length ?? 0
+          commonPrefixes: result.commonPrefixes,
+          isTruncated: result.isTruncated,
+          nextContinuationToken: result.nextContinuationToken,
+          keyCount: result.keyCount
         }
       })
     },
@@ -150,23 +159,23 @@ export function createDatasetObjectStoreService(options: {
       const input = datasetObjectMetadataInputSchema.parse(raw)
       const { source } = await registeredSource(input.sourceId, input.workspaceRoot, defaultWorkspaceRoot)
       const key = scopedKey(source.prefix, input.key)
-      return withClient(source, env, clientFactory, async (client) => {
-        const result = await client.send(new HeadObjectCommand({ Bucket: source.bucket, Key: key }))
+      return withConnectorError(source, async () => {
+        const result = await connector.metadata(source, key)
         return {
-          source: publicSource(source, env),
+          source: publicSource(source),
           request: { bucket: source.bucket, key },
-          response: { status: result.$metadata?.httpStatusCode ?? 200 },
+          response: { status: result.status },
           metadata: {
             key,
-            size: result.ContentLength,
-            etag: cleanEtag(result.ETag),
-            lastModified: isoDate(result.LastModified),
-            contentType: result.ContentType,
-            contentEncoding: result.ContentEncoding,
-            cacheControl: result.CacheControl,
-            versionId: result.VersionId,
-            storageClass: result.StorageClass,
-            userMetadata: result.Metadata ?? {}
+            size: result.size,
+            etag: result.etag,
+            lastModified: result.lastModified,
+            contentType: result.contentType,
+            contentEncoding: result.contentEncoding,
+            cacheControl: result.cacheControl,
+            versionId: result.versionId,
+            storageClass: result.storageClass,
+            userMetadata: result.userMetadata
           }
         }
       })
@@ -179,23 +188,22 @@ export function createDatasetObjectStoreService(options: {
       const key = scopedKey(source.prefix, input.key)
       const fileName = safeFileName(input.outputFileName ?? basename(key))
       const maxBytes = input.maxBytes ?? DEFAULT_MAX_DOWNLOAD_BYTES
-      return withClient(source, env, clientFactory, async (client) => {
+      return withConnectorError(source, async () => {
         const range = input.range
           ? `bytes=${input.range.start}-${input.range.end ?? ''}`
           : undefined
-        const result = await client.send(new GetObjectCommand({
-          Bucket: source.bucket,
-          Key: key,
-          ...(range ? { Range: range } : {})
-        }))
-        if (!result.Body) throw new Error(`Dataset object '${key}' returned an empty body.`)
-        if (typeof result.ContentLength === 'number' && result.ContentLength > maxBytes) {
+        const result = await connector.rawData(source, {
+          key,
+          ...(input.range ? { range: input.range } : {})
+        })
+        if (!result.body) throw new Error(`Dataset object '${key}' returned an empty body.`)
+        if (result.contentLength !== undefined && result.contentLength > maxBytes) {
           throw new Error(`Dataset object '${key}' exceeds the ${maxBytes}-byte download limit.`)
         }
         const destinationDirectory = resolve(workspaceRoot, '.sciforge', 'datasets', 'raw', source.id)
         await mkdir(destinationDirectory, { recursive: true })
         const temporaryPath = join(destinationDirectory, `.${fileName}.${process.pid}.${Date.now()}.tmp`)
-        const streamed = await streamBody(result.Body, temporaryPath, maxBytes)
+        const streamed = await streamBody(result.body, temporaryPath, maxBytes)
         let destinationPath = join(destinationDirectory, fileName)
         let reused = false
         try {
@@ -219,7 +227,7 @@ export function createDatasetObjectStoreService(options: {
           await rm(temporaryPath, { force: true })
           throw error
         }
-        const format = resolveFormat(input.expectedFormat, fileName, result.ContentType)
+        const format = resolveFormat(input.expectedFormat, fileName, result.contentType)
         const preview = ['fasta', 'json', 'text'].includes(format)
           ? await readPreview(destinationPath, PREVIEW_BYTES)
           : undefined
@@ -230,24 +238,24 @@ export function createDatasetObjectStoreService(options: {
           source: safeSourceForManifest(source),
           request: { bucket: source.bucket, key, ...(range ? { range } : {}) },
           response: {
-            status: result.$metadata?.httpStatusCode ?? (range ? 206 : 200),
-            etag: cleanEtag(result.ETag),
-            lastModified: isoDate(result.LastModified),
-            contentType: result.ContentType,
+            status: result.status,
+            etag: result.etag,
+            lastModified: result.lastModified,
+            contentType: result.contentType,
             bytes: streamed.bytes
           },
           artifact: { path: destinationPath, bytes: streamed.bytes, sha256: streamed.sha256, format }
         }, null, 2)}\n`, 'utf8')
         return {
-          source: publicSource(source, env),
+          source: publicSource(source),
           request: { bucket: source.bucket, key, ...(range ? { range } : {}) },
           response: {
-            status: result.$metadata?.httpStatusCode ?? (range ? 206 : 200),
+            status: result.status,
             bytes: streamed.bytes,
-            etag: cleanEtag(result.ETag),
-            lastModified: isoDate(result.LastModified),
-            contentType: result.ContentType,
-            rangeSatisfied: range ? result.$metadata?.httpStatusCode === 206 || !!result.ContentRange : undefined
+            etag: result.etag,
+            lastModified: result.lastModified,
+            contentType: result.contentType,
+            rangeSatisfied: range ? result.status === 206 || !!result.contentRange : undefined
           },
           artifact: {
             path: destinationPath,
@@ -265,67 +273,24 @@ export function createDatasetObjectStoreService(options: {
   }
 }
 
-function defaultClientFactory(input: Readonly<{
-  source: DatasetObjectStoreSource
-  credentials: ResolvedCredentials
-}>): S3Sender {
-  const config: S3ClientConfig = {
-    endpoint: input.source.endpoint,
-    region: input.source.region,
-    forcePathStyle: input.source.forcePathStyle,
-    credentials: input.credentials,
-    requestChecksumCalculation: 'WHEN_REQUIRED',
-    responseChecksumValidation: 'WHEN_REQUIRED'
-  }
-  return new S3Client(config)
-}
-
-async function withClient<T>(
+async function withConnectorError<T>(
   source: DatasetObjectStoreSource,
-  env: NodeJS.ProcessEnv,
-  factory: (input: Readonly<{ source: DatasetObjectStoreSource; credentials: ResolvedCredentials }>) => S3Sender,
-  operation: (client: S3Sender) => Promise<T>
+  operation: () => Promise<T>
 ): Promise<T> {
-  const client = factory({ source, credentials: resolveCredentials(source, env) })
   try {
-    return await operation(client)
+    return await operation()
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error)
     throw new Error(`Dataset object store '${source.id}' request failed: ${detail}`)
-  } finally {
-    client.destroy?.()
   }
 }
 
-function resolveCredentials(source: DatasetObjectStoreSource, env: NodeJS.ProcessEnv): ResolvedCredentials {
-  const accessKeyId = env[source.credentialEnv.accessKeyId]?.trim()
-  const secretAccessKey = env[source.credentialEnv.secretAccessKey]?.trim()
-  const sessionToken = source.credentialEnv.sessionToken
-    ? env[source.credentialEnv.sessionToken]?.trim()
-    : undefined
-  if (!accessKeyId || !secretAccessKey) {
-    throw new Error(`Dataset object store '${source.id}' credentials are not configured in the declared environment variables.`)
-  }
-  if (source.credentialEnv.sessionToken && !sessionToken) {
-    throw new Error(`Dataset object store '${source.id}' session token is not configured.`)
-  }
-  return { accessKeyId, secretAccessKey, ...(sessionToken ? { sessionToken } : {}) }
-}
-
-function publicSource(source: DatasetObjectStoreSource, env: NodeJS.ProcessEnv) {
-  const accessKeyIdConfigured = !!env[source.credentialEnv.accessKeyId]?.trim()
-  const secretAccessKeyConfigured = !!env[source.credentialEnv.secretAccessKey]?.trim()
-  const sessionTokenConfigured = source.credentialEnv.sessionToken
-    ? !!env[source.credentialEnv.sessionToken]?.trim()
-    : true
+function publicSource(source: DatasetObjectStoreSource) {
   return {
     ...safeSourceForManifest(source),
-    credentials: {
-      configured: accessKeyIdConfigured && secretAccessKeyConfigured && sessionTokenConfigured,
-      accessKeyIdConfigured,
-      secretAccessKeyConfigured,
-      sessionTokenConfigured
-    },
+    authentication: source.credentialBindingId
+      ? { mode: 'bound' as const, status: 'unavailable' as const }
+      : { mode: 'anonymous' as const, status: 'ready' as const },
     createdAt: source.createdAt,
     updatedAt: source.updatedAt
   }
@@ -367,12 +332,13 @@ function registryPathFor(workspaceRoot: string): string {
   return join(workspaceRoot, '.sciforge', 'datasets', 'object-stores.json')
 }
 
-async function readRegistry(path: string): Promise<{ version: 1; sources: DatasetObjectStoreSource[] }> {
+async function readRegistry(path: string): Promise<ObjectStoreRegistry> {
   try {
-    const parsed = JSON.parse(await readFile(path, 'utf8')) as Partial<ObjectStoreRegistry>
-    return { version: 1, sources: Array.isArray(parsed.sources) ? parsed.sources : [] }
+    const registry = objectStoreRegistrySchema.parse(JSON.parse(await readFile(path, 'utf8')))
+    for (const source of registry.sources) validateEndpoint(source.endpoint, source.allowInsecureHttp)
+    return registry
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return { version: 1, sources: [] }
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return { version: 2, sources: [] }
     throw new Error(`Failed to read Dataset object store registry: ${error instanceof Error ? error.message : String(error)}`)
   }
 }
@@ -431,7 +397,7 @@ function sameConfiguration(left: DatasetObjectStoreSource, right: DatasetObjectS
     region: source.region,
     forcePathStyle: source.forcePathStyle,
     allowInsecureHttp: source.allowInsecureHttp,
-    credentialEnv: source.credentialEnv
+    credentialBindingId: source.credentialBindingId
   })
   return JSON.stringify(comparable(left)) === JSON.stringify(comparable(right))
 }
@@ -521,12 +487,4 @@ async function readPreview(path: string, maxBytes: number): Promise<{ content: s
   } finally {
     await handle.close()
   }
-}
-
-function cleanEtag(value: unknown): string | undefined {
-  return typeof value === 'string' ? value.replace(/^"|"$/g, '') : undefined
-}
-
-function isoDate(value: unknown): string | undefined {
-  return value instanceof Date ? value.toISOString() : undefined
 }

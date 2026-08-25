@@ -49,10 +49,12 @@ export const datasetApiCapabilityOutputSchema = z.object({
 
 const optionalWorkspaceRootSchema = z.string().trim().min(1).max(4096).optional()
 const datasetIdSchema = z.string().trim().min(1).max(80).regex(/^[a-z0-9][a-z0-9_-]*$/)
-const headerNameSchema = z.string().trim().min(1).max(128).regex(/^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/)
-const envVarSchema = z.string().trim().min(1).max(128).regex(/^[A-Za-z_][A-Za-z0-9_]*$/)
-const safeHeadersSchema = z.record(headerNameSchema, z.string().max(4096)).optional()
 const endpointSchema = z.string().trim().min(1).max(2048)
+export const datasetCredentialBindingIdSchema = z.string()
+  .trim()
+  .min(1)
+  .max(160)
+  .regex(/^[A-Za-z0-9][A-Za-z0-9._:-]*$/)
 const pathValueSchema = z.string().trim().min(1).max(1024)
 const queryValueSchema = z.union([
   z.string().max(4096),
@@ -453,14 +455,7 @@ export const datasetApiRegisterInputSchema = z.object({
   baseUrl: z.string().trim().url().max(4096),
   metadataEndpoint: endpointSchema,
   rawDataEndpoint: endpointSchema,
-  defaultHeaders: safeHeadersSchema,
-  auth: z.object({
-    type: z.enum(['bearer', 'header', 'query']),
-    envVar: envVarSchema,
-    headerName: headerNameSchema.optional(),
-    queryName: z.string().trim().min(1).max(128).optional(),
-    required: z.boolean().optional()
-  }).strict().optional(),
+  credentialBindingId: datasetCredentialBindingIdSchema.optional(),
   overwrite: z.boolean().optional()
 }).strict()
 
@@ -513,11 +508,7 @@ export const datasetObjectStoreRegisterInputSchema = z.object({
   region: z.string().trim().min(1).max(128).optional(),
   forcePathStyle: z.boolean().optional(),
   allowInsecureHttp: z.boolean().optional(),
-  credentialEnv: z.object({
-    accessKeyId: envVarSchema,
-    secretAccessKey: envVarSchema,
-    sessionToken: envVarSchema.optional()
-  }).strict(),
+  credentialBindingId: datasetCredentialBindingIdSchema.optional(),
   overwrite: z.boolean().optional()
 }).strict()
 
@@ -594,14 +585,7 @@ export type DatasetApiSource = {
   baseUrl: string
   metadataEndpoint: string
   rawDataEndpoint: string
-  defaultHeaders?: Record<string, string>
-  auth?: {
-    type: 'bearer' | 'header' | 'query'
-    envVar: string
-    headerName?: string
-    queryName?: string
-    required?: boolean
-  }
+  credentialBindingId?: string
   createdAt: string
   updatedAt: string
 }
@@ -616,11 +600,7 @@ export type DatasetObjectStoreSource = {
   region: string
   forcePathStyle: boolean
   allowInsecureHttp: boolean
-  credentialEnv: {
-    accessKeyId: string
-    secretAccessKey: string
-    sessionToken?: string
-  }
+  credentialBindingId?: string
   createdAt: string
   updatedAt: string
 }
@@ -633,7 +613,7 @@ export type DatasetProvider = {
   name: string
   category: DatasetProviderCategory
   transport: DatasetProviderTransport
-  auth: 'none' | 'optional-api-key' | 'api-key'
+  accessMode: 'public' | 'binding-optional' | 'binding-required'
   metadata: string
   rawData: string
   adapter: 'generic-http' | 'provider-specific' | 'sdk-required'

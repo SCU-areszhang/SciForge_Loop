@@ -1,6 +1,6 @@
 {
   "name": "@sciforge/domain-dataset-api",
-  "version": "1.0.2",
+  "version": "2.0.0",
   "license": "MIT",
   "type": "module",
   "private": false,
@@ -11,7 +11,6 @@
     "./main": "./src/main.ts",
     "./receipt-provider": "./src/receipt-provider.ts",
     "./renderer": "./src/renderer/index.tsx",
-    "./service": "./src/service.ts",
     "./smoke": "./src/smoke.ts"
   },
   "files": [
@@ -22,12 +21,13 @@
   ],
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "node --import tsx --test src/create-loop-resource-executor.test.ts src/main.test.ts src/object-store.test.ts src/plan-executor.test.ts src/processing.test.ts src/service.test.ts && vitest run src/renderer/DatasetTimelinePanel.test.ts src/renderer/CreateLoopDatasetResourceProvider.test.tsx"
+    "test": "node --import tsx --test src/composition.test.ts src/create-loop-resource-executor.test.ts src/main.test.ts src/object-store.test.ts src/plan-executor.test.ts src/processing.test.ts src/service.test.ts && vitest run src/renderer/DatasetTimelinePanel.test.ts src/renderer/CreateLoopDatasetResourceProvider.test.tsx"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1049.0",
     "@sciforge/domain-create-loop": "^1.0.0",
     "@sciforge/domain-sdk": "^0.3.0",
+    "@smithy/core": "^3.24.2",
     "lucide-react": "^0.544.0",
     "react": "^19.0.0",
     "react-i18next": "^15.7.4",
