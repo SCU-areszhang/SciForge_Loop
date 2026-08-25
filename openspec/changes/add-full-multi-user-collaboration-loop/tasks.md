@@ -59,7 +59,7 @@
 
 - [x] 7.1 新增 `cloud-run0.sciforge.cn`/`login-run0.sciforge.cn`/`SciForge-Run0` 独立 Keycloak、Cloud、PostgreSQL、Compose、secret 和 backup artifacts。
 - [x] 7.2 增加安全 preflight，验证 database/role/container/network/volume/issuer 与公网部署完全不同，脚本无默认公网 mutation 目标。
-- [ ] 7.3 配置 Run-0 self-registration/PKCE/JIT/Device 与固定 issuer/audience/TLS，DNS 缺失时返回 `awaiting_dns` 且无旧 issuer fallback。
+- [x] 7.3 配置 Run-0 self-registration/PKCE/JIT/Device 与固定 issuer/audience/TLS，DNS 缺失时返回 `awaiting_dns` 且无旧 issuer fallback。
 - [ ] 7.4 部署新 stack、执行 migration/health/backup/restore smoke，并记录脱敏 image/schema receipt；既有 A 部署保持 byte/state 不变。
 
 ## 8. 自动化、packaged 与真机验收
@@ -68,7 +68,7 @@
 - [ ] 8.2 执行 `Repository architecture principles gate`：不得编辑 central feature map、Host 只能依赖通用 SDK、不得保留兼容 shim/双注册、不得写 showcase/provider/domain 硬编码、backend/UI 同包版本，以及 source/packaged 两条 composition 都必须验证。
 - [ ] 8.3 运行 package boundary、private-import、generated composition freshness、capability governance、secret audit 和 full regression tests。
 - [ ] 8.4 验证 source app 的真实生产 composition，并构建同一 exact commit 的 packaged artifact；验证 packaged app 无 mock/fallback 和 Run-0 配置漂移。
-- [ ] 8.5 准备 U0-U4 合成账号/议程/需求、三文件 Task、HumanNeeded、reject/reassign、review/revision 和 completion 验收脚本。
+- [x] 8.5 准备 U0-U4 合成账号/议程/需求、三文件 Task、HumanNeeded、reject/reassign、review/revision 和 completion 验收脚本。
 - [ ] 8.6 在至少三台机器/独立 VM 的五个 packaged profiles 上完成真实 OIDC、Device/Agent、OpenContent provisioning 与并发会议 happy path。
 - [ ] 8.7 完成 restart、WSS refill、duplicate、old execution fence、Device revoke、Coordinator transfer、Provider removal 和 outcome_unknown recovery matrix。
 - [ ] 8.8 从授权 Desktop 下载并人工核对最终产物，生成不含秘密的 verification receipt；逐文件 bytes/SHA-256 不作为本 PoC 门禁，未满足 DNS/设备门禁时精确标记 `awaiting_dns`/`awaiting_real_devices`。
