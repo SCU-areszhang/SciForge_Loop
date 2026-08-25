@@ -149,6 +149,14 @@ The receipt uses fixture labels U0-U4 and redacted entity IDs, but records exact
 
 The gate SHALL fail if a domain package can only be installed by editing Host-private routing, if the Host imports a domain implementation rather than a generic SDK contract, if old and new entrypoints remain registered together, if current acceptance/provider/domain identifiers select production behavior, if one business domain's backend and UI have independent ownership/versioning, or if only source composition is exercised. Passing unit tests cannot override a failed architecture gate.
 
+### 14. Credentials are used only inside an owner-private Connector
+
+Settings, public package contracts, preload/IPC, Renderer state, domain packages and managed workers may carry only non-secret endpoint/model/behavior configuration and opaque non-authorizing binding identities. They must not carry raw `Authorization` headers, API keys, credential values, caller-selected secret environment-variable names or generic callbacks that can recover a secret. The owning main-only private Connector unseals the credential from native secure storage and applies it only to its exact pinned outbound transport; it exposes a token-free semantic operation and non-secret configured/readiness facts. A missing Connector or credential fails closed.
+
+Host composition and child-process launch use an explicit structurally validated non-secret environment projection rather than copying `process.env`. A business domain or worker does not read credential-like environment variables directly. Existing package-owned HTTP webhook authentication, raw model-key bridges and settings-backed secret/header fields are deleted as parallel credential paths, not retained as migration shims.
+
+Alternative rejected: calling a field “header”, “environment reference”, “runtime key”, “secret slot” or “opaque handle” while possession still authorizes an external request. Renaming or indirect lookup does not change the authority boundary.
+
 ## Risks / Trade-offs
 
 - [The Provider's DownloadCheck or exact upload observation contract differs from current evidence] → freeze strict Connector schemas and characterize the real provider before admitting live operations; keep affected operation fail-closed rather than add a metadata fallback.

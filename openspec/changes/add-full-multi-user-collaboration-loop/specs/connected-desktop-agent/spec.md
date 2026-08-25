@@ -75,3 +75,19 @@ Device 私钥、Agent machine credential 和 OIDC material SHALL 只由 Identity
 - **WHEN** Desktop 注册/旋转 Agent 或在重启后恢复 Agent-authenticated command、Inbox 或 WSS
 - **THEN** Identity SHALL 在私有边界完成 ephemeral bootstrap、credential 解封、ACTIVE Device/Agent 绑定复核和 authorization 注入
 - **AND** collaboration SHALL 只收到严格的 Agent facts、事件、响应与非秘密状态，不得收到 credential、Authorization header 或可用于恢复 credential 的 bearer locator。
+
+### Requirement: 外部服务凭据只在私有 Connector 使用
+
+任何模型、Dataset、Object Store、Provider 或其他外部服务 credential SHALL 只由其 owning main-only private Connector 从原生安全存储解封，并在同一私有边界内注入 exact pinned outbound transport。公共 settings、preload/IPC、Renderer、domain package、worker、child-process environment、日志、Trace 和回执 SHALL NOT 接受 raw Authorization/header/API key、caller-selected secret environment-variable name、可恢复 credential 的 callback 或 possession-authorizing opaque handle。无对应 Connector/credential 时 authenticated operation SHALL fail closed，不得退回无认证、webhook secret、raw header 或另一账号。
+
+#### Scenario: Workflow HTTP node 配置认证 header
+
+- **WHEN** Human、Renderer 或 workflow payload 尝试保存 `Authorization`、API-key header 或 secret environment-variable selector
+- **THEN** strict public contract SHALL 拒绝该字段而不持久化或发送秘密
+- **AND** authenticated call SHALL 只可通过已安装的 owner-scoped private Connector semantic operation 执行。
+
+#### Scenario: Host 启动 domain 或 worker
+
+- **WHEN** Host 组合安装包或启动 managed child process
+- **THEN** 它 SHALL 只传递显式、结构验证的非秘密 environment projection
+- **AND** SHALL NOT 复制整个 `process.env` 或把 credential-like environment key 交给业务包。
