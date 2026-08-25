@@ -98,6 +98,180 @@ test('default gate follows internal production dependencies of a meeting-loop pa
     finding.kind === 'secret-log-credential'))
 })
 
+test('default gate rejects credential material in worker environments and bearer headers', (t) => {
+  const repo = fixture({
+    'package.json': JSON.stringify({
+      name: '@fixture/desktop',
+      dependencies: { '@fixture/background-worker': '1.0.0' }
+    }),
+    'src/main/worker-authority.ts': [
+      "const BACKGROUND_WORKER_INTERNAL_SECRET_ENV = 'BACKGROUND_WORKER_INTERNAL_SECRET'",
+      'export function workerEnvironment(value: string): Readonly<Record<string, string>> {',
+      '  return { [BACKGROUND_WORKER_INTERNAL_SECRET_ENV]: value }',
+      '}'
+    ].join('\n'),
+    'packages/background-worker/package.json': JSON.stringify({
+      name: '@fixture/background-worker',
+      exports: './src/index.ts'
+    }),
+    'packages/background-worker/src/index.ts': [
+      'export async function callHost() {',
+      '  const material = process.env.BACKGROUND_WORKER_INTERNAL_SECRET?.trim()',
+      "  return fetch('http://127.0.0.1:1234/internal', {",
+      '    headers: { Authorization: `Bearer ${material}` }',
+      '  })',
+      '}'
+    ].join('\n')
+  })
+  t.after(repo.close)
+
+  const result = repo.auditDefault()
+  assert.ok(result.findings.some((finding) =>
+    finding.file === 'src/main/worker-authority.ts' &&
+    finding.kind === 'boundary-secret-environment'))
+  assert.ok(result.findings.some((finding) =>
+    finding.file === 'packages/background-worker/src/index.ts' &&
+    finding.kind === 'boundary-secret-environment'))
+  assert.ok(result.findings.some((finding) =>
+    finding.file === 'packages/background-worker/src/index.ts' &&
+    finding.kind === 'boundary-secret-authorization-header'))
+})
+
+test('default gate rejects whole environment projection and direct domain credential reads', (t) => {
+  const repo = fixture({
+    'package.json': JSON.stringify({
+      name: '@fixture/desktop',
+      dependencies: { '@fixture/installed-domain': '1.0.0' }
+    }),
+    'src/main/index.ts': [
+      'declare function activateInstalledDomain(context: unknown): void',
+      'activateInstalledDomain({ environment: Object.freeze({ ...process.env }) })'
+    ].join('\n'),
+    'packages/installed-domain/package.json': JSON.stringify({
+      name: '@fixture/installed-domain',
+      exports: './src/index.ts'
+    }),
+    'packages/installed-domain/src/index.ts': [
+      'export function connect() {',
+      '  return process.env.EXTERNAL_SERVICE_TOKEN?.trim()',
+      '}',
+      'export const nonSecretChildEnvironment = Object.freeze({',
+      '  PATH: process.env.PATH,',
+      '  LANG: process.env.LANG',
+      '})'
+    ].join('\n')
+  })
+  t.after(repo.close)
+
+  const result = repo.auditDefault()
+  const environmentFindings = result.findings.filter((finding) =>
+    finding.kind === 'boundary-secret-environment')
+  assert.ok(environmentFindings.some((finding) => finding.file === 'src/main/index.ts'))
+  assert.ok(environmentFindings.some((finding) =>
+    finding.file === 'packages/installed-domain/src/index.ts' && finding.line === 2))
+  assert.equal(environmentFindings.some((finding) =>
+    finding.file === 'packages/installed-domain/src/index.ts' && finding.line >= 5), false)
+})
+
+test('proves a non-secret environment allowlist without trusting a sanitizer name', (t) => {
+  const repo = fixture({
+    'src/main/worker-environment.ts': [
+      "const SAFE_CHILD_ENVIRONMENT = ['PATH', 'LANG'] as const",
+      'function allowlistedEnvironment(source: NodeJS.ProcessEnv): Record<string, string> {',
+      '  const result: Record<string, string> = {}',
+      '  for (const name of SAFE_CHILD_ENVIRONMENT) {',
+      '    const value = source[name]',
+      '    if (value !== undefined) result[name] = value',
+      '  }',
+      '  return result',
+      '}',
+      'function sanitizeEnvironment(source: NodeJS.ProcessEnv): NodeJS.ProcessEnv {',
+      '  return { ...source }',
+      '}',
+      'export const safeLaunch = { env: allowlistedEnvironment(process.env) }',
+      'export const unsafeLaunch = { env: sanitizeEnvironment(process.env) }'
+    ].join('\n')
+  })
+  t.after(repo.close)
+
+  assert.deepEqual(repo.auditDefault().findings.filter((finding) =>
+    finding.kind === 'boundary-secret-environment'), [{
+    file: 'src/main/worker-environment.ts',
+    line: 14,
+    kind: 'boundary-secret-environment'
+  }])
+})
+
+test('default gate rejects credential strings in shared, preload, and renderer boundaries', (t) => {
+  const repo = fixture({
+    'src/shared/app-settings.ts': [
+      'export type AppSettings = {',
+      '  runtimeApiKey: string',
+      '  refreshToken?: boolean',
+      "  credentialKind: 'apiKey'",
+      '  privateSecretFile: string',
+      '}'
+    ].join('\n'),
+    'src/preload/bridge.ts': [
+      'type ExposedSettings = { serviceCredential: string }',
+      'export const api = {} as { getSettings(): Promise<ExposedSettings> }'
+    ].join('\n'),
+    'src/renderer/src/settings-state.ts': [
+      'export type RendererSettingsState = { internalRuntimeKey: string }',
+      'export const state = {} as RendererSettingsState'
+    ].join('\n')
+  })
+  t.after(repo.close)
+
+  const result = repo.auditDefault()
+  assert.ok(result.findings.some((finding) =>
+    finding.file === 'src/shared/app-settings.ts' && finding.line === 2 &&
+    finding.kind === 'boundary-secret-provider-credential'))
+  assert.ok(result.findings.some((finding) =>
+    finding.file === 'src/preload/bridge.ts' && finding.line === 1 &&
+    finding.kind === 'boundary-secret-credential'))
+  assert.ok(result.findings.some((finding) =>
+    finding.file === 'src/renderer/src/settings-state.ts' && finding.line === 1 &&
+    finding.kind === 'boundary-secret-credential'))
+  assert.equal(result.findings.some((finding) =>
+    finding.file === 'src/shared/app-settings.ts' && finding.line >= 3), false)
+})
+
+test('default gate rejects credential-like material in a cross-package contract', (t) => {
+  const repo = fixture({
+    'package.json': JSON.stringify({
+      name: '@fixture/desktop',
+      dependencies: { '@fixture/runtime-gateway': '1.0.0' }
+    }),
+    'packages/runtime-gateway/package.json': JSON.stringify({
+      name: '@fixture/runtime-gateway',
+      exports: './src/index.ts'
+    }),
+    'packages/runtime-gateway/src/index.ts': [
+      'export type GatewayRequest = {',
+      '  runtimeKey: string',
+      '  refreshToken?: boolean',
+      "  credentialKind: 'apiKey'",
+      '  privateSecretFile: string',
+      '}',
+      'export function openGateway(runtimeCredential: string): void {',
+      '  void runtimeCredential',
+      '}'
+    ].join('\n')
+  })
+  t.after(repo.close)
+
+  assert.deepEqual(repo.auditDefault().findings, [{
+    file: 'packages/runtime-gateway/src/index.ts',
+    line: 2,
+    kind: 'public-secret-credential'
+  }, {
+    file: 'packages/runtime-gateway/src/index.ts',
+    line: 7,
+    kind: 'public-secret-credential'
+  }])
+})
+
 test('resolves re-exported public modules and rejects an accessToken contract', (t) => {
   const repo = fixture({
     'packages/collaboration-identity/package.json': JSON.stringify({
@@ -268,6 +442,23 @@ test('proves literal discriminators and boolean action flags without blessing sa
   }])
 })
 
+test('does not taint an IPC boolean action flag but rejects same-name string material', (t) => {
+  const repo = fixture({
+    'src/renderer/account.ts': [
+      "ipcRenderer.invoke('account:refresh', { refreshToken: true, type: 'apiKey' })",
+      "ipcRenderer.invoke('account:replace', { refreshToken: 'raw-material' })"
+    ].join('\n')
+  })
+  t.after(repo.close)
+
+  assert.deepEqual(repo.audit().findings.filter((finding) =>
+    finding.kind === 'secret-ipc-token'), [{
+    file: 'src/renderer/account.ts',
+    line: 2,
+    kind: 'secret-ipc-token'
+  }])
+})
+
 test('rejects renaming a credential to generic byte material', (t) => {
   const repo = fixture({
     'packages/public-enrollment/package.json': JSON.stringify({
@@ -285,7 +476,7 @@ test('rejects renaming a credential to generic byte material', (t) => {
   }])
 })
 
-test('treats bearer handles and references as secrets unless they are non-authorizing metadata', (t) => {
+test('treats bearer handles as secrets but allows structurally proven secret-file locators', (t) => {
   const repo = fixture({
     'packages/public-handles/package.json': JSON.stringify({
       name: '@fixture/public-handles',
@@ -302,6 +493,9 @@ test('treats bearer handles and references as secrets unless they are non-author
       '  providerSecretFile: string',
       '  serverSecretFile: string',
       '  resourceHandleId: string',
+      '}',
+      'export type SecretFileReader = {',
+      '  serverSecretFile: { read(): string }',
       '}'
     ].join('\n')
   })
@@ -325,11 +519,7 @@ test('treats bearer handles and references as secrets unless they are non-author
     kind: 'public-secret-private-key'
   }, {
     file: 'packages/public-handles/src/index.ts',
-    line: 8,
-    kind: 'public-secret-secret'
-  }, {
-    file: 'packages/public-handles/src/index.ts',
-    line: 9,
+    line: 13,
     kind: 'public-secret-secret'
   }])
 })

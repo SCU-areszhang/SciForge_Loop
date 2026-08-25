@@ -8,7 +8,8 @@ import ts from 'typescript'
 
 const maxFileBytes = 2 * 1024 * 1024
 const sourceExtensions = new Set(['.cjs', '.js', '.jsx', '.mjs', '.ts', '.tsx'])
-const hostSecurityBoundaryPath = /^src\/(?:main|preload|shared)\//u
+const hostSecurityBoundaryPath = /^src\/(?:main|preload|renderer|shared)\//u
+const hostDataBoundaryPath = /^src\/(?:preload|renderer|shared)\//u
 const hostCompositionPath = /^src\/renderer\/src\/domain-modules\//u
 const meetingLoopArtifactPath = /^(?:docs|infra|openspec)\/.*(?:collaboration|content-space|full-multi-user|identity-access|run0)/iu
 const meetingLoopPackageSegment = /(?:^|-)(?:collaboration|content-space|identity-access|opencontent|project-coordinator)(?:-|$)/u
@@ -161,6 +162,31 @@ function secretCategory(name, options = {}) {
   return null
 }
 
+/**
+ * Credential material names that are only meaningful at a privilege or
+ * package boundary. Keeping these out of the general name classifier avoids
+ * treating ordinary implementation keys as credentials while still rejecting
+ * raw authority in exported contracts, preload bridges, settings, and UI
+ * state.
+ */
+function boundarySecretCategory(name, options = {}) {
+  const direct = secretCategory(name, options)
+  if (direct) return direct
+
+  const normalized = normalizeName(name)
+  if (!normalized || isNonAuthorizingMetadata(normalized)) return null
+  if (/(?:^|runtime|internal|service|auth|access|refresh|provider|identity|device|agent|user|machine)api(?:keys?)$/u.test(normalized)) {
+    return 'provider-credential'
+  }
+  if (/^(?:(?:runtime|internal|service|auth|access|refresh))+(?:keys?|tokens?|credentials?)$/u.test(normalized)) {
+    return 'credential'
+  }
+  if (/^(?:credentials?|credential(?:bytes|material|payload|value))$/u.test(normalized)) {
+    return 'credential'
+  }
+  return null
+}
+
 function lineOf(sourceFile, node) {
   return sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile)).line + 1
 }
@@ -224,6 +250,7 @@ function containsSensitiveExpression(node, sourceFile, taintedNames = new Map())
       }
     }
     if (ts.isPropertyAssignment(current) || ts.isShorthandPropertyAssignment(current)) {
+      if (ts.isPropertyAssignment(current) && provesBooleanValue(current.initializer)) return
       const category = secretCategory(nodeName(current.name), {
         headerContext: isAuthorizationHeaderProperty(current, sourceFile)
       })
@@ -281,6 +308,22 @@ function aliasInitializerSecret(node, sourceFile, taintedNames) {
   return containsSensitiveExpression(expression, sourceFile, taintedNames)
 }
 
+function environmentInitializerSecret(node, sourceFile) {
+  const expression = unwrapAliasExpression(node)
+  if (!ts.isCallExpression(expression)) {
+    return containsEnvironmentSource(expression, sourceFile)
+      ? { category: 'environment' }
+      : null
+  }
+  const name = calleeName(expression.expression, sourceFile)
+  const preservesEnvironmentMaterial = isMaterialPreservingCall(expression, sourceFile) ||
+    /(?:^|\.)(?:normalize|toString|trim|trimEnd|trimStart)$/u.test(name)
+  if (!preservesEnvironmentMaterial) return null
+  return containsEnvironmentSource(expression, sourceFile)
+    ? { category: 'environment' }
+    : null
+}
+
 function collectSecretTaints(scopeNode, sourceFile) {
   const taintedNames = new Map()
   const mark = (identifier, category) => {
@@ -302,7 +345,8 @@ function collectSecretTaints(scopeNode, sourceFile) {
       if (node !== scopeNode && (ts.isFunctionLike(node) || ts.isSourceFile(node))) return
       if (ts.isVariableDeclaration(node)) {
         const initializerSecret = node.initializer
-          ? aliasInitializerSecret(node.initializer, sourceFile, taintedNames)
+          ? aliasInitializerSecret(node.initializer, sourceFile, taintedNames) ??
+            environmentInitializerSecret(node.initializer, sourceFile)
           : null
         if (initializerSecret) changed = markBinding(node.name, initializerSecret.category) || changed
         if (ts.isObjectBindingPattern(node.name)) {
@@ -392,6 +436,10 @@ function containsEnvironmentSource(node, sourceFile) {
 }
 
 function environmentSecretCategory(name) {
+  const normalized = normalizeName(name)
+  if (isNonAuthorizingMetadata(normalized) ||
+    /(?:enabled|kind|mode|type)$/u.test(normalized) ||
+    /secret(?:directory|file|filepath|locator|path|reference|ref)$/u.test(normalized)) return null
   if (/(?:^|_)(?:ACCESS|REFRESH|ID|OIDC|BEARER|SESSION|USER|DEVICE|AGENT|PROVIDER)?_?TOKEN(?:$|_)/iu.test(name)) {
     return 'token'
   }
@@ -452,7 +500,80 @@ function isStringLiteralDiscriminator(node) {
   if (!ts.isLiteralTypeNode(node) || !ts.isStringLiteralLike(node.literal)) return false
   const parent = node.parent
   return (ts.isPropertySignature(parent) || ts.isPropertyDeclaration(parent)) &&
-    normalizeName(nodeName(parent.name)) === 'type'
+    /(?:kind|mode|type)$/u.test(normalizeName(nodeName(parent.name)))
+}
+
+function provesRawBoundaryMaterial(file, node, resolveReference, visited = new Set()) {
+  if (!node) return false
+  const key = `${file}:${node.pos}:${node.end}`
+  if (visited.has(key)) return false
+  visited.add(key)
+
+  if (ts.isPropertySignature(node) || ts.isPropertyDeclaration(node) || ts.isPropertyAssignment(node) ||
+    ts.isVariableDeclaration(node) || ts.isParameter(node) || ts.isTypeAliasDeclaration(node)) {
+    return provesRawBoundaryMaterial(file, node.type ?? node.initializer, resolveReference, visited)
+  }
+  if (ts.isBindingElement(node)) {
+    let current = node.parent
+    while (current && !ts.isVariableDeclaration(current)) current = current.parent
+    return current
+      ? provesRawBoundaryMaterial(file, current.type ?? current.initializer, resolveReference, visited)
+      : false
+  }
+  if (node.kind === ts.SyntaxKind.StringKeyword) return true
+  if (ts.isStringLiteralLike(node) || ts.isNoSubstitutionTemplateLiteral(node)) {
+    return !/^(?:<redacted>|\[redacted\]|redacted)$/iu.test(node.text.trim())
+  }
+  if (ts.isLiteralTypeNode(node)) return ts.isStringLiteralLike(node.literal)
+  if (ts.isUnionTypeNode(node)) {
+    const materialMembers = node.types.filter((member) =>
+      member.kind !== ts.SyntaxKind.NullKeyword && member.kind !== ts.SyntaxKind.UndefinedKeyword)
+    return materialMembers.length > 0 && materialMembers.every((member) =>
+      provesRawBoundaryMaterial(file, member, resolveReference, visited))
+  }
+  if (ts.isParenthesizedTypeNode(node) || ts.isParenthesizedExpression(node) ||
+    ts.isAsExpression(node) || ts.isSatisfiesExpression(node) ||
+    ts.isNonNullExpression(node) || ts.isTypeAssertionExpression(node)) {
+    return provesRawBoundaryMaterial(file, node.type ?? node.expression, resolveReference, visited)
+  }
+  if (ts.isTypeReferenceNode(node)) {
+    const typeName = normalizeName(node.typeName.getText(node.getSourceFile()))
+    if (/^(?:arraybuffer|buffer|dataview|uint8array)$/u.test(typeName)) return true
+    return resolveReference(file, node.typeName).some((target) =>
+      provesRawBoundaryMaterial(target.file, target.declaration, resolveReference, visited))
+  }
+  if (ts.isIdentifier(node) || ts.isQualifiedName(node) || ts.isPropertyAccessExpression(node)) {
+    return resolveReference(file, node).some((target) =>
+      provesRawBoundaryMaterial(target.file, target.declaration, resolveReference, visited))
+  }
+  if (ts.isCallExpression(node)) {
+    if (isStringSchema(node)) return true
+    if (node.typeArguments?.some((argument) =>
+      provesRawBoundaryMaterial(file, argument, resolveReference, visited))) return true
+    return node.arguments.some((argument) =>
+      provesRawBoundaryMaterial(file, argument, resolveReference, visited))
+  }
+  return false
+}
+
+function provesStringLocator(node) {
+  const value = node.type ?? node.initializer
+  if (!value) return false
+  if (value.kind === ts.SyntaxKind.StringKeyword || ts.isStringLiteralLike(value) ||
+    ts.isNoSubstitutionTemplateLiteral(value)) return true
+  if (ts.isLiteralTypeNode(value)) return ts.isStringLiteralLike(value.literal)
+  if (ts.isUnionTypeNode(value)) {
+    return value.types.every((member) => member.kind === ts.SyntaxKind.StringKeyword ||
+      member.kind === ts.SyntaxKind.NullKeyword || member.kind === ts.SyntaxKind.UndefinedKeyword ||
+      (ts.isLiteralTypeNode(member) && ts.isStringLiteralLike(member.literal)))
+  }
+  return isStringSchema(value)
+}
+
+function isPrivateSecretFileLocator(node) {
+  const normalized = normalizeName(nodeName(node.name))
+  if (!/(?:secretfile|secretfilepath|secretfilelocator)$/u.test(normalized)) return false
+  return provesStringLocator(node)
 }
 
 function provesEncryptedEnvelope(file, node, resolveReference, visited = new Set()) {
@@ -504,6 +625,7 @@ function provesEncryptedEnvelope(file, node, resolveReference, visited = new Set
 
 function isProvenNonAuthorizingRepresentation(file, node, resolveReference) {
   if (provesBooleanValue(node.type ?? node.initializer)) return true
+  if (isPrivateSecretFileLocator(node)) return true
   const normalized = normalizeName(nodeName(node.name))
   if (!/^(?:encrypted|sealed)/u.test(normalized)) return false
   return provesEncryptedEnvelope(file, node, resolveReference)
@@ -561,10 +683,17 @@ function scanPublicDeclaration(
       if (!declarationIsSecretAuthority && secretAuthorityOperationName(nodeName(node.name))) {
         addFinding(file, lineOf(sourceFile, node.name ?? node), 'public-secret-authority')
       }
-      const category = secretCategory(nodeName(node.name), {
+      const name = nodeName(node.name)
+      const directCategory = secretCategory(name, {
         headerContext: isAuthorizationHeaderProperty(node, sourceFile)
       })
-      if (category && !isProvenNonAuthorizingRepresentation(file, node, resolveReference)) {
+      const category = directCategory ?? boundarySecretCategory(name, {
+        headerContext: isAuthorizationHeaderProperty(node, sourceFile)
+      })
+      const provesMaterial = directCategory ||
+        provesRawBoundaryMaterial(file, node, resolveReference)
+      if (category && provesMaterial &&
+        !isProvenNonAuthorizingRepresentation(file, node, resolveReference)) {
         addFinding(file, lineOf(sourceFile, node.name ?? node), `public-secret-${category}`)
       }
     } else if (ts.isTypeReferenceNode(node) || ts.isExpressionWithTypeArguments(node)) {
@@ -935,16 +1064,257 @@ function scanBoundaryProperties(file, sourceFile, addFinding, resolveReference) 
       ts.isShorthandPropertyAssignment(node) || ts.isParameter(node) || ts.isVariableDeclaration(node) ||
       ts.isBindingElement(node)) {
       const name = nodeName(node.name)
-      const category = secretCategory(name, {
+      const category = boundarySecretCategory(name, {
         headerContext: isAuthorizationHeaderProperty(node, sourceFile)
       })
-      if (category && !isProvenNonAuthorizingRepresentation(file, node, resolveReference)) {
+      if (category && provesRawBoundaryMaterial(file, node, resolveReference) &&
+        !isProvenNonAuthorizingRepresentation(file, node, resolveReference)) {
         addFinding(file, lineOf(sourceFile, node.name ?? node), `boundary-secret-${category}`)
       }
     }
     ts.forEachChild(node, visit)
   }
   visit(sourceFile)
+}
+
+function collectStaticStringConstants(sourceFile) {
+  const values = new Map()
+  function visit(node) {
+    if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.initializer &&
+      (ts.isStringLiteralLike(node.initializer) || ts.isNoSubstitutionTemplateLiteral(node.initializer))) {
+      values.set(node.name.text, node.initializer.text)
+    }
+    ts.forEachChild(node, visit)
+  }
+  visit(sourceFile)
+  return values
+}
+
+function environmentAccessName(node, staticStrings) {
+  if (!ts.isPropertyAccessExpression(node) && !ts.isElementAccessExpression(node)) return null
+  const receiver = node.expression
+  const receiverText = receiver.getText(node.getSourceFile())
+  const receiverName = ts.isPropertyAccessExpression(receiver)
+    ? normalizeName(receiver.name.text)
+    : ''
+  if (receiverText !== 'process.env' && receiverText !== 'Deno.env' &&
+    receiverText !== 'import.meta.env' && receiverName !== 'environment' && receiverName !== 'env') {
+    return null
+  }
+  if (ts.isPropertyAccessExpression(node)) return node.name.text
+  const argument = node.argumentExpression
+  if (ts.isStringLiteralLike(argument)) return argument.text
+  if (ts.isIdentifier(argument)) return staticStrings.get(argument.text) ?? null
+  return null
+}
+
+function isWholeProcessEnvironment(node, sourceFile) {
+  if ((!ts.isPropertyAccessExpression(node) && !ts.isElementAccessExpression(node)) ||
+    !/^(?:Deno|process)\.env$|^import\.meta\.env$/u.test(node.getText(sourceFile))) return false
+  const parent = node.parent
+  return !((ts.isPropertyAccessExpression(parent) || ts.isElementAccessExpression(parent)) &&
+    parent.expression === node)
+}
+
+function staticStringValues(file, node, resolveReference, visited = new Set()) {
+  if (!node) return null
+  const key = `${file}:${node.pos}:${node.end}`
+  if (visited.has(key)) return null
+  visited.add(key)
+  if (ts.isParenthesizedExpression(node) || ts.isAsExpression(node) ||
+    ts.isSatisfiesExpression(node) || ts.isNonNullExpression(node) ||
+    ts.isTypeAssertionExpression(node)) {
+    return staticStringValues(file, node.expression, resolveReference, visited)
+  }
+  if (ts.isArrayLiteralExpression(node)) {
+    const values = []
+    for (const element of node.elements) {
+      if (!ts.isStringLiteralLike(element)) return null
+      values.push(element.text)
+    }
+    return values
+  }
+  if (ts.isStringLiteralLike(node)) return [node.text]
+  if (ts.isIdentifier(node) || ts.isQualifiedName(node) || ts.isPropertyAccessExpression(node)) {
+    for (const target of resolveReference(file, node)) {
+      const values = staticStringValues(
+        target.file,
+        target.declaration.initializer ?? target.declaration,
+        resolveReference,
+        visited
+      )
+      if (values) return values
+    }
+  }
+  return null
+}
+
+function loopBindingEnvironmentNames(file, identifier, resolveReference) {
+  let current = identifier.parent
+  while (current && !ts.isFunctionLike(current) && !ts.isSourceFile(current)) {
+    if (ts.isForOfStatement(current)) {
+      const declarations = current.initializer.declarations ?? []
+      if (declarations.some((declaration) =>
+        collectBindingIdentifiers(declaration.name).some((name) => name.text === identifier.text))) {
+        return staticStringValues(file, current.expression, resolveReference)
+      }
+    }
+    current = current.parent
+  }
+  return null
+}
+
+function environmentAccessNamesForParameter(file, access, resolveReference) {
+  if (ts.isPropertyAccessExpression(access)) return [access.name.text]
+  if (!ts.isElementAccessExpression(access)) return null
+  const argument = access.argumentExpression
+  if (ts.isStringLiteralLike(argument)) return [argument.text]
+  if (!ts.isIdentifier(argument)) return null
+  return staticStringValues(file, argument, resolveReference) ??
+    loopBindingEnvironmentNames(file, argument, resolveReference)
+}
+
+function functionLikeFromDeclaration(declaration) {
+  if (ts.isFunctionLike(declaration)) return declaration
+  if (ts.isVariableDeclaration(declaration) && declaration.initializer &&
+    (ts.isArrowFunction(declaration.initializer) || ts.isFunctionExpression(declaration.initializer))) {
+    return declaration.initializer
+  }
+  return null
+}
+
+function parameterUsesOnlyNonSecretEnvironmentNames(file, functionLike, parameter, resolveReference) {
+  if (!ts.isIdentifier(parameter.name) || !functionLike.body) return false
+  let safe = true
+  function visit(node) {
+    if (!safe) return
+    if (node !== functionLike && ts.isFunctionLike(node)) return
+    if (ts.isIdentifier(node) && node.text === parameter.name.text && node !== parameter.name) {
+      const parent = node.parent
+      const access = (ts.isPropertyAccessExpression(parent) || ts.isElementAccessExpression(parent)) &&
+        parent.expression === node
+        ? parent
+        : null
+      const names = access ? environmentAccessNamesForParameter(file, access, resolveReference) : null
+      if (!names || names.length === 0 || names.some((name) => environmentSecretCategory(name))) {
+        safe = false
+      }
+      return
+    }
+    ts.forEachChild(node, visit)
+  }
+  visit(functionLike.body)
+  return safe
+}
+
+function provesNonSecretEnvironmentConsumer(file, call, environmentNode, resolveReference) {
+  const argumentIndex = call.arguments.findIndex((argument) => argument === environmentNode)
+  if (argumentIndex < 0) return false
+  for (const target of resolveReference(file, call.expression)) {
+    const functionLike = functionLikeFromDeclaration(target.declaration)
+    const parameter = functionLike?.parameters[argumentIndex]
+    if (functionLike && parameter &&
+      parameterUsesOnlyNonSecretEnvironmentNames(target.file, functionLike, parameter, resolveReference)) {
+      return true
+    }
+  }
+  return false
+}
+
+function isWholeEnvironmentBoundaryProjection(node, sourceFile, file, resolveReference) {
+  let current = node.parent
+  for (let depth = 0; current && depth < 10; depth += 1, current = current.parent) {
+    if (ts.isFunctionLike(current) || ts.isSourceFile(current)) return false
+    if (ts.isPropertyAssignment(current) || ts.isPropertyDeclaration(current)) {
+      if (/^(?:environment|env)$/u.test(normalizeName(nodeName(current.name)))) return true
+    }
+    if (ts.isBinaryExpression(current) && current.operatorToken.kind === ts.SyntaxKind.EqualsToken) {
+      const leftName = ts.isPropertyAccessExpression(current.left)
+        ? current.left.name.text
+        : nodeName(current.left)
+      if (/(?:environment|env)$/u.test(normalizeName(leftName))) return true
+    }
+    if (ts.isCallExpression(current) && current.arguments.some((argument) =>
+      argument === node || (node.pos >= argument.pos && node.end <= argument.end))) {
+      if (provesNonSecretEnvironmentConsumer(file, current, node, resolveReference)) return false
+      if (isProcessSink(calleeName(current.expression, sourceFile))) return true
+    }
+  }
+  return false
+}
+
+function staticEnvironmentPropertyName(node, staticStrings) {
+  if (!ts.isPropertyAssignment(node) && !ts.isShorthandPropertyAssignment(node)) return null
+  if (ts.isComputedPropertyName(node.name)) {
+    if (ts.isStringLiteralLike(node.name.expression)) return node.name.expression.text
+    if (ts.isIdentifier(node.name.expression)) return staticStrings.get(node.name.expression.text) ?? null
+    return null
+  }
+  const name = nodeName(node.name)
+  if (!name) return null
+  let current = node.parent
+  for (let depth = 0; current && depth < 3; depth += 1, current = current.parent) {
+    if ((ts.isPropertyAssignment(current) || ts.isPropertyDeclaration(current) ||
+      ts.isVariableDeclaration(current)) && /^(?:environment|env)$/u.test(normalizeName(nodeName(current.name)))) {
+      return name
+    }
+  }
+  return /^[A-Z][A-Z0-9_]+$/u.test(name) ? name : null
+}
+
+function scanEnvironmentAndAuthorizationBoundaries(file, sourceFile, addFinding, resolveReference) {
+  const staticStrings = collectStaticStringConstants(sourceFile)
+  const taintsFor = createTaintResolver(sourceFile)
+
+  function visit(node) {
+    if (isWholeProcessEnvironment(node, sourceFile) &&
+      isWholeEnvironmentBoundaryProjection(node, sourceFile, file, resolveReference)) {
+      addFinding(file, lineOf(sourceFile, node), 'boundary-secret-environment')
+    }
+
+    const environmentName = environmentAccessName(node, staticStrings)
+    if (environmentName && environmentSecretCategory(environmentName)) {
+      addFinding(file, lineOf(sourceFile, node), 'boundary-secret-environment')
+    }
+
+    if (ts.isPropertyAssignment(node) || ts.isShorthandPropertyAssignment(node)) {
+      const propertyName = staticEnvironmentPropertyName(node, staticStrings)
+      if (propertyName && environmentSecretCategory(propertyName) &&
+        !isProvenNonAuthorizingStructuralValue(node.initializer)) {
+        addFinding(file, lineOf(sourceFile, node.name), 'boundary-secret-environment')
+      }
+    }
+
+    let authorizationValue = null
+    if ((ts.isPropertyAssignment(node) || ts.isPropertyDeclaration(node)) &&
+      normalizeName(nodeName(node.name)) === 'authorization') {
+      authorizationValue = node.initializer ?? null
+    } else if (ts.isBinaryExpression(node) && node.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
+      ts.isPropertyAccessExpression(node.left) && normalizeName(node.left.name.text) === 'authorization') {
+      authorizationValue = node.right
+    }
+    if (authorizationValue) {
+      const sensitive = containsSensitiveExpression(authorizationValue, sourceFile, taintsFor(node))
+      const text = authorizationValue.getText(sourceFile)
+      const crossesAuditedBoundary = hostSecurityBoundaryPath.test(file) ||
+        sensitive?.category === 'environment' ||
+        Boolean(containsEnvironmentSource(authorizationValue, sourceFile))
+      if (crossesAuditedBoundary && (sensitive || /(?:Bearer|Basic)\s/u.test(text))) {
+        addFinding(file, lineOf(sourceFile, authorizationValue), 'boundary-secret-authorization-header')
+      }
+    }
+    ts.forEachChild(node, visit)
+  }
+  visit(sourceFile)
+}
+
+function isProvenNonAuthorizingStructuralValue(node) {
+  if (!node) return false
+  if (provesBooleanValue(node) || isProvenNonSecretStructuralReplacement(node)) return true
+  if (ts.isStringLiteralLike(node) || ts.isNoSubstitutionTemplateLiteral(node)) {
+    return /^(?:true|false|enabled|disabled|configured|present|none)$/iu.test(node.text.trim())
+  }
+  return false
 }
 
 function scanSinks(file, sourceFile, addFinding) {
@@ -1283,8 +1653,17 @@ export function auditRoot({
         )
       }
     }
-    if (!testPath.test(file) && (boundaryFilePath.test(file) || (scanAll && rendererPath.test(file)))) {
+    if (!testPath.test(file) && (boundaryFilePath.test(file) || hostDataBoundaryPath.test(file) ||
+      (scanAll && rendererPath.test(file)))) {
       scanBoundaryProperties(file, sourceFile, addFinding, resolvePublicReference)
+    }
+    if (!testPath.test(file)) {
+      scanEnvironmentAndAuthorizationBoundaries(
+        file,
+        sourceFile,
+        addFinding,
+        resolvePublicReference
+      )
     }
     scanSinks(file, sourceFile, addFinding)
     scanLiteralAssignments(file, sourceFile, addFinding)
@@ -1305,7 +1684,10 @@ function printPolicy() {
   process.stdout.write(`SciForge collaboration secret-boundary audit\n\n`)
   process.stdout.write(`The default gate discovers the production meeting-loop boundary from package manifests,\n`)
   process.stdout.write(`root composition/imports, and internal dependencies; --all remains a repository diagnostic.\n`)
-  process.stdout.write(`The audit resolves package export graphs and rejects secret-bearing fields in public APIs.\n`)
+  process.stdout.write(`The audit resolves package export graphs and rejects raw authority in public contracts,\n`)
+  process.stdout.write(`shared settings, preload bridges, Renderer state, credential-bearing environment keys,\n`)
+  process.stdout.write(`whole-environment runtime/process projections, and Host authorization headers. Explicit\n`)
+  process.stdout.write(`non-secret environment allowlists are proven from their accessed keys, not function names.\n`)
   process.stdout.write(`It also rejects secret-bearing values at IPC/message, log/telemetry, receipt/evidence,\n`)
   process.stdout.write(`and ordinary persistence sinks. Identity and Connector main-process code may hold and\n`)
   process.stdout.write(`use secrets internally, but it is not exempt from those outbound sinks. Native secret\n`)
