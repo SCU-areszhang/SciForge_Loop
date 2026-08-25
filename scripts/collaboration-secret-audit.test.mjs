@@ -20,6 +20,7 @@ function fixture(files) {
   return {
     root,
     audit: () => auditRoot({ root, scanAll: true, useGit: false, includeOwnFixtures: true }),
+    auditDefault: () => auditRoot({ root, scanAll: false, useGit: false, includeOwnFixtures: true }),
     close: () => rmSync(root, { recursive: true, force: true })
   }
 }
@@ -27,6 +28,75 @@ function fixture(files) {
 function findingKinds(result) {
   return result.findings.map((finding) => finding.kind)
 }
+
+test('default gate discovers the complete meeting-loop security boundary', (t) => {
+  const manifests = {
+    'packages/domain-sdk/package.json': '@sciforge/domain-sdk',
+    'packages/domains/project-coordinator/package.json': '@sciforge/domain-project-coordinator',
+    'packages/domains/content-space/package.json': '@sciforge/domain-content-space',
+    'packages/domains/collaboration/package.json': '@sciforge/domain-collaboration',
+    'packages/domains/opencontent-connector/package.json': '@sciforge/domain-opencontent-connector',
+    'packages/domains/opencontent-content-space-provider/package.json':
+      '@sciforge/domain-opencontent-content-space-provider',
+    'packages/domains/identity-access/package.json': '@sciforge/domain-identity-access',
+    'packages/collaboration-server/package.json': '@sciforge/collaboration-server',
+    'packages/workers/runtime/package.json': '@sciforge/runtime-worker',
+    'packages/domains/unrelated/package.json': '@sciforge/domain-unrelated'
+  }
+  const files = Object.fromEntries(Object.entries(manifests).flatMap(([path, name]) => {
+    const directory = dirname(path)
+    return [
+      [path, JSON.stringify({ name, exports: './src/index.ts' })],
+      [`${directory}/src/index.ts`, 'export function leak(accessToken: string) { console.info(accessToken) }\n']
+    ]
+  }))
+  files['src/main/logger.ts'] = [
+    "import '@sciforge/runtime-worker'",
+    'export function leak(providerCredential: string) { console.info(providerCredential) }'
+  ].join('\n')
+  files['src/preload/bridge.ts'] =
+    'export function leak(deviceCredential: string) { ipcRenderer.send("leak", deviceCredential) }\n'
+  const repo = fixture(files)
+  t.after(repo.close)
+
+  const result = repo.auditDefault()
+  const findingFiles = new Set(result.findings.map((finding) => finding.file))
+  assert.equal(result.scope, 'meeting-loop-security-boundary')
+  assert.ok(findingFiles.has('packages/domain-sdk/src/index.ts'))
+  assert.ok(findingFiles.has('packages/domains/project-coordinator/src/index.ts'))
+  assert.ok(findingFiles.has('packages/domains/content-space/src/index.ts'))
+  assert.ok(findingFiles.has('packages/domains/collaboration/src/index.ts'))
+  assert.ok(findingFiles.has('packages/domains/opencontent-connector/src/index.ts'))
+  assert.ok(findingFiles.has('packages/domains/opencontent-content-space-provider/src/index.ts'))
+  assert.ok(findingFiles.has('packages/domains/identity-access/src/index.ts'))
+  assert.ok(findingFiles.has('packages/collaboration-server/src/index.ts'))
+  assert.ok(findingFiles.has('packages/workers/runtime/src/index.ts'))
+  assert.ok(findingFiles.has('src/main/logger.ts'))
+  assert.ok(findingFiles.has('src/preload/bridge.ts'))
+  assert.equal(findingFiles.has('packages/domains/unrelated/src/index.ts'), false)
+})
+
+test('default gate follows internal production dependencies of a meeting-loop package', (t) => {
+  const repo = fixture({
+    'packages/domains/project-coordinator/package.json': JSON.stringify({
+      name: '@sciforge/domain-project-coordinator',
+      exports: './src/index.ts',
+      dependencies: { '@sciforge/coordination-journal': '1.0.0' }
+    }),
+    'packages/domains/project-coordinator/src/index.ts': 'export const coordinator = true\n',
+    'packages/coordination-journal/package.json': JSON.stringify({
+      name: '@sciforge/coordination-journal',
+      exports: './src/index.ts'
+    }),
+    'packages/coordination-journal/src/index.ts':
+      'export function leak(agentCredential: string) { console.info(agentCredential) }\n'
+  })
+  t.after(repo.close)
+
+  assert.ok(repo.auditDefault().findings.some((finding) =>
+    finding.file === 'packages/coordination-journal/src/index.ts' &&
+    finding.kind === 'secret-log-credential'))
+})
 
 test('resolves re-exported public modules and rejects an accessToken contract', (t) => {
   const repo = fixture({
@@ -365,7 +435,108 @@ test('rejects secret transfer through child argv, environment, process output, a
   assert.ok(kinds.includes('secret-process-provider-credential'))
 })
 
-test('allows private runtime use, native secret persistence, and redacted logging', (t) => {
+test('does not let fake redaction or sealing functions bless secret logging', (t) => {
+  const repo = fixture({
+    'src/runtime.ts': [
+      'export function leak(accessToken: string, providerCredential: string) {',
+      '  const masked = redactCredential(accessToken)',
+      '  const ciphertext = encrypt(providerCredential)',
+      '  console.info(masked)',
+      '  console.info(ciphertext)',
+      '  console.info(sanitizeToken(accessToken))',
+      '  console.info(sealCredential(providerCredential))',
+      '}',
+      'declare function redactCredential(value: string): string',
+      'declare function encrypt(value: string): string',
+      'declare function sanitizeToken(value: string): string',
+      'declare function sealCredential(value: string): string',
+      'export function renameOnly(maskedAccessToken: string, encryptedProviderCredential: string, accessTokenRedacted: string) {',
+      '  console.info(maskedAccessToken)',
+      '  console.info(encryptedProviderCredential)',
+      '  console.info(accessTokenRedacted)',
+      '}'
+    ].join('\n')
+  })
+  t.after(repo.close)
+
+  const logFindings = repo.audit().findings.filter((finding) => finding.kind.startsWith('secret-log-'))
+  assert.deepEqual(logFindings, [{
+    file: 'src/runtime.ts',
+    line: 4,
+    kind: 'secret-log-token'
+  }, {
+    file: 'src/runtime.ts',
+    line: 5,
+    kind: 'secret-log-provider-credential'
+  }, {
+    file: 'src/runtime.ts',
+    line: 6,
+    kind: 'secret-log-token'
+  }, {
+    file: 'src/runtime.ts',
+    line: 7,
+    kind: 'secret-log-provider-credential'
+  }, {
+    file: 'src/runtime.ts',
+    line: 14,
+    kind: 'secret-log-token'
+  }, {
+    file: 'src/runtime.ts',
+    line: 15,
+    kind: 'secret-log-provider-credential'
+  }, {
+    file: 'src/runtime.ts',
+    line: 16,
+    kind: 'secret-log-token'
+  }])
+})
+
+test('allows a secret to be replaced by a provable presence fact', (t) => {
+  const repo = fixture({
+    'src/runtime.ts': [
+      'export function report(accessToken: string) {',
+      '  const tokenPresent = accessToken.length > 0',
+      '  console.info({ tokenPresent })',
+      '}'
+    ].join('\n')
+  })
+  t.after(repo.close)
+
+  assert.deepEqual(repo.audit().findings, [])
+})
+
+test('proves a sealed credential envelope through package exports', (t) => {
+  const repo = fixture({
+    'packages/contracts/package.json': JSON.stringify({
+      name: '@fixture/contracts',
+      exports: './src/index.ts'
+    }),
+    'packages/contracts/src/index.ts': "export * from './protocol.js'\n",
+    'packages/contracts/src/protocol.ts': [
+      'export const credentialEnvelopeSchema = z.object({',
+      "  algorithm: z.literal('fixture-aead'),",
+      '  iv: z.string(),',
+      '  ciphertext: z.string(),',
+      '  authenticationTag: z.string()',
+      '}).strict()',
+      'export type CredentialEnvelope = z.infer<typeof credentialEnvelopeSchema>'
+    ].join('\n'),
+    'packages/server/package.json': JSON.stringify({
+      name: '@fixture/server',
+      exports: './src/index.ts',
+      dependencies: { '@fixture/contracts': '1.0.0' }
+    }),
+    'packages/server/src/index.ts': [
+      "import type { CredentialEnvelope } from '@fixture/contracts'",
+      'export interface BootstrapResponse { sealedCredential: CredentialEnvelope }'
+    ].join('\n')
+  })
+  t.after(repo.close)
+
+  assert.deepEqual(repo.audit().findings, [])
+})
+
+test('allows private runtime use and native secret persistence but not name-only redaction', (t) => {
   const repo = fixture({
     'packages/domains/identity-access/src/main/oidc-runtime.ts': [
       'export async function callCloud(accessToken: string, sessionStore: { save(value: unknown): Promise<void> }) {',
@@ -384,7 +555,11 @@ test('allows private runtime use, native secret persistence, and redacted loggin
   })
   t.after(repo.close)
 
-  assert.deepEqual(repo.audit().findings, [])
+  assert.deepEqual(repo.audit().findings, [{
+    file: 'packages/domains/opencontent-connector/src/main/provider-runtime.ts',
+    line: 4,
+    kind: 'secret-log-provider-credential'
+  }])
 })
 
 test('allows explicit synthetic tests and safe non-secret representations', (t) => {
@@ -395,13 +570,25 @@ test('allows explicit synthetic tests and safe non-secret representations', (t) 
     }),
     'packages/safe/src/index.ts': [
       'export type RegistrationResult = Readonly<{',
-      '  sealedCredential: { ciphertext: string }',
+      '  sealedCredential: {',
+      '    algorithm: string',
+      '    iv: string',
+      '    ciphertext: string',
+      '    authenticationTag: string',
+      '  }',
       '  agentCredentialDigest: string',
       '  providerCredentialFingerprint: string',
       '  accessTokenExpiresAt: string',
       '  credentialGeneration: number',
       '  tokenDigest: string',
       '}>',
+      'const envelopeSchema = z.object({',
+      "  algorithm: z.literal('fixture-aead'),",
+      '  iv: z.string(),',
+      '  ciphertext: z.string(),',
+      '  authenticationTag: z.string()',
+      '})',
+      'export const responseSchema = z.object({ sealedCredential: envelopeSchema })',
       'export const INVALID_TEST_ONLY_CREDENTIAL_FIXTURE = {',
       "  accessToken: 'INVALID_TEST_ONLY_ACCESS_VALUE'",
       '}'

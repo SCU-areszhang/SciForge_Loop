@@ -8,8 +8,10 @@ import ts from 'typescript'
 
 const maxFileBytes = 2 * 1024 * 1024
 const sourceExtensions = new Set(['.cjs', '.js', '.jsx', '.mjs', '.ts', '.tsx'])
-const collaborationPath = /collaboration|zulip|remote-channel|unify-user-device|identity-access|content-space|opencontent-connector|full-multi-user|run0/iu
-const collaborationInfrastructurePath = /^packages\/domain-sdk\/(?:package\.json|src\/(?:host|package-storage|renderer-contributions)\.ts)$/u
+const hostSecurityBoundaryPath = /^src\/(?:main|preload|shared)\//u
+const hostCompositionPath = /^src\/renderer\/src\/domain-modules\//u
+const meetingLoopArtifactPath = /^(?:docs|infra|openspec)\/.*(?:collaboration|content-space|full-multi-user|identity-access|run0)/iu
+const meetingLoopPackageSegment = /(?:^|-)(?:collaboration|content-space|identity-access|opencontent|project-coordinator)(?:-|$)/u
 const testPath = /(?:^|\/)(?:__tests__|tests?|test-fixtures)(?:\/|$)|(?:^|\/)(?:test_[^/]+|[^/]+\.(?:test|spec))\.[^/]+$/iu
 const ownAuditFixturePath = /(?:^|\/)scripts\/(?:fixtures\/collaboration-secret-audit(?:\/|$)|collaboration-secret-audit\.test\.)/u
 const rendererPath = /(?:^|\/)src\/renderer(?:\/|$)/u
@@ -19,7 +21,6 @@ const receiptFilePath = /(?:^|\/)[^/]*(?:receipt|evidence|acceptance)[^/]*\.(?:[
 const safeMetadataSuffixes = [
   'configured',
   'digest',
-  'encrypted',
   'expiresat',
   'expiry',
   'fingerprint',
@@ -62,7 +63,19 @@ const processIoSinkName = /(?:^|\.)(?:stdin|stdout|stderr)\.(?:end|pipe|write)$/
 const receiptSinkName = /(?:^|\.)(?:append|emit|insert|publish|save|store|write|writeFile)[A-Za-z0-9_]*(?:Evidence|Receipt)|(?:^|\.)(?:append|insert|save|store|write)(?:Evidence|Receipt)[A-Za-z0-9_]*$/u
 const persistenceSinkName = /(?:^|\.)(?:appendFile|insert|persist|put|save|setItem|store|upsert|write|writeFile)$/u
 const securePersistenceName = /(?:credential|keychain|nativeSecret|safeStorage|secret)(?:File|Reader|Service|Store)?\.(?:put|save|set|store|write|writeFile)|(?:^|[.#])secrets\.(?:put|save|set|store|write|writeFile)$/iu
-const nonSecretTransformCallName = /(?:^|\.)(?:digest|encrypt|fingerprint|hash|mask|redact|sanitize|scrub|seal)(?:Credential|Secret|Token|Value)?s?$/iu
+const secretTransformCallName = /(?:^|\.)(?:digest|encrypt|fingerprint|hash|mask|redact|sanitize|scrub|seal)(?:Credential|Secret|Token|Value)?s?$/iu
+const nonSecretComparisonOperators = new Set([
+  ts.SyntaxKind.EqualsEqualsToken,
+  ts.SyntaxKind.ExclamationEqualsToken,
+  ts.SyntaxKind.EqualsEqualsEqualsToken,
+  ts.SyntaxKind.ExclamationEqualsEqualsToken,
+  ts.SyntaxKind.LessThanToken,
+  ts.SyntaxKind.LessThanEqualsToken,
+  ts.SyntaxKind.GreaterThanToken,
+  ts.SyntaxKind.GreaterThanEqualsToken,
+  ts.SyntaxKind.InKeyword,
+  ts.SyntaxKind.InstanceOfKeyword
+])
 
 function normalizePath(path) {
   return path.split(sep).join('/')
@@ -115,12 +128,12 @@ function isSecurePersistenceSink(name, file) {
  */
 function secretCategory(name, options = {}) {
   const normalized = normalizeName(name)
-  if (!normalized || normalized.includes('invalidtestonly') || normalized.includes('redacted') ||
-    normalized.includes('sanitized') || normalized.includes('masked')) return null
+  if (!normalized || normalized.includes('invalidtestonly')) return null
   if (isNonAuthorizingMetadata(normalized)) return null
-  if (normalized.startsWith('sealedcredential') || normalized.startsWith('encryptedcredential')) return null
 
   const materialName = normalized
+    .replace(/^(?:(?:encrypted|masked|redacted|sanitized|scrubbed|sealed))+/u, '')
+    .replace(/(?:(?:encrypted|masked|redacted|sanitized|scrubbed|sealed))+$/u, '')
     .replace(/^(?:plain|plaintext|raw)/u, '')
     .replace(/(?:buffer|bytes|material|payload|value)$/u, '')
     .replace(/(?:directory|file|handle|id|opaque|path|reference|ref)$/u, '')
@@ -175,14 +188,28 @@ function calleeName(expression, sourceFile) {
 
 function isSyntheticDeclaration(node) {
   const declarationName = nodeName(node.name)
-  return /invalid.*test.*only|redacted.*fixture/iu.test(declarationName)
+  return /invalid.*test.*only/iu.test(declarationName)
+}
+
+function isProvenNonSecretStructuralReplacement(node) {
+  let current = node
+  while (ts.isParenthesizedExpression(current) || ts.isAsExpression(current) ||
+    ts.isSatisfiesExpression(current) || ts.isNonNullExpression(current) ||
+    ts.isTypeAssertionExpression(current)) current = current.expression
+
+  if (ts.isBinaryExpression(current)) {
+    return nonSecretComparisonOperators.has(current.operatorToken.kind)
+  }
+  if (ts.isTypeOfExpression(current) || ts.isVoidExpression(current)) return true
+  if (ts.isPrefixUnaryExpression(current) && current.operator === ts.SyntaxKind.ExclamationToken) return true
+  return ts.isPropertyAccessExpression(current) && current.name.text === 'length'
 }
 
 function containsSensitiveExpression(node, sourceFile, taintedNames = new Map()) {
   let match = null
   function visit(current) {
     if (match) return
-    if (ts.isCallExpression(current) && nonSecretTransformCallName.test(calleeName(current.expression, sourceFile))) return
+    if (isProvenNonSecretStructuralReplacement(current)) return
     if (ts.isIdentifier(current) || ts.isPrivateIdentifier(current)) {
       const category = secretCategory(current.text)
       if (category) match = { node: current, category }
@@ -243,9 +270,10 @@ function isMaterialPreservingCall(node, sourceFile) {
 
 function aliasInitializerSecret(node, sourceFile, taintedNames) {
   const expression = unwrapAliasExpression(node)
+  if (isProvenNonSecretStructuralReplacement(expression)) return null
   if (ts.isCallExpression(expression)) {
-    if (nonSecretTransformCallName.test(calleeName(expression.expression, sourceFile))) return null
-    if (!isMaterialPreservingCall(expression, sourceFile)) return null
+    const name = calleeName(expression.expression, sourceFile)
+    if (!secretTransformCallName.test(name) && !isMaterialPreservingCall(expression, sourceFile)) return null
   } else if (ts.isNewExpression(expression)) {
     const constructorName = expression.expression.getText(sourceFile)
     if (!/^(?:Buffer|DataView|TextEncoder|Uint8Array)$/u.test(constructorName)) return null
@@ -397,6 +425,65 @@ function isStringSchema(node) {
   return false
 }
 
+function isEncryptedEnvelopeFieldSet(fields) {
+  return fields.has('algorithm') && fields.has('ciphertext') &&
+    (fields.has('iv') || fields.has('nonce')) &&
+    (fields.has('authenticationtag') || fields.has('authtag') || fields.has('tag'))
+}
+
+function provesEncryptedEnvelope(file, node, resolveReference, visited = new Set()) {
+  if (!node) return false
+  const key = `${file}:${node.pos}:${node.end}`
+  if (visited.has(key)) return false
+  visited.add(key)
+
+  if (ts.isParenthesizedTypeNode(node) || ts.isParenthesizedExpression(node) ||
+    ts.isAsExpression(node) || ts.isSatisfiesExpression(node) ||
+    ts.isNonNullExpression(node) || ts.isTypeAssertionExpression(node)) {
+    return provesEncryptedEnvelope(file, node.type ?? node.expression, resolveReference, visited)
+  }
+  if (ts.isPropertySignature(node) || ts.isPropertyDeclaration(node) || ts.isPropertyAssignment(node) ||
+    ts.isVariableDeclaration(node) || ts.isParameter(node) || ts.isTypeAliasDeclaration(node)) {
+    return provesEncryptedEnvelope(file, node.type ?? node.initializer, resolveReference, visited)
+  }
+  if (ts.isTypeLiteralNode(node) || ts.isObjectLiteralExpression(node)) {
+    const members = ts.isTypeLiteralNode(node) ? node.members : node.properties
+    const fields = new Set(members.map((member) => normalizeName(nodeName(member.name))).filter(Boolean))
+    return isEncryptedEnvelopeFieldSet(fields)
+  }
+  if (ts.isCallExpression(node)) {
+    const name = calleeName(node.expression, node.getSourceFile())
+    if (/(?:^|\.)object$/u.test(name) && node.arguments[0] &&
+      provesEncryptedEnvelope(file, node.arguments[0], resolveReference, visited)) return true
+    if (ts.isPropertyAccessExpression(node.expression) && ts.isCallExpression(node.expression.expression) &&
+      provesEncryptedEnvelope(file, node.expression.expression, resolveReference, visited)) return true
+    return node.typeArguments?.some((argument) =>
+      provesEncryptedEnvelope(file, argument, resolveReference, visited)) ?? false
+  }
+  if (ts.isTypeReferenceNode(node)) {
+    if (node.typeArguments?.some((argument) =>
+      provesEncryptedEnvelope(file, argument, resolveReference, visited))) return true
+    return resolveReference(file, node.typeName).some((target) =>
+      provesEncryptedEnvelope(target.file, target.declaration, resolveReference, visited))
+  }
+  if (ts.isTypeQueryNode(node)) {
+    return resolveReference(file, node.exprName).some((target) =>
+      provesEncryptedEnvelope(target.file, target.declaration, resolveReference, visited))
+  }
+  if (ts.isIdentifier(node) || ts.isQualifiedName(node) || ts.isPropertyAccessExpression(node)) {
+    const targets = resolveReference(file, node)
+    return targets.some((target) =>
+      provesEncryptedEnvelope(target.file, target.declaration, resolveReference, visited))
+  }
+  return false
+}
+
+function isProvenNonAuthorizingRepresentation(file, node, resolveReference) {
+  const normalized = normalizeName(nodeName(node.name))
+  if (!/^(?:encrypted|sealed)/u.test(normalized)) return false
+  return provesEncryptedEnvelope(file, node, resolveReference)
+}
+
 function publicSignatureChildren(node, visit) {
   if (ts.isFunctionLike(node)) {
     if (node.name) visit(node.name)
@@ -452,7 +539,9 @@ function scanPublicDeclaration(
       const category = secretCategory(nodeName(node.name), {
         headerContext: isAuthorizationHeaderProperty(node, sourceFile)
       })
-      if (category) addFinding(file, lineOf(sourceFile, node.name ?? node), `public-secret-${category}`)
+      if (category && !isProvenNonAuthorizingRepresentation(file, node, resolveReference)) {
+        addFinding(file, lineOf(sourceFile, node.name ?? node), `public-secret-${category}`)
+      }
     } else if (ts.isTypeReferenceNode(node) || ts.isExpressionWithTypeArguments(node)) {
       const reference = node.expression ?? node.typeName
       const category = secretCategory(reference.getText(sourceFile))
@@ -523,6 +612,39 @@ function sourceCandidateForExport(packageDirectory, target, fileSet) {
     candidates.push(`${sourceBase}.ts`, `${sourceBase}.tsx`, `${sourceBase}.js`, `${sourceBase}/index.ts`, `${sourceBase}/index.tsx`)
   }
   return candidates.find((candidate) => fileSet.has(candidate)) ?? null
+}
+
+function packageSourceEntrypoints(root, files, fileSet) {
+  const entrypoints = new Map()
+  for (const file of files.filter((candidate) => candidate === 'package.json' || candidate.endsWith('/package.json'))) {
+    let manifest
+    try {
+      manifest = JSON.parse(readFileSync(join(root, file), 'utf8'))
+    } catch {
+      continue
+    }
+    if (!manifest || typeof manifest.name !== 'string') continue
+    const packageDirectory = normalizePath(dirname(file)) === '.' ? '' : normalizePath(dirname(file))
+    const exportsValue = manifest.exports
+    const entries = []
+    if (exportsValue && typeof exportsValue === 'object' && !Array.isArray(exportsValue) &&
+      Object.keys(exportsValue).some((key) => key.startsWith('.'))) {
+      for (const [subpath, value] of Object.entries(exportsValue)) entries.push([subpath, value])
+    } else if (exportsValue) {
+      entries.push(['.', exportsValue])
+    } else {
+      entries.push(['.', [manifest.types, manifest.module, manifest.main].filter((value) => typeof value === 'string')])
+    }
+    for (const [subpath, value] of entries) {
+      const candidate = exportedTargetStrings(value)
+        .map((target) => sourceCandidateForExport(packageDirectory, target, fileSet))
+        .find(Boolean)
+      if (!candidate) continue
+      const specifier = subpath === '.' ? manifest.name : `${manifest.name}/${subpath.replace(/^\.\//u, '')}`
+      entrypoints.set(specifier, candidate)
+    }
+  }
+  return entrypoints
 }
 
 function allPackageExports() {
@@ -669,12 +791,19 @@ function addIndexedDeclaration(index, name, declaration) {
 
 function createPublicReferenceResolver(root, files, sources) {
   const fileSet = new Set(files)
+  const packageEntrypoints = packageSourceEntrypoints(root, files, fileSet)
   const declarationsByFile = new Map()
   const importsByFile = new Map()
+  const reExportsByFile = new Map()
+
+  const resolveModule = (fromFile, specifier) => (
+    resolveSourceModule(root, fromFile, specifier, fileSet) ?? packageEntrypoints.get(specifier) ?? null
+  )
 
   for (const [file, sourceFile] of sources) {
     const declarations = new Map()
     const imports = new Map()
+    const reExports = []
     for (const statement of sourceFile.statements) {
       if (ts.isVariableStatement(statement)) {
         for (const declaration of statement.declarationList.declarations) {
@@ -692,9 +821,28 @@ function createPublicReferenceResolver(root, files, sources) {
         }
       }
 
+      if (ts.isExportDeclaration(statement) && statement.moduleSpecifier &&
+        ts.isStringLiteralLike(statement.moduleSpecifier)) {
+        const targetFile = resolveModule(file, statement.moduleSpecifier.text)
+        if (targetFile) {
+          if (!statement.exportClause) {
+            reExports.push({ targetFile, allNamed: true })
+          } else if (ts.isNamedExports(statement.exportClause)) {
+            for (const element of statement.exportClause.elements) {
+              reExports.push({
+                targetFile,
+                allNamed: false,
+                exportedName: element.name.text,
+                targetName: (element.propertyName ?? element.name).text
+              })
+            }
+          }
+        }
+      }
+
       if (!ts.isImportDeclaration(statement) || !statement.importClause ||
         !ts.isStringLiteralLike(statement.moduleSpecifier)) continue
-      const targetFile = resolveSourceModule(root, file, statement.moduleSpecifier.text, fileSet)
+      const targetFile = resolveModule(file, statement.moduleSpecifier.text)
       if (!targetFile) continue
       if (statement.importClause.name) {
         imports.set(statement.importClause.name.text, { targetFile, targetName: 'default' })
@@ -713,13 +861,24 @@ function createPublicReferenceResolver(root, files, sources) {
     }
     declarationsByFile.set(file, declarations)
     importsByFile.set(file, imports)
+    reExportsByFile.set(file, reExports)
   }
 
-  const targets = (file, name) => (declarationsByFile.get(file)?.get(name) ?? []).map((declaration) => ({
-    file,
-    sourceFile: sources.get(file),
-    declaration
-  })).filter((target) => target.sourceFile)
+  const targets = (file, name, visited = new Set()) => {
+    const key = `${file}:${name}`
+    if (visited.has(key)) return []
+    visited.add(key)
+    const direct = (declarationsByFile.get(file)?.get(name) ?? []).map((declaration) => ({
+      file,
+      sourceFile: sources.get(file),
+      declaration
+    })).filter((target) => target.sourceFile)
+    const forwarded = (reExportsByFile.get(file) ?? []).flatMap((entry) => {
+      if (!entry.allNamed && entry.exportedName !== name) return []
+      return targets(entry.targetFile, entry.allNamed ? name : entry.targetName, visited)
+    })
+    return [...direct, ...forwarded]
+  }
 
   return (file, reference) => {
     if (ts.isIdentifier(reference)) {
@@ -743,7 +902,7 @@ function createPublicReferenceResolver(root, files, sources) {
   }
 }
 
-function scanBoundaryProperties(file, sourceFile, addFinding) {
+function scanBoundaryProperties(file, sourceFile, addFinding, resolveReference) {
   function visit(node) {
     if (ts.isPropertySignature(node) || ts.isPropertyDeclaration(node) || ts.isPropertyAssignment(node) ||
       ts.isShorthandPropertyAssignment(node) || ts.isParameter(node) || ts.isVariableDeclaration(node) ||
@@ -752,7 +911,9 @@ function scanBoundaryProperties(file, sourceFile, addFinding) {
       const category = secretCategory(name, {
         headerContext: isAuthorizationHeaderProperty(node, sourceFile)
       })
-      if (category) addFinding(file, lineOf(sourceFile, node.name ?? node), `boundary-secret-${category}`)
+      if (category && !isProvenNonAuthorizingRepresentation(file, node, resolveReference)) {
+        addFinding(file, lineOf(sourceFile, node.name ?? node), `boundary-secret-${category}`)
+      }
     }
     ts.forEachChild(node, visit)
   }
@@ -928,8 +1089,95 @@ function gitFiles(root) {
   }).split('\0').filter(Boolean).map(normalizePath).sort()
 }
 
-function isCollaborationScopeFile(file) {
-  return collaborationPath.test(file) || collaborationInfrastructurePath.test(file)
+function packageManifestRecords(root, files) {
+  const records = []
+  for (const file of files) {
+    if (file !== 'package.json' && !file.endsWith('/package.json')) continue
+    let manifest
+    try {
+      manifest = JSON.parse(readFileSync(join(root, file), 'utf8'))
+    } catch {
+      continue
+    }
+    if (!manifest || typeof manifest !== 'object') continue
+    const directory = normalizePath(dirname(file)) === '.' ? '' : normalizePath(dirname(file))
+    const dependencies = new Set()
+    for (const field of ['dependencies', 'optionalDependencies', 'peerDependencies']) {
+      const values = manifest[field]
+      if (!values || typeof values !== 'object') continue
+      for (const name of Object.keys(values)) dependencies.add(name)
+    }
+    records.push({
+      directory,
+      name: typeof manifest.name === 'string' ? manifest.name : '',
+      dependencies
+    })
+  }
+  return records
+}
+
+function isMeetingLoopPackage(record) {
+  if (record.directory === 'packages/domain-sdk') return true
+  const localName = record.name.split('/').at(-1) ?? ''
+  return meetingLoopPackageSegment.test(localName)
+}
+
+function fileWithinDirectory(file, directory) {
+  return directory ? file === directory || file.startsWith(`${directory}/`) : false
+}
+
+function hostComposedWorkerNames(root, candidateFiles) {
+  const names = new Set()
+  const importPattern = /(?:from\s+|import\s*(?:\(\s*)?|require\s*\(\s*)['"](@sciforge\/[^/'"]+)/gu
+  for (const file of candidateFiles) {
+    if (testPath.test(file) ||
+      (!hostSecurityBoundaryPath.test(file) && !hostCompositionPath.test(file))) continue
+    let source
+    try {
+      source = readFileSync(join(root, file), 'utf8')
+    } catch {
+      continue
+    }
+    for (const match of source.matchAll(importPattern)) names.add(match[1])
+  }
+  return names
+}
+
+function discoverMeetingLoopSecurityFiles(root, candidateFiles) {
+  const records = packageManifestRecords(root, candidateFiles)
+  const recordByName = new Map(records
+    .filter((record) => record.name)
+    .map((record) => [record.name, record]))
+  const selectedDirectories = new Set(records.filter(isMeetingLoopPackage).map((record) => record.directory))
+  const rootRecord = records.find((record) => record.directory === '')
+  for (const dependency of rootRecord?.dependencies ?? []) {
+    const target = recordByName.get(dependency)
+    if (target) selectedDirectories.add(target.directory)
+  }
+  for (const packageName of hostComposedWorkerNames(root, candidateFiles)) {
+    const target = recordByName.get(packageName)
+    if (target?.directory.startsWith('packages/workers/')) selectedDirectories.add(target.directory)
+  }
+
+  const queue = [...selectedDirectories]
+  while (queue.length > 0) {
+    const directory = queue.shift()
+    const record = records.find((candidate) => candidate.directory === directory)
+    if (!record) continue
+    for (const dependency of record.dependencies) {
+      const target = recordByName.get(dependency)
+      if (!target || selectedDirectories.has(target.directory)) continue
+      selectedDirectories.add(target.directory)
+      queue.push(target.directory)
+    }
+  }
+
+  return new Set(candidateFiles.filter((file) => (
+    hostSecurityBoundaryPath.test(file) ||
+    hostCompositionPath.test(file) ||
+    meetingLoopArtifactPath.test(file) ||
+    [...selectedDirectories].some((directory) => fileWithinDirectory(file, directory))
+  )))
 }
 
 export function auditRoot({
@@ -940,10 +1188,14 @@ export function auditRoot({
 } = {}) {
   const absoluteRoot = resolve(root)
   const candidateFiles = useGit ? gitFiles(absoluteRoot) : walkFiles(absoluteRoot)
+  const meetingLoopSecurityFiles = scanAll
+    ? null
+    : discoverMeetingLoopSecurityFiles(absoluteRoot, candidateFiles)
   const files = candidateFiles
     .filter((file) => file !== 'package-lock.json' && !file.startsWith('vendor/'))
     .filter((file) => includeOwnFixtures || !ownAuditFixturePath.test(file))
-    .filter((file) => scanAll || isCollaborationScopeFile(file))
+    .filter((file) => scanAll || !testPath.test(file))
+    .filter((file) => scanAll || meetingLoopSecurityFiles.has(file))
 
   const findings = []
   const findingKeys = new Set()
@@ -1004,8 +1256,8 @@ export function auditRoot({
         )
       }
     }
-    if (!testPath.test(file) && (boundaryFilePath.test(file) || rendererPath.test(file))) {
-      scanBoundaryProperties(file, sourceFile, addFinding)
+    if (!testPath.test(file) && (boundaryFilePath.test(file) || (scanAll && rendererPath.test(file)))) {
+      scanBoundaryProperties(file, sourceFile, addFinding, resolvePublicReference)
     }
     scanSinks(file, sourceFile, addFinding)
     scanLiteralAssignments(file, sourceFile, addFinding)
@@ -1013,7 +1265,7 @@ export function auditRoot({
 
   return {
     root: absoluteRoot,
-    scope: scanAll ? 'repository' : 'collaboration',
+    scope: scanAll ? 'repository' : 'meeting-loop-security-boundary',
     scannedFiles: contents.size,
     publicModules: [...publicModules.keys()].sort(),
     findings: findings.sort((left, right) => (
@@ -1024,13 +1276,16 @@ export function auditRoot({
 
 function printPolicy() {
   process.stdout.write(`SciForge collaboration secret-boundary audit\n\n`)
+  process.stdout.write(`The default gate discovers the production meeting-loop boundary from package manifests,\n`)
+  process.stdout.write(`root composition/imports, and internal dependencies; --all remains a repository diagnostic.\n`)
   process.stdout.write(`The audit resolves package export graphs and rejects secret-bearing fields in public APIs.\n`)
   process.stdout.write(`It also rejects secret-bearing values at IPC/message, log/telemetry, receipt/evidence,\n`)
   process.stdout.write(`and ordinary persistence sinks. Identity and Connector main-process code may hold and\n`)
   process.stdout.write(`use secrets internally, but it is not exempt from those outbound sinks. Native secret\n`)
-  process.stdout.write(`stores, sealed/encrypted credentials, digests, expiry metadata, and explicit synthetic test\n`)
+  process.stdout.write(`stores, structurally proven encrypted envelopes, digests, expiry metadata, and explicit synthetic test\n`)
   process.stdout.write(`values are non-secret representations. Opaque/handle/reference/ref/id naming is not an\n`)
   process.stdout.write(`exemption when possession authorizes an operation; bearer capability handles are secrets.\n`)
+  process.stdout.write(`Names such as redact, sanitize, mask, encrypt, or seal never clear secret taint by themselves.\n`)
   process.stdout.write(`Public cross-package ports that can read, write, return, or callback with raw secret values\n`)
   process.stdout.write(`are rejected even when both callers currently run in a trusted main process.\n`)
 }
