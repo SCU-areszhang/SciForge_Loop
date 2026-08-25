@@ -237,6 +237,37 @@ test('distinguishes an Authorization header from non-secret authorization facts'
   }])
 })
 
+test('proves literal discriminators and boolean action flags without blessing same-name material', (t) => {
+  const repo = fixture({
+    'packages/public-account/package.json': JSON.stringify({
+      name: '@fixture/public-account',
+      exports: './src/index.ts'
+    }),
+    'packages/public-account/src/index.ts': [
+      "export type Account = { type: 'apiKey' }",
+      'export type RefreshRequest = { refreshToken?: boolean }',
+      'export type LeakyKey = { apiKey: string }',
+      'export type LeakyToken = { refreshToken?: string }',
+      "export type LiteralLeak = { apiKey: 'apiKey' }"
+    ].join('\n')
+  })
+  t.after(repo.close)
+
+  assert.deepEqual(repo.audit().findings, [{
+    file: 'packages/public-account/src/index.ts',
+    line: 3,
+    kind: 'public-secret-provider-credential'
+  }, {
+    file: 'packages/public-account/src/index.ts',
+    line: 4,
+    kind: 'public-secret-token'
+  }, {
+    file: 'packages/public-account/src/index.ts',
+    line: 5,
+    kind: 'public-secret-provider-credential'
+  }])
+})
+
 test('rejects renaming a credential to generic byte material', (t) => {
   const repo = fixture({
     'packages/public-enrollment/package.json': JSON.stringify({

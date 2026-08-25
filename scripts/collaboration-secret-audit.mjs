@@ -431,6 +431,30 @@ function isEncryptedEnvelopeFieldSet(fields) {
     (fields.has('authenticationtag') || fields.has('authtag') || fields.has('tag'))
 }
 
+function provesBooleanValue(node) {
+  if (!node) return false
+  if (node.kind === ts.SyntaxKind.BooleanKeyword || node.kind === ts.SyntaxKind.TrueKeyword ||
+    node.kind === ts.SyntaxKind.FalseKeyword) return true
+  if (ts.isLiteralTypeNode(node)) return provesBooleanValue(node.literal)
+  if (ts.isParenthesizedTypeNode(node) || ts.isParenthesizedExpression(node) ||
+    ts.isAsExpression(node) || ts.isSatisfiesExpression(node) ||
+    ts.isNonNullExpression(node) || ts.isTypeAssertionExpression(node)) {
+    return provesBooleanValue(node.type ?? node.expression)
+  }
+  if (!ts.isCallExpression(node)) return false
+  const name = calleeName(node.expression, node.getSourceFile())
+  if (/(?:^|\.)boolean$/u.test(name)) return true
+  return ts.isPropertyAccessExpression(node.expression) && ts.isCallExpression(node.expression.expression) &&
+    provesBooleanValue(node.expression.expression)
+}
+
+function isStringLiteralDiscriminator(node) {
+  if (!ts.isLiteralTypeNode(node) || !ts.isStringLiteralLike(node.literal)) return false
+  const parent = node.parent
+  return (ts.isPropertySignature(parent) || ts.isPropertyDeclaration(parent)) &&
+    normalizeName(nodeName(parent.name)) === 'type'
+}
+
 function provesEncryptedEnvelope(file, node, resolveReference, visited = new Set()) {
   if (!node) return false
   const key = `${file}:${node.pos}:${node.end}`
@@ -479,6 +503,7 @@ function provesEncryptedEnvelope(file, node, resolveReference, visited = new Set
 }
 
 function isProvenNonAuthorizingRepresentation(file, node, resolveReference) {
+  if (provesBooleanValue(node.type ?? node.initializer)) return true
   const normalized = normalizeName(nodeName(node.name))
   if (!/^(?:encrypted|sealed)/u.test(normalized)) return false
   return provesEncryptedEnvelope(file, node, resolveReference)
@@ -561,7 +586,9 @@ function scanPublicDeclaration(
       }
     } else if (ts.isLiteralTypeNode(node) && ts.isStringLiteralLike(node.literal)) {
       const category = secretCategory(node.literal.text)
-      if (category) addFinding(file, lineOf(sourceFile, node.literal), `public-secret-${category}`)
+      if (category && !isStringLiteralDiscriminator(node)) {
+        addFinding(file, lineOf(sourceFile, node.literal), `public-secret-${category}`)
+      }
     }
     publicSignatureChildren(node, visit)
   }
