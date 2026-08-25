@@ -101,18 +101,53 @@ describe('research search service', () => {
     assert.equal(papers[0]?.url, 'https://europepmc.org/article/MED/41287933');
   });
 
-  it('reads provider toggles from environment', () => {
+  it('reads only non-secret provider policy from environment', () => {
     const config = researchSearchConfigFromEnv({
       SCIFORGE_RESEARCH_ARXIV_ENABLED: 'false',
-      SCIFORGE_RESEARCH_TAVILY_API_KEY: 'tvly-key',
+      SCIFORGE_RESEARCH_TAVILY_ENABLED: 'true',
       SCIFORGE_RESEARCH_MAX_RESULTS: '7'
     });
 
-    assert.equal(config.arxivEnabled, false);
-    assert.equal(config.europePmcEnabled, true);
-    assert.equal(config.tavilyEnabled, true);
-    assert.equal(config.cnsEnabled, true);
-    assert.equal(config.maxResults, 7);
+    assert.deepEqual(config, {
+      arxivEnabled: false,
+      biorxivEnabled: true,
+      europePmcEnabled: true,
+      semanticScholarEnabled: true,
+      tavilyEnabled: true,
+      cnsEnabled: false,
+      cnsDomains: ['nature.com', 'science.org', 'cell.com'],
+      defaultSinceYear: undefined,
+      maxResults: 7,
+      timeoutMs: 15_000
+    });
+  });
+
+  it('fails closed when authenticated web search has no private connector', async () => {
+    const service = createResearchSearchService({
+      arxivEnabled: false,
+      biorxivEnabled: false,
+      europePmcEnabled: false,
+      semanticScholarEnabled: false,
+      tavilyEnabled: true,
+      cnsEnabled: false,
+      cnsDomains: [],
+      maxResults: 5,
+      timeoutMs: 1000
+    });
+
+    await assert.rejects(
+      service.search({ query: 'private web evidence', sources: ['web'] }),
+      /no requested research sources are enabled: web/
+    );
+    assert.deepEqual(
+      service.configuredDiagnostics().find(({ id }) => id === 'tavily'),
+      {
+        id: 'tavily',
+        enabled: true,
+        available: false,
+        reason: 'Authenticated search connector is unavailable'
+      }
+    );
   });
 
   it('searches selected sources and merges duplicate papers', async () => {
@@ -121,9 +156,7 @@ describe('research search service', () => {
       biorxivEnabled: false,
       europePmcEnabled: true,
       semanticScholarEnabled: true,
-      semanticScholarApiKey: '',
       tavilyEnabled: true,
-      tavilyApiKey: 'key',
       cnsEnabled: false,
       cnsDomains: [],
       maxResults: 5,

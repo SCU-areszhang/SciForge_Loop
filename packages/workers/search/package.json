@@ -1,6 +1,6 @@
 {
   "name": "@sciforge/search",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "license": "MIT",
   "type": "module",
   "private": false,
@@ -31,7 +31,7 @@
   ],
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "start": "node --env-file-if-exists=.env --import tsx src/cli.ts",
+    "start": "node --import tsx src/cli.ts",
     "test": "node --import tsx --test \"src/**/*.test.ts\""
   },
   "dependencies": {

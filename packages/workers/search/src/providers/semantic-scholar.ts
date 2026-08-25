@@ -22,8 +22,6 @@ const S2_FIELDS = [
 export class SemanticScholarResearchProvider implements ResearchSearchProvider {
   readonly id = 'semantic_scholar' as const;
 
-  constructor(private readonly apiKey = '') {}
-
   async search(request: ResearchSearchRequest): Promise<ResearchSearchProviderResult> {
     const url = new URL(S2_SEARCH_URL);
     url.searchParams.set('query', request.query);
@@ -31,7 +29,9 @@ export class SemanticScholarResearchProvider implements ResearchSearchProvider {
     url.searchParams.set('fields', S2_FIELDS);
     if (request.sinceYear) url.searchParams.set('year', `${request.sinceYear}-`);
     try {
-      const json = await fetchJson(url.href, request.timeoutMs, request.signal, { headers: this.headers() });
+      const json = await fetchJson(url.href, request.timeoutMs, request.signal, {
+        headers: { Accept: 'application/json' }
+      });
       const papers = parseSemanticScholarPapers(json);
       return {
         papers,
@@ -55,12 +55,6 @@ export class SemanticScholarResearchProvider implements ResearchSearchProvider {
         }]
       };
     }
-  }
-
-  private headers(): Record<string, string> {
-    return this.apiKey.trim()
-      ? { Accept: 'application/json', 'x-api-key': this.apiKey.trim() }
-      : { Accept: 'application/json' };
   }
 }
 

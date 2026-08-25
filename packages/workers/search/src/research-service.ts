@@ -2,7 +2,6 @@ import { ArxivResearchProvider } from './providers/arxiv.js';
 import { BiorxivResearchProvider } from './providers/biorxiv.js';
 import { EuropePmcResearchProvider } from './providers/europe-pmc.js';
 import { SemanticScholarResearchProvider } from './providers/semantic-scholar.js';
-import { TavilyResearchProvider } from './providers/tavily.js';
 import {
   buildInitialGaps,
   buildSuggestedFollowups,
@@ -138,17 +137,13 @@ export function createResearchSearchService(
 }
 
 export function researchSearchConfigFromEnv(env: Record<string, string | undefined> = process.env): ResearchSearchConfig {
-  const tavilyApiKey = stringEnv(env, 'SCIFORGE_RESEARCH_TAVILY_API_KEY') || stringEnv(env, 'TAVILY_API_KEY');
-  const semanticScholarApiKey = stringEnv(env, 'SCIFORGE_RESEARCH_SEMANTIC_SCHOLAR_API_KEY');
   return {
     arxivEnabled: booleanEnv(env, 'SCIFORGE_RESEARCH_ARXIV_ENABLED', true),
     biorxivEnabled: booleanEnv(env, 'SCIFORGE_RESEARCH_BIORXIV_ENABLED', true),
     europePmcEnabled: booleanEnv(env, 'SCIFORGE_RESEARCH_EUROPE_PMC_ENABLED', true),
     semanticScholarEnabled: booleanEnv(env, 'SCIFORGE_RESEARCH_SEMANTIC_SCHOLAR_ENABLED', true),
-    semanticScholarApiKey,
-    tavilyEnabled: booleanEnv(env, 'SCIFORGE_RESEARCH_TAVILY_ENABLED', Boolean(tavilyApiKey)),
-    tavilyApiKey,
-    cnsEnabled: booleanEnv(env, 'SCIFORGE_RESEARCH_CNS_ENABLED', Boolean(tavilyApiKey)),
+    tavilyEnabled: booleanEnv(env, 'SCIFORGE_RESEARCH_TAVILY_ENABLED', false),
+    cnsEnabled: booleanEnv(env, 'SCIFORGE_RESEARCH_CNS_ENABLED', false),
     cnsDomains: listEnv(env, 'SCIFORGE_RESEARCH_CNS_DOMAINS', DEFAULT_CNS_DOMAINS),
     defaultSinceYear: numberEnv(env, 'SCIFORGE_RESEARCH_DEFAULT_SINCE_YEAR'),
     maxResults: boundedInt(numberEnv(env, 'SCIFORGE_RESEARCH_MAX_RESULTS'), DEFAULT_MAX_RESULTS, 1, 50),
@@ -172,20 +167,16 @@ function buildProviderEntries(
   if (config.semanticScholarEnabled) {
     entries.push({
       source: 'semantic_scholar',
-      provider: providers.semantic_scholar ?? new SemanticScholarResearchProvider(config.semanticScholarApiKey)
+      provider: providers.semantic_scholar ?? new SemanticScholarResearchProvider()
     });
   }
-  if (config.tavilyEnabled) {
-    entries.push({ source: 'web', provider: providers.tavily ?? new TavilyResearchProvider(config.tavilyApiKey) });
+  if (config.tavilyEnabled && providers.tavily) {
+    entries.push({ source: 'web', provider: providers.tavily });
   }
-  if (config.cnsEnabled) {
+  if (config.cnsEnabled && providers.cns) {
     entries.push({
       source: 'cns',
-      provider: providers.cns ?? new TavilyResearchProvider(config.tavilyApiKey, {
-        id: 'cns',
-        includeDomains: config.cnsDomains,
-        resultSource: 'cns'
-      })
+      provider: providers.cns
     });
   }
   return entries;
@@ -216,15 +207,15 @@ function configuredDiagnostics(config: ResearchSearchConfig): ResearchProviderDi
     {
       id: 'tavily',
       enabled: config.tavilyEnabled,
-      available: config.tavilyEnabled && Boolean(config.tavilyApiKey.trim()),
-      ...(config.tavilyEnabled && !config.tavilyApiKey.trim() ? { reason: 'Tavily API key is required' } : {})
+      available: false,
+      ...(config.tavilyEnabled ? { reason: 'Authenticated search connector is unavailable' } : {})
     },
     {
       id: 'cns',
       enabled: config.cnsEnabled,
-      available: config.cnsEnabled && Boolean(config.tavilyApiKey.trim()),
-      ...(config.cnsEnabled && !config.tavilyApiKey.trim()
-        ? { reason: 'Tavily API key is required for CNS official-site search' }
+      available: false,
+      ...(config.cnsEnabled
+        ? { reason: 'Authenticated search connector is unavailable for CNS official-site search' }
         : {})
     }
   ];
@@ -289,10 +280,6 @@ function boundedYear(value: unknown, fallback: number | undefined): number | und
   const year = typeof value === 'number' && Number.isFinite(value) ? Math.floor(value) : fallback;
   if (!year) return undefined;
   return Math.min(3000, Math.max(1991, year));
-}
-
-function stringEnv(env: Record<string, string | undefined>, name: string): string {
-  return env[name]?.trim() ?? '';
 }
 
 function booleanEnv(env: Record<string, string | undefined>, name: string, fallback: boolean): boolean {

@@ -19,15 +19,18 @@ Environment variables:
 - `SCIFORGE_RESEARCH_ARXIV_ENABLED`: default `true`
 - `SCIFORGE_RESEARCH_BIORXIV_ENABLED`: default `true`
 - `SCIFORGE_RESEARCH_EUROPE_PMC_ENABLED`: default `true`
-- `SCIFORGE_RESEARCH_SEMANTIC_SCHOLAR_ENABLED`: default `true`
-- `SCIFORGE_RESEARCH_SEMANTIC_SCHOLAR_API_KEY`: optional
-- `SCIFORGE_RESEARCH_TAVILY_ENABLED`: default `true` when a Tavily key is present
-- `SCIFORGE_RESEARCH_TAVILY_API_KEY` or `TAVILY_API_KEY`: optional, required for Tavily and CNS web search
-- `SCIFORGE_RESEARCH_CNS_ENABLED`: default `true` when a Tavily key is present
+- `SCIFORGE_RESEARCH_SEMANTIC_SCHOLAR_ENABLED`: default `true`; uses the anonymous API path
+- `SCIFORGE_RESEARCH_TAVILY_ENABLED`: default `false`
+- `SCIFORGE_RESEARCH_CNS_ENABLED`: default `false`
 - `SCIFORGE_RESEARCH_CNS_DOMAINS`: comma-separated domains, default `nature.com,science.org,cell.com`
 - `SCIFORGE_RESEARCH_MAX_RESULTS`: default `10`
 - `SCIFORGE_RESEARCH_TIMEOUT_MS`: default `15000`
 - `SCIFORGE_RESEARCH_DEFAULT_SINCE_YEAR`: optional
+
+The worker never reads provider credentials from environment variables, argv, MCP configuration,
+logs, or receipts. Authenticated web and CNS search require a separately composed Host-private
+provider connector. No generic connector is currently installed, so explicitly requesting either
+source fails closed while the anonymous scientific sources remain available.
 
 Example MCP config:
 

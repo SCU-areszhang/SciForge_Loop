@@ -79,9 +79,7 @@ export type ResearchSearchConfig = {
   biorxivEnabled: boolean;
   europePmcEnabled: boolean;
   semanticScholarEnabled: boolean;
-  semanticScholarApiKey: string;
   tavilyEnabled: boolean;
-  tavilyApiKey: string;
   cnsEnabled: boolean;
   cnsDomains: string[];
   defaultSinceYear?: number;

@@ -17,7 +17,7 @@ test('research search worker diagnostics expose standard shape', () => {
   const diagnostics = researchSearchWorkerDiagnosticsFromProviders([
     { id: 'arxiv', enabled: true, available: true },
     { id: 'biorxiv', enabled: false, available: false },
-    { id: 'tavily', enabled: true, available: false, reason: 'Tavily API key is required' }
+    { id: 'tavily', enabled: true, available: false, reason: 'Authenticated search connector is unavailable' }
   ]);
 
   assert.equal(diagnostics.version, RESEARCH_SEARCH_WORKER_VERSION);
@@ -35,10 +35,9 @@ test('research search worker diagnostics record recent service errors', async ()
   const worker = createResearchSearchWorkerService({
     arxivEnabled: true,
     biorxivEnabled: false,
+    europePmcEnabled: false,
     semanticScholarEnabled: false,
-    semanticScholarApiKey: '',
     tavilyEnabled: false,
-    tavilyApiKey: '',
     cnsEnabled: false,
     cnsDomains: [],
     maxResults: 5,
@@ -73,11 +72,13 @@ test('package metadata declares search worker exports and MCP capability', async
   const metadata = JSON.parse(
     await readFile(new URL('../package.json', import.meta.url), 'utf8')
   ) as {
+    version: string;
     exports: Record<string, string>;
     sciforge: Record<string, unknown>;
   };
 
   assert.equal(metadata.sciforge.lifecycleLayer, 'workers');
+  assert.equal(metadata.version, RESEARCH_SEARCH_WORKER_VERSION);
   assert.equal(metadata.sciforge.publicContract, true);
   assert.equal(metadata.sciforge.runtimeAdapter, false);
   assert.equal(metadata.sciforge.mcpServer, true);

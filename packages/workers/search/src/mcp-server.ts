@@ -6,6 +6,7 @@ import {
   createResearchSearchWorkerService,
   researchSearchWorkerDiagnosticsFromProviders
 } from './service.js';
+import { RESEARCH_SEARCH_WORKER_VERSION } from './contract.js';
 import type { ResearchSearchService } from './research-service.js';
 import type { ResearchSearchWorkerDiagnostics } from './contract.js';
 import type { ResearchDomain, ResearchIntent, ResearchSourceKind } from './types.js';
@@ -27,7 +28,7 @@ export function createResearchSearchMcpServer(
   service: ResearchSearchMcpService = createResearchSearchWorkerService()
 ): McpServer {
   const server = new McpServer(
-    { name: 'sciforge-research-search', version: '0.1.0' },
+    { name: 'sciforge-research-search', version: RESEARCH_SEARCH_WORKER_VERSION },
     { capabilities: { logging: {} } }
   );
 
