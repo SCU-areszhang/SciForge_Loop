@@ -284,7 +284,6 @@ function assertResolvedLocator(
 
 const BIND_COMMAND = /^\/bind (\S+)$/u
 const BIND_COMMAND_PREFIX = /^\/bind(?:\s|$)/u
-const HUMAN_ANSWER_COMMAND = /^sciforge-answer (hrq_[A-Za-z0-9]{12,64}) ([1-9][0-9]{0,15}) ([\s\S]+)$/u
 const REMOTE_APPROVAL_COMMAND = /^([12])\s+(AP1-[A-Z2-9]{20})$/iu
 
 function bindPairingResponse(text: string): { challengeId: string; challengeResponse: string } | null {
@@ -295,21 +294,6 @@ function bindPairingResponse(text: string): { challengeId: string; challengeResp
   } catch {
     return null
   }
-}
-
-function humanAnswerResponse(text: string): {
-  humanRequestId: string
-  requestRevision: number
-  answer: string
-} | null {
-  const match = HUMAN_ANSWER_COMMAND.exec(text)
-  if (!match) return null
-  const requestRevision = Number(match[2])
-  const answer = match[3]!.trim()
-  if (!Number.isSafeInteger(requestRevision) || requestRevision < 1 || !answer || answer.length > 32_000) {
-    return null
-  }
-  return { humanRequestId: match[1]!, requestRevision, answer }
 }
 
 function remoteApprovalResponse(text: string): {
@@ -1356,35 +1340,6 @@ export class ZulipHumanEndpointProvider implements HumanEndpointProvider {
     const topic = (message.topic ?? message.subject ?? '').trim()
     if (!remoteMessageId || !senderId || !streamId || !topic) {
       throw new ZulipProviderError('invalid_payload', 'Zulip stream message lacks a stable identity or locator.')
-    }
-    const answer = humanAnswerResponse(text)
-    if (answer) {
-      const locator = await this.resolveLocatorAt({
-        provider: 'zulip',
-        realmId: this.realmId,
-        containerId: streamId,
-        topicDisplayName: topic
-      }, locatorOverlay)
-      return providerEventSchema.parse({
-        protocolVersion: CURRENT_PROTOCOL_VERSION,
-        provider: 'zulip',
-        type: 'provider.human_answer.responded',
-        eventId,
-        eventCursor,
-        occurredAt: canonicalOccurredAt(message, receivedAt),
-        identity: {
-          type: 'provider_identity',
-          provider: 'zulip',
-          realmId: this.realmId,
-          providerUserId: senderId,
-          displayName: message.sender_full_name.trim().slice(0, 200)
-        },
-        locator,
-        providerMessageId: remoteMessageId,
-        humanRequestId: answer.humanRequestId,
-        requestRevision: answer.requestRevision,
-        answer: answer.answer
-      })
     }
     const approval = remoteApprovalResponse(text)
     if (approval) {
