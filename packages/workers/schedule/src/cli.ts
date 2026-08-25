@@ -9,7 +9,6 @@ if (!quiet) {
 
 await startScheduleMcpServer(createScheduleService({
   baseUrl: parseArgValue(process.argv, '--base-url'),
-  secret: parseArgValue(process.argv, '--secret'),
   timeoutMs: parseOptionalNumberArg(process.argv, '--timeout-ms')
 }))
 

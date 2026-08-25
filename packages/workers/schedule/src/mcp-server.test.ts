@@ -36,6 +36,8 @@ test('schedule MCP stdio server lists tools, resources, and structured results',
       writeJson(res, 200, {
         internalServerRunning: true,
         internalUrl: fakeServer.baseUrl,
+        internalAuthorityConfigured: true,
+        internalAuthorityDigest: `sha256:${'a'.repeat(64)}`,
         runningTaskIds: ['task-stdio'],
         powerSaveBlockerActive: true
       })
@@ -49,7 +51,8 @@ test('schedule MCP stdio server lists tools, resources, and structured results',
     clients.push(client)
     await client.connect(new StdioClientTransport({
       command: process.execPath,
-      args: ['--import', 'tsx', 'src/cli.ts', '--quiet', '--base-url', fakeServer.baseUrl, '--secret', 'test-secret'],
+      args: ['--import', 'tsx', 'src/cli.ts', '--quiet', '--base-url', fakeServer.baseUrl],
+      env: { GUI_SCHEDULE_INTERNAL_SECRET: 'synthetic-schedule-authority' },
       cwd: packageRoot,
       stderr: 'pipe'
     }), { timeout: 20_000 })
@@ -101,6 +104,8 @@ test('schedule MCP stdio server lists tools, resources, and structured results',
     }, { timeout: 20_000 })
     const statusJson = JSON.parse(asRecord(statusResource.contents[0]).text as string) as Record<string, unknown>
     assert.equal(asRecord(statusJson.status).powerSaveBlockerActive, true)
+    assert.equal(asRecord(statusJson.status).internalAuthorityConfigured, true)
+    assert.equal(asRecord(statusJson.status).internalAuthorityDigest, `sha256:${'a'.repeat(64)}`)
   } finally {
     await fakeServer.close()
   }
@@ -124,7 +129,8 @@ test('schedule MCP destructive tools support preview and structured confirmation
     clients.push(client)
     await client.connect(new StdioClientTransport({
       command: process.execPath,
-      args: ['--import', 'tsx', 'src/cli.ts', '--quiet', '--base-url', fakeServer.baseUrl, '--secret', 'test-secret'],
+      args: ['--import', 'tsx', 'src/cli.ts', '--quiet', '--base-url', fakeServer.baseUrl],
+      env: { GUI_SCHEDULE_INTERNAL_SECRET: 'synthetic-schedule-authority' },
       cwd: packageRoot,
       stderr: 'pipe'
     }), { timeout: 20_000 })
@@ -238,7 +244,8 @@ test('schedule MCP stdio server maps write tools to internal HTTP endpoints', as
     clients.push(client)
     await client.connect(new StdioClientTransport({
       command: process.execPath,
-      args: ['--import', 'tsx', 'src/cli.ts', '--quiet', '--base-url', fakeServer.baseUrl, '--secret', 'test-secret'],
+      args: ['--import', 'tsx', 'src/cli.ts', '--quiet', '--base-url', fakeServer.baseUrl],
+      env: { GUI_SCHEDULE_INTERNAL_SECRET: 'synthetic-schedule-authority' },
       cwd: packageRoot,
       stderr: 'pipe'
     }), { timeout: 20_000 })

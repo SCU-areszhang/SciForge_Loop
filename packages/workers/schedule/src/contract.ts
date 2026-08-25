@@ -123,6 +123,8 @@ export const scheduledTaskSchema = z.object({
 export const scheduleRuntimeStatusSchema = z.object({
   internalServerRunning: z.boolean(),
   internalUrl: z.string(),
+  internalAuthorityConfigured: z.boolean(),
+  internalAuthorityDigest: z.string().regex(/^sha256:[a-f0-9]{64}$/),
   runningTaskIds: z.array(z.string()),
   powerSaveBlockerActive: z.boolean()
 }).passthrough()

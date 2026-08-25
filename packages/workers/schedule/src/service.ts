@@ -38,14 +38,14 @@ import {
   mcpWriteRedactedInput
 } from './write-action.js'
 
-export type ScheduleFetchResponse = {
+type ScheduleFetchResponse = {
   ok: boolean
   status: number
   statusText?: string
   text(): Promise<string>
 }
 
-export type ScheduleFetch = (
+type ScheduleFetch = (
   input: string,
   init: {
     method: 'POST'
@@ -65,9 +65,7 @@ export type ScheduleInternalHttpClient = {
 
 export type ScheduleInternalHttpClientOptions = {
   baseUrl?: string
-  secret?: string
   timeoutMs?: number
-  fetch?: ScheduleFetch
 }
 
 export type ScheduleServiceOptions = ScheduleInternalHttpClientOptions & {
@@ -154,17 +152,17 @@ export type ScheduleDeleteToolResult = ScheduleDeleteResult | ScheduleDryRunResu
 export type ScheduleRunToolResult = ScheduleRunResult | ScheduleDryRunResult
 export type ScheduleDetectFromTextResult = ScheduleTaskFromTextResult | ScheduleDryRunResult
 
-export class ScheduleHttpClient implements ScheduleInternalHttpClient {
+class ScheduleHttpClient implements ScheduleInternalHttpClient {
   private readonly baseUrl: string
-  private readonly secret: string
+  private readonly authority: string
   private readonly timeoutMs: number
   private readonly fetchImpl: ScheduleFetch
 
   constructor(options: ScheduleInternalHttpClientOptions = {}) {
     this.baseUrl = normalizeBaseUrl(options.baseUrl ?? scheduleBaseUrlFromEnv())
-    this.secret = (options.secret ?? scheduleSecretFromEnv()).trim()
+    this.authority = scheduleAuthorityFromEnv()
     this.timeoutMs = normalizeTimeoutMs(options.timeoutMs ?? scheduleTimeoutMsFromEnv())
-    this.fetchImpl = options.fetch ?? defaultFetch()
+    this.fetchImpl = defaultFetch()
   }
 
   async postJson(
@@ -178,15 +176,15 @@ export class ScheduleHttpClient implements ScheduleInternalHttpClient {
       Accept: 'application/json',
       'Content-Type': 'application/json'
     }
-    if (!this.secret) {
+    if (!this.authority) {
       throw new ScheduleWorkerError({
         code: 'unauthorized',
-        reason: 'Schedule internal secret is not configured.',
+        reason: 'Schedule internal authority is not configured.',
         retryable: false,
         suggestion: 'Restart SciForge so the managed schedule MCP worker receives GUI_SCHEDULE_INTERNAL_SECRET.'
       })
     }
-    headers.Authorization = `Bearer ${this.secret}`
+    headers.Authorization = `Bearer ${this.authority}`
 
     const requestSignal = createRequestSignal(options.signal, this.timeoutMs)
     try {
@@ -978,7 +976,7 @@ function errorCodeForHttpStatus(status: number): ScheduleErrorCode {
 
 function suggestionForHttpStatus(status: number): string {
   if (status === 400 || status === 422) return 'Check the tool arguments and retry with valid schedule fields.'
-  if (status === 401 || status === 403) return 'Check the schedule internal secret passed to the worker.'
+  if (status === 401 || status === 403) return 'Restart the managed Schedule runtime to renew its internal authority.'
   if (status === 404) return 'Check the task id or endpoint path against the running SciForge app.'
   if (status === 408 || status === 429 || status >= 500) return 'Retry after the SciForge app schedule runtime is healthy.'
   return 'Check the SciForge app schedule internal server response.'
@@ -1063,12 +1061,8 @@ function scheduleBaseUrlFromEnv(): string {
   )
 }
 
-function scheduleSecretFromEnv(): string {
-  return (
-    process.env.SCIFORGE_SCHEDULE_INTERNAL_SECRET?.trim() ||
-    process.env.GUI_SCHEDULE_INTERNAL_SECRET?.trim() ||
-    ''
-  )
+function scheduleAuthorityFromEnv(): string {
+  return process.env.GUI_SCHEDULE_INTERNAL_SECRET?.trim() || ''
 }
 
 function scheduleTimeoutMsFromEnv(): number {

@@ -18,6 +18,8 @@ import {
 } from './service.js'
 
 test('service reads tasks through a real fake internal HTTP server', async () => {
+  const previousSecret = process.env.GUI_SCHEDULE_INTERNAL_SECRET
+  process.env.GUI_SCHEDULE_INTERNAL_SECRET = 'synthetic-schedule-authority'
   const requests: Array<{ path: string; auth: string; body: unknown }> = []
   const server = await listenFakeServer(async (req, res) => {
     const body = await readJsonBody(req)
@@ -32,7 +34,6 @@ test('service reads tasks through a real fake internal HTTP server', async () =>
   try {
     const service = new ScheduleService({
       baseUrl: server.baseUrl,
-      secret: 'test-secret',
       timeoutMs: 5_000
     })
     const result = await service.list()
@@ -41,18 +42,23 @@ test('service reads tasks through a real fake internal HTTP server', async () =>
     assert.equal(result.tasks[0]?.id, 'task-1')
     assert.deepEqual(requests, [{
       path: SCHEDULE_INTERNAL_ENDPOINTS.list,
-      auth: 'Bearer test-secret',
+      auth: 'Bearer synthetic-schedule-authority',
       body: {}
     }])
     assert.deepEqual(service.getAuditEvents(), [])
   } finally {
+    if (previousSecret === undefined) {
+      delete process.env.GUI_SCHEDULE_INTERNAL_SECRET
+    } else {
+      process.env.GUI_SCHEDULE_INTERNAL_SECRET = previousSecret
+    }
     await server.close()
   }
 })
 
-test('service reads internal secret from the GUI schedule environment fallback', async () => {
+test('service reads internal authority from the managed GUI schedule environment', async () => {
   const previousSecret = process.env.GUI_SCHEDULE_INTERNAL_SECRET
-  process.env.GUI_SCHEDULE_INTERNAL_SECRET = 'env-secret'
+  process.env.GUI_SCHEDULE_INTERNAL_SECRET = 'synthetic-schedule-authority'
   const requests: Array<{ auth: string }> = []
   const server = await listenFakeServer(async (req, res) => {
     requests.push({ auth: req.headers.authorization ?? '' })
@@ -67,7 +73,70 @@ test('service reads internal secret from the GUI schedule environment fallback',
     const result = await service.list()
 
     assert.equal(result.count, 0)
-    assert.deepEqual(requests, [{ auth: 'Bearer env-secret' }])
+    assert.deepEqual(requests, [{ auth: 'Bearer synthetic-schedule-authority' }])
+  } finally {
+    if (previousSecret === undefined) {
+      delete process.env.GUI_SCHEDULE_INTERNAL_SECRET
+    } else {
+      process.env.GUI_SCHEDULE_INTERNAL_SECRET = previousSecret
+    }
+    await server.close()
+  }
+})
+
+test('service ignores caller-supplied raw authority and fails closed without managed runtime enrollment', async () => {
+  const previousSecret = process.env.GUI_SCHEDULE_INTERNAL_SECRET
+  delete process.env.GUI_SCHEDULE_INTERNAL_SECRET
+  let requestCount = 0
+  const server = await listenFakeServer(async (_req, res) => {
+    requestCount += 1
+    writeJson(res, 200, { ok: true, tasks: [] })
+  })
+
+  try {
+    const service = new ScheduleService({
+      baseUrl: server.baseUrl,
+      secret: 'caller-supplied-authority',
+      timeoutMs: 5_000
+    } as never)
+
+    await assert.rejects(
+      () => service.list(),
+      (error) => error instanceof ScheduleWorkerError && error.code === 'unauthorized'
+    )
+    assert.equal(requestCount, 0)
+  } finally {
+    if (previousSecret === undefined) {
+      delete process.env.GUI_SCHEDULE_INTERNAL_SECRET
+    } else {
+      process.env.GUI_SCHEDULE_INTERNAL_SECRET = previousSecret
+    }
+    await server.close()
+  }
+})
+
+test('service does not expose managed authority to a caller-supplied transport callback', async () => {
+  const previousSecret = process.env.GUI_SCHEDULE_INTERNAL_SECRET
+  process.env.GUI_SCHEDULE_INTERNAL_SECRET = 'synthetic-schedule-authority'
+  let serverRequestCount = 0
+  let injectedFetchCount = 0
+  const server = await listenFakeServer(async (_req, res) => {
+    serverRequestCount += 1
+    writeJson(res, 200, { ok: true, tasks: [] })
+  })
+
+  try {
+    const service = new ScheduleService({
+      baseUrl: server.baseUrl,
+      fetch: async () => {
+        injectedFetchCount += 1
+        return { ok: true, status: 200, text: async () => '{"ok":true,"tasks":[]}' }
+      }
+    } as never)
+
+    await service.list()
+    assert.equal(serverRequestCount, 1)
+    assert.equal(injectedFetchCount, 0)
   } finally {
     if (previousSecret === undefined) {
       delete process.env.GUI_SCHEDULE_INTERNAL_SECRET
@@ -94,6 +163,8 @@ test('service maps tool inputs to internal HTTP payloads with an injected client
     [SCHEDULE_INTERNAL_ENDPOINTS.status]: {
       internalServerRunning: true,
       internalUrl: 'http://127.0.0.1:8788',
+      internalAuthorityConfigured: true,
+      internalAuthorityDigest: `sha256:${'a'.repeat(64)}`,
       runningTaskIds: [],
       powerSaveBlockerActive: false
     },
@@ -133,7 +204,9 @@ test('service maps tool inputs to internal HTTP payloads with an injected client
   await service.delete({ task_id: 'created', confirmation: confirmationValueFor('delete', 'created') })
   await service.run({ task_id: 'created', confirmation: confirmationValueFor('run', 'created') })
   await service.detectFromText({ text: 'Tomorrow at 9 remind me to write notes' })
-  await service.status()
+  const status = await service.status()
+  assert.equal(status.internalAuthorityConfigured, true)
+  assert.equal(status.internalAuthorityDigest, `sha256:${'a'.repeat(64)}`)
   const task = await service.getTask('created')
 
   assert.equal(task.title, 'Updated')
@@ -369,7 +442,7 @@ test('service allows safe task metadata updates without confirmation', async () 
   }])
 })
 
-test('service fails closed without a configured schedule internal secret', async () => {
+test('service fails closed without configured managed Schedule authority', async () => {
   let requestCount = 0
   const server = await listenFakeServer(async (_req, res) => {
     requestCount += 1
@@ -395,21 +468,9 @@ test('service fails closed without a configured schedule internal secret', async
 })
 
 test('service rejects non-local internal HTTP configuration and endpoint bypasses', async () => {
-  let fetchCount = 0
-  const fetchImpl = async () => {
-    fetchCount += 1
-    return {
-      ok: true,
-      status: 200,
-      text: async () => JSON.stringify({ ok: true })
-    }
-  }
-
   assert.throws(
     () => createScheduleInternalHttpClient({
-      baseUrl: 'https://example.com:8788',
-      secret: 'test-secret',
-      fetch: fetchImpl
+      baseUrl: 'https://example.com:8788'
     }),
     (error) => {
       assert.ok(error instanceof ScheduleWorkerError)
@@ -420,9 +481,7 @@ test('service rejects non-local internal HTTP configuration and endpoint bypasse
   )
 
   const client = createScheduleInternalHttpClient({
-    baseUrl: 'http://127.0.0.1:8788',
-    secret: 'test-secret',
-    fetch: fetchImpl
+    baseUrl: 'http://127.0.0.1:8788'
   })
 
   await assert.rejects(
@@ -443,7 +502,6 @@ test('service rejects non-local internal HTTP configuration and endpoint bypasse
       return true
     }
   )
-  assert.equal(fetchCount, 0)
 })
 
 class FakeInternalClient implements ScheduleInternalHttpClient {

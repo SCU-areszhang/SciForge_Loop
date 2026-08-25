@@ -22,6 +22,7 @@ import {
   scheduleUpdateToolInputSchema,
   type ScheduleErrorPayload,
   type ScheduleRunResult,
+  type ScheduleRuntimeStatus,
   type ScheduleTaskFromTextResult,
   type ScheduledTask
 } from './contract.js'
@@ -383,14 +384,10 @@ function renderListTasks(result: ScheduleListResult): string {
     : 'No scheduled tasks are configured.'
 }
 
-function renderStatus(status: {
-  internalServerRunning: boolean
-  internalUrl: string
-  runningTaskIds: string[]
-  powerSaveBlockerActive: boolean
-}): string {
+function renderStatus(status: ScheduleRuntimeStatus): string {
   return [
     `Schedule internal server is ${status.internalServerRunning ? 'running' : 'stopped'}.`,
+    `Internal authority is ${status.internalAuthorityConfigured ? 'configured' : 'unconfigured'} (${status.internalAuthorityDigest}).`,
     `Running task(s): ${status.runningTaskIds.length}.`,
     `Power save blocker: ${status.powerSaveBlockerActive ? 'active' : 'inactive'}.`
   ].join(' ')
