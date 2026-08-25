@@ -182,8 +182,12 @@ describe('Git command diagnostics', () => {
     vi.resetModules()
     const previousLcAll = process.env.LC_ALL
     const previousLang = process.env.LANG
+    const previousNodeOptions = process.env.NODE_OPTIONS
+    const previousProviderKey = process.env.AWS_SECRET_ACCESS_KEY
     process.env.LC_ALL = 'zh_CN.UTF-8'
     process.env.LANG = 'zh_CN.UTF-8'
+    process.env.NODE_OPTIONS = '--require /tmp/inject.cjs'
+    process.env.AWS_SECRET_ACCESS_KEY = 'secret'
     const calls: Array<{ args: string[]; env?: NodeJS.ProcessEnv }> = []
     const execFileMock = vi.fn()
     Object.defineProperty(execFileMock, Symbol.for('nodejs.util.promisify.custom'), {
@@ -208,6 +212,8 @@ describe('Git command diagnostics', () => {
       expect(calls.length).toBeGreaterThan(0)
       expect(calls.every((call) => call.env?.LC_ALL === 'C')).toBe(true)
       expect(calls.every((call) => call.env?.LANG === 'C')).toBe(true)
+      expect(calls.every((call) => call.env?.NODE_OPTIONS === undefined)).toBe(true)
+      expect(calls.every((call) => call.env?.AWS_SECRET_ACCESS_KEY === undefined)).toBe(true)
     } finally {
       if (previousLcAll === undefined) {
         delete process.env.LC_ALL
@@ -218,6 +224,16 @@ describe('Git command diagnostics', () => {
         delete process.env.LANG
       } else {
         process.env.LANG = previousLang
+      }
+      if (previousNodeOptions === undefined) {
+        delete process.env.NODE_OPTIONS
+      } else {
+        process.env.NODE_OPTIONS = previousNodeOptions
+      }
+      if (previousProviderKey === undefined) {
+        delete process.env.AWS_SECRET_ACCESS_KEY
+      } else {
+        process.env.AWS_SECRET_ACCESS_KEY = previousProviderKey
       }
     }
   })

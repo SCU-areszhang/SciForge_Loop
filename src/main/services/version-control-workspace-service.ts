@@ -23,6 +23,7 @@ import type {
   VersionControlTextOutput
 } from '@sciforge/domain-sdk/version-control'
 import { VERSION_CONTROL_LIMITS } from '@sciforge/domain-sdk/version-control'
+import { hostChildProcessEnvironment } from '../child-process-environment'
 import { resolveGitCwd } from './git-service'
 
 const execFileAsync = promisify(execFile)
@@ -61,6 +62,14 @@ type GitResult = Readonly<{
   ok: boolean
   stdout: string
   stderr: string
+}>
+
+type VersionControlGitEnvironment = Readonly<{
+  GIT_INDEX_FILE?: string
+  GIT_AUTHOR_NAME?: string
+  GIT_AUTHOR_EMAIL?: string
+  GIT_COMMITTER_NAME?: string
+  GIT_COMMITTER_EMAIL?: string
 }>
 
 export class VersionControlWorkspaceService {
@@ -763,7 +772,7 @@ async function runGit(
   options: Readonly<{
     timeout?: number
     maxBuffer?: number
-    env?: Readonly<Record<string, string>>
+    env?: VersionControlGitEnvironment
     allowFailure?: boolean
   }> = {}
 ): Promise<GitResult> {
@@ -772,12 +781,10 @@ async function runGit(
       cwd,
       timeout: options.timeout ?? 10_000,
       maxBuffer: options.maxBuffer ?? VERSION_CONTROL_LIMITS.maxTextCharacters * 2,
-      env: {
-        ...process.env,
-        LC_ALL: 'C',
-        LANG: 'C',
-        ...options.env
-      }
+      env: buildVersionControlGitEnvironment(
+        hostChildProcessEnvironment(process.env),
+        options.env
+      )
     })
     return { ok: true, stdout: String(stdout), stderr: String(stderr) }
   } catch (error) {
@@ -790,5 +797,37 @@ async function runGit(
       }
     }
     throw error
+  }
+}
+
+export function buildVersionControlGitEnvironment(
+  source: NodeJS.ProcessEnv,
+  overrides: VersionControlGitEnvironment = {}
+): Record<string, string> {
+  const environment: Record<string, string> = {
+    ...hostChildProcessEnvironment(source),
+    LC_ALL: 'C',
+    LANG: 'C'
+  }
+  assignGitEnvironmentValue(environment, 'GIT_INDEX_FILE', overrides.GIT_INDEX_FILE)
+  assignGitEnvironmentValue(environment, 'GIT_AUTHOR_NAME', overrides.GIT_AUTHOR_NAME)
+  assignGitEnvironmentValue(environment, 'GIT_AUTHOR_EMAIL', overrides.GIT_AUTHOR_EMAIL)
+  assignGitEnvironmentValue(environment, 'GIT_COMMITTER_NAME', overrides.GIT_COMMITTER_NAME)
+  assignGitEnvironmentValue(environment, 'GIT_COMMITTER_EMAIL', overrides.GIT_COMMITTER_EMAIL)
+  return environment
+}
+
+function assignGitEnvironmentValue(
+  environment: Record<string, string>,
+  name: keyof VersionControlGitEnvironment,
+  value: string | undefined
+): void {
+  if (
+    typeof value === 'string'
+    && value.length > 0
+    && value.length <= 16_384
+    && !value.includes('\0')
+  ) {
+    environment[name] = value
   }
 }

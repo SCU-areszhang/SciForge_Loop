@@ -27,7 +27,7 @@ let lastState: GuiUpdateState = { status: 'idle' }
 let downloaded = false
 let downloadPromise: Promise<string[]> | null = null
 let configuredChannel: GuiUpdateChannel = normalizeGuiUpdateChannel(
-  envValue('SCIFORGE_UPDATE_CHANNEL')
+  trimmedEnvironmentValue(process.env.SCIFORGE_UPDATE_CHANNEL)
 )
 let configuredFeedUrl = ''
 let getSelectedChannel: (() => GuiUpdateChannel | Promise<GuiUpdateChannel>) | null = null
@@ -52,14 +52,16 @@ function joinUrl(base: string, ...parts: string[]): string {
   return [cleanBase, ...cleanParts].join('/')
 }
 
-function envValue(primary: string): string {
-  return process.env[primary]?.trim() || ''
+function trimmedEnvironmentValue(value: string | undefined): string {
+  return value?.trim() || ''
 }
 
 function envUpdateUrl(channel: GuiUpdateChannel): string {
   const channelSpecific =
-    envValue(`SCIFORGE_UPDATE_URL_${channel.toUpperCase()}`)
-  const direct = channelSpecific || envValue('SCIFORGE_UPDATE_URL')
+    channel === 'frontier'
+      ? trimmedEnvironmentValue(process.env.SCIFORGE_UPDATE_URL_FRONTIER)
+      : trimmedEnvironmentValue(process.env.SCIFORGE_UPDATE_URL_STABLE)
+  const direct = channelSpecific || trimmedEnvironmentValue(process.env.SCIFORGE_UPDATE_URL)
   return direct ? direct.replace(/\{channel\}/g, channel).replace(/\/?$/, '/') : ''
 }
 
@@ -124,7 +126,9 @@ function readPackageJson(): Record<string, unknown> | null {
 }
 
 function resolveGithubReleaseUrl(): string | null {
-  const envRepo = normalizeGithubOwnerRepo(envValue('SCIFORGE_GITHUB_REPO'))
+  const envRepo = normalizeGithubOwnerRepo(
+    trimmedEnvironmentValue(process.env.SCIFORGE_GITHUB_REPO)
+  )
   if (envRepo) return `https://github.com/${envRepo}/releases`
 
   const pkg = readPackageJson()
@@ -140,7 +144,7 @@ function resolveGithubReleaseUrl(): string | null {
 }
 
 function downloadPageUrl(): string {
-  const direct = envValue('SCIFORGE_DOWNLOAD_URL')
+  const direct = trimmedEnvironmentValue(process.env.SCIFORGE_DOWNLOAD_URL)
   if (direct) return direct
 
   const pkg = readPackageJson()

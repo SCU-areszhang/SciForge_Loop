@@ -1,6 +1,7 @@
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import type { GitBranchesResult } from '../../shared/git-branches'
+import { hostChildProcessEnvironment } from '../child-process-environment'
 import { findNearestGitRoot } from './git-discovery'
 
 const execFileAsync = promisify(execFile)
@@ -26,7 +27,7 @@ export async function runGit(
     cwd,
     timeout,
     maxBuffer: 1024 * 1024,
-    env: { ...process.env, LC_ALL: 'C', LANG: 'C' }
+    env: { ...hostChildProcessEnvironment(process.env), LC_ALL: 'C', LANG: 'C' }
   })
   return { stdout: String(stdout), stderr: String(stderr) }
 }

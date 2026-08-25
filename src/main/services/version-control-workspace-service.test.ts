@@ -4,7 +4,10 @@ import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { promisify } from 'node:util'
 import { afterEach, describe, expect, it } from 'vitest'
-import { VersionControlWorkspaceService } from './version-control-workspace-service'
+import {
+  VersionControlWorkspaceService,
+  buildVersionControlGitEnvironment
+} from './version-control-workspace-service'
 
 const execFileAsync = promisify(execFile)
 const temporaryRoots: string[] = []
@@ -42,6 +45,26 @@ async function createRepository(): Promise<{
 }
 
 describe('VersionControlWorkspaceService', () => {
+  it('projects only fixed runtime and Git operation environment fields', () => {
+    expect(buildVersionControlGitEnvironment({
+      HOME: '/safe/home',
+      PATH: '/safe/bin',
+      NODE_OPTIONS: '--require /tmp/inject.cjs',
+      AWS_SECRET_ACCESS_KEY: 'secret'
+    }, {
+      GIT_INDEX_FILE: '/safe/tmp/index',
+      GIT_AUTHOR_NAME: 'SciForge',
+      GIT_AUTHOR_EMAIL: 'bad\0value'
+    })).toEqual({
+      HOME: '/safe/home',
+      PATH: '/safe/bin',
+      LANG: 'C',
+      LC_ALL: 'C',
+      GIT_INDEX_FILE: '/safe/tmp/index',
+      GIT_AUTHOR_NAME: 'SciForge'
+    })
+  })
+
   it('captures dirty tracked and untracked files without changing the real index', async () => {
     const { root, workspace } = await createRepository()
     const service = new VersionControlWorkspaceService()

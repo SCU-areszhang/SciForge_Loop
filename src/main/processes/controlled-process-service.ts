@@ -5,27 +5,12 @@ import { createRequire } from 'node:module'
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
 import type { IPty } from 'node-pty'
 import type { WorkspaceLocator } from '@sciforge/domain-sdk/workspace-host'
+import { hostChildProcessEnvironment } from '../child-process-environment'
 
 export const CONTROLLED_PROCESS_MAX_SESSIONS = 8
 export const CONTROLLED_PROCESS_RING_BUFFER_CHARACTERS = 64 * 1024
 export const CONTROLLED_PROCESS_DEFAULT_COLUMNS = 80
 export const CONTROLLED_PROCESS_DEFAULT_ROWS = 24
-
-const SAFE_ENVIRONMENT_KEYS = Object.freeze([
-  'HOME',
-  'USER',
-  'LOGNAME',
-  'PATH',
-  'TMPDIR',
-  'TEMP',
-  'TMP',
-  'SystemRoot',
-  'WINDIR',
-  'COMSPEC',
-  'PATHEXT',
-  'USERPROFILE',
-  'LOCALAPPDATA'
-] as const)
 
 type ControlledPty = Pick<IPty, 'kill' | 'resize' | 'write' | 'onData' | 'onExit'>
 
@@ -103,7 +88,7 @@ const require = createRequire(import.meta.url)
  * accepted from renderer code.
  */
 export class ControlledProcessService {
-  readonly #environment: NodeJS.ProcessEnv
+  readonly #environment: Readonly<Record<string, string>>
   readonly #maxSessions: number
   readonly #platform: NodeJS.Platform
   readonly #spawnPty: NonNullable<ControlledProcessServiceOptions['spawnPty']>
@@ -111,7 +96,14 @@ export class ControlledProcessService {
   readonly #sessions = new Map<string, ControlledProcessSession>()
 
   constructor(options: ControlledProcessServiceOptions = {}) {
-    this.#environment = options.environment ?? process.env
+    this.#platform = options.platform ?? process.platform
+    const inheritedEnvironment = options.environment
+      ? hostChildProcessEnvironment(options.environment)
+      : hostChildProcessEnvironment(process.env)
+    this.#environment = buildControlledProcessEnvironment(
+      inheritedEnvironment,
+      this.#platform
+    )
     this.#maxSessions = Math.max(
       1,
       Math.min(
@@ -119,7 +111,6 @@ export class ControlledProcessService {
         options.maxSessions ?? CONTROLLED_PROCESS_MAX_SESSIONS
       )
     )
-    this.#platform = options.platform ?? process.platform
     this.#spawnPty = options.spawnPty ?? defaultSpawnPty
     this.#log = options.log ?? (() => undefined)
   }
@@ -146,7 +137,7 @@ export class ControlledProcessService {
       cols: input.columns ?? CONTROLLED_PROCESS_DEFAULT_COLUMNS,
       rows: input.rows ?? CONTROLLED_PROCESS_DEFAULT_ROWS,
       cwd,
-      env: buildControlledProcessEnvironment(this.#environment, this.#platform),
+      env: { ...this.#environment },
       useConpty: true
     })
     const resourceId = `process_${randomBytes(24).toString('base64url')}`
@@ -274,11 +265,7 @@ export function buildControlledProcessEnvironment(
   source: NodeJS.ProcessEnv,
   platform: NodeJS.Platform = process.platform
 ): Record<string, string> {
-  const environment: Record<string, string> = {}
-  for (const key of SAFE_ENVIRONMENT_KEYS) {
-    const value = source[key]
-    if (typeof value === 'string' && value) environment[key] = value
-  }
+  const environment = hostChildProcessEnvironment(source)
   const locale = resolveLocale(source, platform)
   return {
     ...environment,

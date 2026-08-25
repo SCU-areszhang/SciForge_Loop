@@ -122,6 +122,27 @@ describe('background update scheduling', () => {
   })
 })
 
+describe('update feed environment', () => {
+  it('selects only the explicit URL for each governed channel', async () => {
+    vi.stubEnv('SCIFORGE_UPDATE_URL', 'https://updates.example/default/')
+    vi.stubEnv('SCIFORGE_UPDATE_URL_STABLE', 'https://updates.example/stable/')
+    vi.stubEnv('SCIFORGE_UPDATE_URL_FRONTIER', 'https://updates.example/frontier/')
+    const module = await import('./gui-updater')
+
+    module.initializeGuiUpdater(() => null, () => 'stable')
+    expect(updater.setFeedURL).toHaveBeenLastCalledWith({
+      provider: 'generic',
+      url: 'https://updates.example/stable/'
+    })
+
+    module.setGuiUpdateChannel('frontier')
+    expect(updater.setFeedURL).toHaveBeenLastCalledWith({
+      provider: 'generic',
+      url: 'https://updates.example/frontier/'
+    })
+  })
+})
+
 describe('native update trust policy', () => {
   it('keeps unsigned Windows and Linux builds manual-only', async () => {
     vi.stubEnv('SCIFORGE_ALLOW_UNSIGNED_UPDATES', '')
