@@ -47,7 +47,10 @@ Bot/channel；不得连接生产数据库、复用生产 Bot 或把 `.env`、pro
 npm ci
 createdb sciforge_collaboration_dev
 
-export SCIFORGE_COLLABORATION_DATABASE_URL='postgresql:///sciforge_collaboration_dev'
+database_url_file="$(mktemp)"
+chmod 600 "$database_url_file"
+printf '%s\n' 'postgresql:///sciforge_collaboration_dev' >"$database_url_file"
+export SCIFORGE_COLLABORATION_DATABASE_URL_FILE="$database_url_file"
 export SCIFORGE_COLLABORATION_LISTEN_HOST='127.0.0.1'
 export SCIFORGE_COLLABORATION_LISTEN_PORT='8787'
 export SCIFORGE_COLLABORATION_BASE_PATH=''
@@ -308,9 +311,18 @@ install -o root -g sciforge_collab -m 0640 \
   /etc/sciforge/collaboration-providers.json
 ```
 
+另以 `root:sciforge_collab`、`0400` 安装数据库 URL secret file：
+
+```sh
+install -o root -g sciforge_collab -m 0400 \
+  <operator-provided-database-url-file> \
+  /etc/sciforge/collaboration-database-url
+```
+
 生产关键值：
 
-- `SCIFORGE_COLLABORATION_DATABASE_URL` 使用模板中的本机 socket/peer 连接；不含口令。
+- 数据库 URL 只存在 `/etc/sciforge/collaboration-database-url`；systemd 通过
+  `LoadCredential` 提供临时 secret-file locator，URL 本身不进入环境。
 - listen host/port 固定为 `127.0.0.1:8787`。
 - 因 Nginx strip-prefix，`SCIFORGE_COLLABORATION_BASE_PATH` 留空。
 - provider `realmUrl` 填 `https://chat.sciforge.cn`，`botEmail` 填专用 Generic bot 身份。

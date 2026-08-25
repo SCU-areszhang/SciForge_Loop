@@ -11,6 +11,8 @@ Group=sciforge_collab
 WorkingDirectory=/opt/sciforge-collaboration/current
 Environment=NODE_ENV=production
 EnvironmentFile=/etc/sciforge/collaboration-server.env
+LoadCredential=database-url:/etc/sciforge/collaboration-database-url
+Environment=SCIFORGE_COLLABORATION_DATABASE_URL_FILE=%d/database-url
 ExecStart=/usr/bin/env node /opt/sciforge-collaboration/current/node_modules/@sciforge/collaboration-server/dist/cli.js
 Restart=on-failure
 RestartSec=5s

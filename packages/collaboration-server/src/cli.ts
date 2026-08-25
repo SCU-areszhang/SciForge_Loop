@@ -6,6 +6,7 @@ import {
   createInstalledProviderRuntime,
   loadProviderConfiguration
 } from './provider-runtime.js'
+import { readServerSecretFile } from './server-secret-file.js'
 
 if (process.argv.includes('--help') || process.argv.includes('-h')) {
   process.stdout.write([
@@ -14,16 +15,24 @@ if (process.argv.includes('--help') || process.argv.includes('-h')) {
     'Commands:',
     '  migrate  Apply the collaboration PostgreSQL schema and exit.',
     '',
-    'Configuration is read from SCIFORGE_COLLABORATION_* environment variables.',
-    'Credentials must be supplied by the deployment secret manager or secret-file references.',
+    'Configuration uses fixed SCIFORGE_COLLABORATION_* locators and non-secret values.',
+    'The database connection string must be supplied through an owner-only secret file.',
     ''
   ].join('\n'))
   process.exit(0)
 }
 
-const databaseUrl = requiredEnvironment('SCIFORGE_COLLABORATION_DATABASE_URL')
+const databaseUrl = await readServerSecretFile(
+  process.env.SCIFORGE_COLLABORATION_DATABASE_URL_FILE
+)
 const pool = createPostgresPool({ connectionString: databaseUrl,
-  maxConnections: integerEnvironment('SCIFORGE_COLLABORATION_DATABASE_POOL_SIZE', 10, 1, 100) })
+  maxConnections: integerEnvironment(
+    process.env.SCIFORGE_COLLABORATION_DATABASE_POOL_SIZE,
+    'SCIFORGE_COLLABORATION_DATABASE_POOL_SIZE',
+    10,
+    1,
+    100
+  ) })
 
 if (process.argv[2] === 'migrate') {
   await runCollaborationMigrations(pool)
@@ -44,13 +53,21 @@ const oidcIssuer = process.env.SCIFORGE_COLLABORATION_OIDC_ISSUER?.trim()
 const runtime = createCollaborationServerRuntime({
   pool,
   host: process.env.SCIFORGE_COLLABORATION_LISTEN_HOST?.trim() || '127.0.0.1',
-  port: integerEnvironment('SCIFORGE_COLLABORATION_LISTEN_PORT', 8787, 1, 65_535),
+  port: integerEnvironment(
+    process.env.SCIFORGE_COLLABORATION_LISTEN_PORT,
+    'SCIFORGE_COLLABORATION_LISTEN_PORT',
+    8787,
+    1,
+    65_535
+  ),
   basePath: process.env.SCIFORGE_COLLABORATION_BASE_PATH,
-  allowedOrigins: optionalCsvEnvironment('SCIFORGE_COLLABORATION_ALLOWED_ORIGINS'),
+  allowedOrigins: optionalCsvEnvironment(process.env.SCIFORGE_COLLABORATION_ALLOWED_ORIGINS),
   ...(oidcIssuer ? { oidc: {
     issuer: oidcIssuer,
     audience: process.env.SCIFORGE_COLLABORATION_OIDC_AUDIENCE?.trim() || 'sciforge-cloud-api',
-    allowedAuthorizedParties: optionalCsvEnvironment('SCIFORGE_COLLABORATION_OIDC_ALLOWED_AUTHORIZED_PARTIES') ??
+    allowedAuthorizedParties: optionalCsvEnvironment(
+      process.env.SCIFORGE_COLLABORATION_OIDC_ALLOWED_AUTHORIZED_PARTIES
+    ) ??
       ['sciforge-desktop', 'sciforge-web-mobile']
   } } : {}),
   ...(providerConfiguration && providerSecretDirectory
@@ -81,22 +98,20 @@ async function shutdown(): Promise<void> {
 process.once('SIGTERM', () => void shutdown())
 process.once('SIGINT', () => void shutdown())
 
-function requiredEnvironment(name: string): string {
-  const value = process.env[name]?.trim()
-  if (!value) throw new Error(`Missing required environment variable ${name}.`)
-  return value
-}
-
-function integerEnvironment(name: string, fallback: number, minimum: number, maximum: number): number {
-  const raw = process.env[name]
+function integerEnvironment(
+  raw: string | undefined,
+  name: string,
+  fallback: number,
+  minimum: number,
+  maximum: number
+): number {
   if (!raw) return fallback
   const value = Number(raw)
   if (!Number.isSafeInteger(value) || value < minimum || value > maximum) throw new Error(`Invalid integer environment variable ${name}.`)
   return value
 }
 
-function optionalCsvEnvironment(name: string): string[] | undefined {
-  const value = process.env[name]
+function optionalCsvEnvironment(value: string | undefined): string[] | undefined {
   if (!value?.trim()) return undefined
   return value.split(',').map((item) => item.trim()).filter(Boolean)
 }

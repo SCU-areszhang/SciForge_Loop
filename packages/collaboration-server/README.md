@@ -85,14 +85,17 @@ node scripts/collaboration-providers.mjs --generate
 npm --workspace @sciforge/collaboration-server run build
 ```
 
-为开发进程注入专用测试数据库连接后，显式迁移并启动：
+先把专用测试数据库连接写入当前 User 独占的 `0600` 文件，并只把绝对 locator
+写入 `.env`，再显式迁移并启动：
 
 ```sh
 npm --workspace @sciforge/collaboration-server run migrate
 npm --workspace @sciforge/collaboration-server run dev
 ```
 
-`dev` 会读取包目录中可选的 `.env`。该文件只适合本机、必须被 Git 忽略，并且不应保存共享或生产凭据。更安全的做法是由 shell 的临时环境或本地 secret manager 向进程注入数据库连接。
+`dev` 会读取包目录中可选的 `.env`。该文件只适合本机、必须被 Git 忽略，并且只能保存
+`SCIFORGE_COLLABORATION_DATABASE_URL_FILE` 之类的非秘密 locator；数据库 URL 本身不得进入
+环境。生产使用 systemd credential、容器 secret 或同等的 owner-only secret file。
 
 迁移是显式、forward-only、失败即非零退出的发布步骤。schema-v12 只接受五条冻结路线：fresh、共同基线 v4、旧公网 v5、隔离 staging v9、A-v11；v4/v5/v9 先核对机械 catalog fingerprint 并执行 `0011_a_content_space_execution_identity.sql`，随后所有 v11 路线执行 `0012_oidc_only_endpoint_agent_authority.sql`。v12 是唯一 ready 状态；未知、混合或部分 lineage 必须保持 `/readyz` 失败。
 
@@ -110,11 +113,12 @@ node packages/collaboration-server/dist/cli.js
 
 ## 配置
 
-`.env.example` 与 `deploy/collaboration-server.env.example` 只列变量名和非敏感默认值。生产值应由 systemd credential、secret manager 或权限受限的环境文件注入。
+`.env.example` 与 `deploy/collaboration-server.env.example` 只列 locator 和非敏感默认值。
+生产 secret bytes 只由 systemd credential、容器 secret 或权限受限的 secret file 持有。
 
 | 变量 | 必需性与默认值 | 说明 |
 | --- | --- | --- |
-| `SCIFORGE_COLLABORATION_DATABASE_URL` | 必填 | 专用 PostgreSQL 连接串；敏感，禁止输出到诊断 |
+| `SCIFORGE_COLLABORATION_DATABASE_URL_FILE` | 必填 | owner-only `0400`/`0600` 文件的绝对 locator；文件内保存专用 PostgreSQL URL，URL 不得进入环境或诊断 |
 | `SCIFORGE_COLLABORATION_DATABASE_POOL_SIZE` | 默认 `10` | 正整数连接池上限 |
 | `SCIFORGE_COLLABORATION_LISTEN_HOST` | 默认 `127.0.0.1` | 应保持 loopback，由反向代理对外服务 |
 | `SCIFORGE_COLLABORATION_LISTEN_PORT` | 默认 `8787` | 本地监听端口 |

@@ -59,6 +59,7 @@
       "/etc/sciforge-run0/secrets/identity-bootstrap-admin-username",
       "/etc/sciforge-run0/secrets/identity-bootstrap-admin-password",
       "/etc/sciforge-run0/secrets/cloud-db-password",
+      "/etc/sciforge-run0/secrets/cloud-db-url",
       "/etc/sciforge-run0/secrets/cloud-db.pgpass",
       "/etc/sciforge-run0/secrets/edge-tls-certificate.pem",
       "/etc/sciforge-run0/secrets/edge-tls-private-key.pem",
