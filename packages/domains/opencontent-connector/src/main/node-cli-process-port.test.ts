@@ -251,13 +251,12 @@ describe('Node OpenContent CLI process port', () => {
       }
     })
     expect(result.json.data.envKeys).toEqual(expect.arrayContaining([
-      'OPENCONTENT_SITE',
-      'SYSTEM_USER_TOKEN'
+      'OPENCONTENT_SITE'
     ]))
+    expect(result.json.data.envKeys).not.toContain('SYSTEM_USER_TOKEN')
     expect(result.json.data.envKeys).not.toEqual(expect.arrayContaining(['HOME', 'PATH']))
     expect(result.json.data.envKeys.every((key: string) => [
       'OPENCONTENT_SITE',
-      'SYSTEM_USER_TOKEN',
       '__CF_USER_TEXT_ENCODING'
     ].includes(key))).toBe(true)
     expect(await readdir(fixture.invocationsRoot)).toEqual([])
@@ -1295,23 +1294,31 @@ describe('Node OpenContent CLI process port', () => {
     expect(serialized).toContain('[redacted-provider-site]/auth')
   })
 
-  it('redacts a child echo of connection material from every returned field', async () => {
+  it('fails closed before a child can emit connection material to stdout or stderr', async () => {
     const fixture = await createFixture()
     const port = createNodeOpenContentCliProcessPort({
       trustedEntrypoint: fixture.entrypoint,
       temporaryRoot: fixture.invocationsRoot
     })
-    const result = await port.run(request({
-      invocationId: 'invocation_secret_echo_a',
-      command: 'file-info',
-      args: { mode: 'echo-secret' },
-      dataFiles: []
-    }, fixture.entrypoint))
-    const serialized = JSON.stringify(result)
+    let failure: unknown
+    try {
+      await port.run(request({
+        invocationId: 'invocation_secret_echo_a',
+        command: 'file-info',
+        args: { mode: 'echo-secret' },
+        dataFiles: []
+      }, fixture.entrypoint))
+    } catch (error) {
+      failure = error
+    }
+    expect(failure).toMatchObject({
+      code: 'provider-contract-violation',
+      dispatched: true
+    })
+    const serialized = serializeFailure(failure)
     expect(serialized).not.toContain('fixture-token')
     expect(serialized).not.toContain('https://provider.invalid')
-    expect(serialized).toContain('[redacted-provider-site]/document-a')
-    expect(serialized).toContain('[redacted]')
+    expect(await readdir(fixture.invocationsRoot)).toEqual([])
   })
 
   it('redacts both provider site and managed paths when a child combines them', async () => {
@@ -1407,7 +1414,7 @@ describe('Node OpenContent CLI process port', () => {
     }
   )
 
-  it('scrubs URL-encoded connection, runner-path, and cache material from nested output', async () => {
+  it('fails closed before URL-encoded connection material can leave the supplier', async () => {
     const fixture = await createFixture()
     const port = createNodeOpenContentCliProcessPort({
       trustedEntrypoint: fixture.entrypoint,
@@ -1415,16 +1422,25 @@ describe('Node OpenContent CLI process port', () => {
     })
     const specialToken = 'fixture token/+=value'
     const formEncodedToken = encodeURIComponent(specialToken).replaceAll('%20', '+')
-    const result = await port.run(request({
-      invocationId: 'invocation_encoded_sensitive_values_a',
-      command: 'file-info',
-      args: { mode: 'echo-encoded-sensitive-values' },
-      dataFiles: []
-    }, fixture.entrypoint, undefined, undefined, {
-      site: 'https://provider.invalid',
-      systemUserToken: specialToken
-    }))
-    const serialized = JSON.stringify(result)
+    let failure: unknown
+    try {
+      await port.run(request({
+        invocationId: 'invocation_encoded_sensitive_values_a',
+        command: 'file-info',
+        args: { mode: 'echo-encoded-sensitive-values' },
+        dataFiles: []
+      }, fixture.entrypoint, undefined, undefined, {
+        site: 'https://provider.invalid',
+        systemUserToken: specialToken
+      }))
+    } catch (error) {
+      failure = error
+    }
+    expect(failure).toMatchObject({
+      code: 'provider-contract-violation',
+      dispatched: true
+    })
+    const serialized = serializeFailure(failure)
 
     for (const forbidden of [
       specialToken,
@@ -1547,6 +1563,29 @@ describe('Node OpenContent CLI process port', () => {
       protocol: 'caller-controlled:v1'
     }
     await expect(port.run(driftedRequest as never)).rejects.toMatchObject({
+      code: 'blocked-by-contract',
+      dispatched: false
+    })
+
+    const credentialDriftFixture = await createFixture()
+    const credentialDriftSource = await readFile(credentialDriftFixture.entrypoint, 'utf8')
+    await writeFile(
+      credentialDriftFixture.entrypoint,
+      credentialDriftSource.replace(
+        'process.env.SYSTEM_USER_TOKEN',
+        'process.env["SYSTEM_USER_TOKEN"]'
+      )
+    )
+    const credentialDriftPort = createNodeOpenContentCliProcessPort({
+      trustedEntrypoint: credentialDriftFixture.entrypoint,
+      temporaryRoot: credentialDriftFixture.invocationsRoot
+    })
+    await expect(credentialDriftPort.run(request({
+      invocationId: 'invocation_credential_binding_drift_a',
+      command: 'file-info',
+      args: { fileId: 'file-a' },
+      dataFiles: []
+    }, credentialDriftFixture.entrypoint))).rejects.toMatchObject({
       code: 'blocked-by-contract',
       dispatched: false
     })

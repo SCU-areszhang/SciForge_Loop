@@ -60,6 +60,12 @@ import {
   readVerifiedOpenContentRuntimeSnapshot,
   verifiedOpenContentRuntimeFile
 } from './verified-runtime-snapshot.internal.js'
+import {
+  OPENCONTENT_SUPPLIER_SECRET_CHANNEL_FD,
+  encodeOpenContentSupplierSecretEnvelope,
+  materializeOpenContentSupplierSecretShim,
+  patchOpenContentSupplierSecretAccess
+} from './supplier-secret-channel.internal.js'
 
 const MANAGED_LOCATOR_TTL_MS = 10 * 60 * 1_000
 const MAX_MANAGED_LOCATOR_ENTRIES = 2_048
@@ -595,12 +601,16 @@ async function copyPrivateRuntime(
     const sourcePatch = loadFixedSourcePatch(
       verifiedOpenContentRuntimeFile(verified, 'cli-single-attempt-patch')
     )
-    const patchedSource = applyFixedSingleMatchPatch(source, sourcePatch)
-    return await materializeVerifiedOpenContentRuntimeSnapshot({
+    const patchedSource = applyFixedSupplierSecretPatch(
+      applyFixedSingleMatchPatch(source, sourcePatch)
+    )
+    const runtime = await materializeVerifiedOpenContentRuntimeSnapshot({
       destinationRoot: join(invocationRoot, 'runtime'),
       snapshot: verified,
       cliEntrypointBytes: Buffer.from(patchedSource, 'utf8')
     })
+    const entrypoint = await materializeOpenContentSupplierSecretShim(runtime.root)
+    return Object.freeze({ root: runtime.root, entrypoint })
   } catch (error) {
     if (error instanceof OpenContentCliProcessError) throw error
     if (!(error instanceof OpenContentRuntimeSnapshotIntegrityError)) throw error
@@ -652,6 +662,18 @@ function applyFixedSingleMatchPatch(
     })
   }
   return patchedSource
+}
+
+function applyFixedSupplierSecretPatch(source: string): string {
+  try {
+    return patchOpenContentSupplierSecretAccess(source)
+  } catch {
+    throw new OpenContentCliProcessError({
+      code: 'blocked-by-contract',
+      message: 'The pinned OpenContent supplier credential binding no longer matches.',
+      dispatched: false
+    })
+  }
 }
 
 type MaterializedInvocation = Readonly<{
@@ -873,13 +895,17 @@ async function executeOnce(input: Readonly<{
     let stdoutTruncated = false
     let stderrTruncated = false
     let dispatched = false
+    let spawned = false
+    let secretChannelDelivered = false
     let termination: ExecutionTermination | undefined
 
     const environment: NodeJS.ProcessEnv = {
       OPENCONTENT_SITE: input.connectionMaterial.site,
-      SYSTEM_USER_TOKEN: input.connectionMaterial.systemUserToken,
       ...(input.electronRunAsNode ? { ELECTRON_RUN_AS_NODE: '1' } : {})
     }
+    const secretPayload = encodeOpenContentSupplierSecretEnvelope(
+      input.connectionMaterial.systemUserToken
+    )
     const child = spawn(input.executablePath, [
       input.entrypoint,
       '--json',
@@ -889,7 +915,7 @@ async function executeOnce(input: Readonly<{
       cwd: input.cwd,
       env: environment,
       shell: false,
-      stdio: ['ignore', 'pipe', 'pipe'],
+      stdio: ['ignore', 'pipe', 'pipe', 'pipe'],
       windowsHide: true
     })
 
@@ -903,7 +929,29 @@ async function executeOnce(input: Readonly<{
     const remaining = Math.max(0, Date.parse(input.deadlineAt) - input.now())
     const timer = setTimeout(() => terminate('deadline'), Math.min(remaining, 2_147_483_647))
 
-    child.once('spawn', () => { dispatched = true })
+    const secretChannel = child.stdio[OPENCONTENT_SUPPLIER_SECRET_CHANNEL_FD]
+    let secretPayloadCleared = false
+    const clearSecretPayload = () => {
+      if (secretPayloadCleared) return
+      secretPayloadCleared = true
+      secretPayload.fill(0)
+    }
+    if (secretChannel === undefined || secretChannel === null || !('end' in secretChannel)) {
+      clearSecretPayload()
+      terminate('spawn-error')
+    } else {
+      secretChannel.once('error', () => terminate('spawn-error'))
+      secretChannel.once('finish', () => {
+        clearSecretPayload()
+        secretChannelDelivered = true
+        dispatched = spawned
+      })
+      secretChannel.end(secretPayload)
+    }
+    child.once('spawn', () => {
+      spawned = true
+      dispatched = secretChannelDelivered
+    })
     child.once('error', () => { termination = termination ?? 'spawn-error' })
     child.stdout?.on('data', (raw: Buffer) => {
       const remainingBytes = input.stdoutLimit - stdoutBytes
@@ -930,6 +978,7 @@ async function executeOnce(input: Readonly<{
       stderrBytes += raw.byteLength
     })
     child.once('close', (exitCode) => {
+      clearSecretPayload()
       clearTimeout(timer)
       input.signal.removeEventListener('abort', onAbort)
       resolvePromise(Object.freeze({
