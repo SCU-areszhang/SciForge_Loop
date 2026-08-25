@@ -11,7 +11,7 @@ import {
 import { createTerminalCapabilityClient } from './terminal-capability-client'
 
 const resource = {
-  token: 'opaque-resource-token',
+  resourceHandleId: 'cap_opaque-resource-handle-id',
   semanticRevision: '1',
   expiresAt: '2099-01-01T00:00:00.000Z'
 }

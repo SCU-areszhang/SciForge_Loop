@@ -35,7 +35,7 @@ export const changeInspectorOpenInputSchema = z.object({
 export type ChangeInspectorOpenInput = z.infer<typeof changeInspectorOpenInputSchema>
 
 export const changeInspectorResourceHandleSchema = z.object({
-  token: z.string().regex(/^cap_[A-Za-z0-9_-]{20,}$/u),
+  resourceHandleId: z.string().regex(/^cap_[A-Za-z0-9_-]{20,}$/u),
   semanticRevision: z.string().trim().min(1).max(256),
   expiresAt: z.string().datetime({ offset: true })
 }).strict()

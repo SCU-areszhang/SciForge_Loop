@@ -126,7 +126,7 @@ test('browser capabilities use the governed resource contract', async () => {
       issueResource: (input: unknown) => {
         registration = input
         return {
-          token: 'cap_abcdefghijklmnopqrstuvwxyz',
+          resourceHandleId: 'cap_abcdefghijklmnopqrstuvwxyz',
           semanticRevision: 'browser-1',
           expiresAt: '2026-01-01T00:00:00.000Z'
         }
@@ -228,7 +228,7 @@ test('repeated opens reuse the exact observer and resolve the active service laz
     registrations.push(registration)
     handleOrdinal += 1
     return {
-      token: `cap_${String(handleOrdinal).padStart(24, 'a')}`,
+      resourceHandleId: `cap_${String(handleOrdinal).padStart(24, 'a')}`,
       semanticRevision: registration.semanticRevision,
       expiresAt: '2026-01-01T00:00:00.000Z'
     }
@@ -271,7 +271,7 @@ test('observer memoization does not alias distinct browser resource identities',
     const parsed = registration as BrowserResourceRegistration
     registrations.push(parsed)
     return {
-      token: `cap_${String(registrations.length).padStart(24, 'a')}`,
+      resourceHandleId: `cap_${String(registrations.length).padStart(24, 'a')}`,
       semanticRevision: parsed.semanticRevision,
       expiresAt: '2026-01-01T00:00:00.000Z'
     }
@@ -355,7 +355,7 @@ test('process-lifetime capacity fails before opening and resets only with lifecy
     const parsed = registration as BrowserResourceRegistration
     registrations.push(parsed)
     return {
-      token: `cap_${String(registrations.length).padStart(24, 'a')}`,
+      resourceHandleId: `cap_${String(registrations.length).padStart(24, 'a')}`,
       semanticRevision: parsed.semanticRevision,
       expiresAt: '2026-01-01T00:00:00.000Z'
     }

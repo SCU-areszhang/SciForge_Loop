@@ -138,7 +138,7 @@ function strictResourceIssuer() {
       issuedKeys.set(registration, key)
       issued.push(registration)
       return {
-        token: `cap_${issued.length.toString().padStart(20, '0')}`,
+        resourceHandleId: `cap_${issued.length.toString().padStart(20, '0')}`,
         semanticRevision: registration.semanticRevision,
         expiresAt: now
       }
@@ -203,7 +203,11 @@ describe('Biology Room main domain entry', () => {
         caller: { workspaceId: '/workspace' },
         issueResource: (registration) => {
           issued.push(registration)
-          return { token: 'opaque', semanticRevision: registration.semanticRevision, expiresAt: now }
+          return {
+            resourceHandleId: 'cap_opaque-resource-handle',
+            semanticRevision: registration.semanticRevision,
+            expiresAt: now
+          }
         }
       }
     )

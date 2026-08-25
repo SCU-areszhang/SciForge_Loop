@@ -109,7 +109,7 @@ describe('Remote SSH renderer capability client', () => {
       }
     }
     const resource: RemoteSshTargetHandle = {
-      token: 'cap_1234567890abcdefghij',
+      resourceHandleId: 'cap_1234567890abcdefghij',
       semanticRevision: 'target-r1',
       expiresAt: '2026-07-23T00:00:00.000Z'
     }
@@ -280,7 +280,7 @@ describe('Remote SSH renderer capability client', () => {
       updatedAt: '2026-07-22T00:00:00.000Z'
     }
     const resource = {
-      token: 'cap_1234567890abcdefghij',
+      resourceHandleId: 'cap_1234567890abcdefghij',
       semanticRevision: 'target-r1',
       expiresAt: '2026-07-23T00:00:00.000Z'
     }

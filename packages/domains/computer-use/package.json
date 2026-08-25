@@ -1,6 +1,6 @@
 {
   "name": "@sciforge/domain-computer-use",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "license": "MIT",
   "type": "module",
   "private": false,
@@ -19,7 +19,7 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
-    "@sciforge/domain-sdk": "^0.2.0",
+    "@sciforge/domain-sdk": "^0.3.0",
     "playwright-core": "1.61.1",
     "zod": "^4.4.3"
   },

@@ -19,7 +19,7 @@ export const BROWSER_PREVIEW_CAPABILITY_IDS = Object.freeze({
 } as const)
 
 export const browserCapabilityResourceHandleSchema = z.object({
-  token: z.string().regex(/^cap_[A-Za-z0-9_-]{20,}$/u),
+  resourceHandleId: z.string().regex(/^cap_[A-Za-z0-9_-]{20,}$/u),
   semanticRevision: z.string().trim().min(1).max(256),
   expiresAt: z.string().datetime({ offset: true })
 }).strict()

@@ -8,13 +8,13 @@ import {
 } from './remote-workspace-flow.js'
 
 const workspaceResource: RemoteSshTargetHandle = {
-  token: 'cap_workspace_1234567890abcdefghij',
+  resourceHandleId: 'cap_workspace_1234567890abcdefghij',
   semanticRevision: 'workspace-target-r1',
   expiresAt: '2026-07-31T00:00:00.000Z'
 }
 
 const egressResource: RemoteSshTargetHandle = {
-  token: 'cap_egress_1234567890abcdefghijkl',
+  resourceHandleId: 'cap_egress_1234567890abcdefghijkl',
   semanticRevision: 'egress-target-r1',
   expiresAt: '2026-07-31T00:00:00.000Z'
 }

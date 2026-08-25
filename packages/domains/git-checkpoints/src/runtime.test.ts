@@ -31,7 +31,10 @@ test('runtime captures enabled before/terminal-after turn events once through li
     environment: {},
     agentThreads: {},
     capabilities: {},
-    modelAccess: {},
+    textReasoning: {
+      status: async () => ({ state: 'unavailable', reason: 'not-configured' }),
+      invoke: async () => ({ status: 'incomplete', reason: 'unknown' })
+    },
     owner: { moduleId: 'sciforge.git-checkpoints', moduleVersion: '1.0.0' },
     signal: new AbortController().signal,
     enablement: {
@@ -108,7 +111,10 @@ test('runtime rejects hosts without the generic turn event source', async () => 
     environment: {},
     agentThreads: {},
     capabilities: {},
-    modelAccess: {},
+    textReasoning: {
+      status: async () => ({ state: 'unavailable', reason: 'not-configured' }),
+      invoke: async () => ({ status: 'incomplete', reason: 'unknown' })
+    },
     owner: { moduleId: 'sciforge.git-checkpoints', moduleVersion: '1.0.0' },
     signal: new AbortController().signal,
     enablement: {

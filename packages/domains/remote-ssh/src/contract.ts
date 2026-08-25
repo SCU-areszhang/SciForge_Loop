@@ -261,7 +261,7 @@ export const remoteSshWorkspaceBindingSchema = z.object({
 
 /** Structurally matches the host-issued opaque capability resource handle. */
 export const remoteSshTargetHandleSchema = z.object({
-  token: z.string().regex(/^cap_[A-Za-z0-9_-]{20,}$/),
+  resourceHandleId: z.string().regex(/^cap_[A-Za-z0-9_-]{20,}$/),
   semanticRevision: z.string().trim().min(1).max(256),
   expiresAt: isoDateTimeSchema
 }).strict()

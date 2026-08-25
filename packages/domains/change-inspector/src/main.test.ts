@@ -49,7 +49,7 @@ test('issues a read-only observed resource for one session', async () => {
   }
   let rawRegistration: unknown
   const handle = {
-    token: `cap_${'a'.repeat(24)}`,
+    resourceHandleId: `cap_${'a'.repeat(24)}`,
     semanticRevision: snapshot.revision,
     expiresAt: '2026-07-28T12:00:00.000Z'
   }
@@ -123,7 +123,7 @@ test('repeated opens reuse the exact observer accepted by strict resource bindin
     registrations.push(registration)
     handleOrdinal += 1
     return {
-      token: `cap_${String(handleOrdinal).padStart(24, 'a')}`,
+      resourceHandleId: `cap_${String(handleOrdinal).padStart(24, 'a')}`,
       semanticRevision: registration.semanticRevision,
       expiresAt: '2026-07-28T12:00:00.000Z'
     }
@@ -161,7 +161,7 @@ test('canonical resource identities separate delimiter collisions and workspaces
     const parsed = registration as ChangeInspectorResourceRegistration
     registrations.push(parsed)
     return {
-      token: `cap_${String(registrations.length).padStart(24, 'a')}`,
+      resourceHandleId: `cap_${String(registrations.length).padStart(24, 'a')}`,
       semanticRevision: parsed.semanticRevision,
       expiresAt: '2026-07-28T12:00:00.000Z'
     }
@@ -235,7 +235,7 @@ test('retirement disposes only the exact binding and frees bounded capacity', as
     const parsed = registration as ChangeInspectorResourceRegistration
     registrations.push(parsed)
     return {
-      token: `cap_${String(registrations.length).padStart(24, 'a')}`,
+      resourceHandleId: `cap_${String(registrations.length).padStart(24, 'a')}`,
       semanticRevision: parsed.semanticRevision,
       expiresAt: '2026-07-28T12:00:00.000Z'
     }

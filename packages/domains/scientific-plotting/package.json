@@ -1,6 +1,6 @@
 {
   "name": "@sciforge/domain-scientific-plotting",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "license": "MIT",
   "type": "module",
   "private": false,
@@ -23,7 +23,7 @@
   },
   "dependencies": {
     "@sciforge/domain-artifact-versions": "^1.1.0",
-    "@sciforge/domain-sdk": "^0.2.0",
+    "@sciforge/domain-sdk": "^0.3.0",
     "@sciforge/scientific-plotting": "^0.1.0",
     "lucide-react": "^0.544.0",
     "react": "^19.0.0",

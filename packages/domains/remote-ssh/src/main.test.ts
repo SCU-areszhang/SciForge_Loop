@@ -209,7 +209,7 @@ function context(options: Readonly<{
     },
     ...(options.resource === undefined ? {} : { resource: options.resource }),
     issueResource: options.issueResource ?? (() => ({
-      token: 'cap_12345678901234567890',
+      resourceHandleId: 'cap_12345678901234567890',
       semanticRevision: target.revision,
       expiresAt: '2026-07-23T00:00:00.000Z'
     })),
@@ -255,7 +255,7 @@ function strictResourceIssuer() {
       issuedKeys.set(registration, key)
       issued.push(registration)
       return {
-        token: `cap_${issued.length.toString().padStart(20, '0')}`,
+        resourceHandleId: `cap_${issued.length.toString().padStart(20, '0')}`,
         semanticRevision: registration.semanticRevision,
         expiresAt: now
       }
@@ -415,7 +415,7 @@ describe('Remote SSH main domain entry', () => {
       issueResource: (value) => {
         registration = value
         return {
-          token: 'cap_12345678901234567890',
+          resourceHandleId: 'cap_12345678901234567890',
           semanticRevision: value.semanticRevision,
           expiresAt: '2026-07-23T00:00:00.000Z'
         }
@@ -525,7 +525,7 @@ describe('Remote SSH main domain entry', () => {
       issueResource: (registration) => {
         afterContributionDispose = registration
         return {
-          token: 'cap_12345678901234567890',
+          resourceHandleId: 'cap_12345678901234567890',
           semanticRevision: registration.semanticRevision,
           expiresAt: now
         }
@@ -542,7 +542,7 @@ describe('Remote SSH main domain entry', () => {
     const issueResource = (registration: RemoteSshCapabilityResourceRegistration) => {
       first ??= registration
       return {
-        token: 'cap_12345678901234567890',
+        resourceHandleId: 'cap_12345678901234567890',
         semanticRevision: registration.semanticRevision,
         expiresAt: now
       }

@@ -6,7 +6,7 @@
   "module": {
     "id": "sciforge.computer-use",
     "displayName": "Computer Use",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "hostApi": { "minimum": "1.0.0", "maximumExclusive": "2.0.0" },
     "priority": 180
   },
